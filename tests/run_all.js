@@ -30,11 +30,11 @@ function script(name, label) {
     script('legacy_equivalence.js', 'T0a core.js reproduces the pre-refactor page bit for bit (seeded)');
     script('ui_smoke.js', 'T0b UI smoke test (stubbed DOM)');
     const opts = quick ? { trials: 200 } : {};
-    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js', 't6_gamma_rel.js', 't7_geometry.js']) {
+    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js', 't6_gamma_rel.js', 't7_geometry.js', 't8_doppler_phase.js', 't9_numerology.js', 't10_seed_csv.js']) {
         const mod = require('./' + f);
         banner(`${mod.id}  ${mod.title}`);
         const t0 = Date.now();
-        const r = await mod.run(/^t[457]/.test(f) ? {} : opts);
+        const r = await mod.run(/^t(4|5|7|8|9|10)_/.test(f) ? {} : opts);
         r.ms = Date.now() - t0; results.push(r);
     }
 
