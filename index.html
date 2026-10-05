@@ -284,7 +284,8 @@
                 <div class="bench-bar">
                     <button class="btn" id="btn-sweep">▶ 執行速度掃描<em>Run Velocity Sweep</em></button>
                     <span class="lg"><i style="border-color:#22d3ee"></i><span id="lg-FOURIER">FOURIER</span></span>
-                    <span class="lg"><i style="border-color:#60a5fa"></i><span id="lg-MMSE">MMSE</span></span>
+                    <span class="lg"><i style="border-color:#60a5fa"></i><span id="lg-MMSE">MMSE-M</span></span>
+                    <span class="lg"><i class="dash" style="border-color:#2dd4bf"></i><span id="lg-MMSEP">MMSE-P</span></span>
                     <span class="lg"><i style="border-color:#fb923c"></i><span id="lg-SMI">SMI-MVDR</span></span>
                     <span class="lg"><i style="border-color:#34d399"></i><span id="lg-DL">DL-MVDR</span></span>
                     <span class="lg"><i style="border-color:#f472b6"></i><span id="lg-BEAMSPACE">BS-MVDR</span></span>
@@ -327,7 +328,8 @@
         const MV = () => Sys.trainMode === 'signalFree' ? 'MVDR' : 'MPDR';
         const ALGO = {
             FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)', csv: 'FOURIER' },
-            MMSE:      { short: 'MMSE',     long: 'MMSE (Wiener Filter)', csv: 'MMSE' },
+            MMSE:      { short: 'MMSE-M',   long: 'MMSE-M (Wiener, model-based r_xd)', csv: 'MMSE' },
+            MMSEP:     { short: 'MMSE-P',   long: 'MMSE-P (Wiener, pilot-trained r_xd)', csv: 'n/a' },
             SMI:       { get short() { return 'SMI-' + MV(); }, get long() { return `SMI-${MV()} (Capon Beamformer)`; }, csv: 'SMI-MVDR' },
             DL:        { get short() { return 'DL-' + MV(); },  get long() { return `DL-${MV()} (Tikhonov Regularization)`; }, csv: 'DL-MVDR' },
             BEAMSPACE: { get short() { return 'BS-' + MV(); },  get long() { return `BEAMSPACE-${MV()} (Dimensionality Reduction)`; }, csv: 'BS-MVDR' },
@@ -381,8 +383,15 @@
             announce() {
                 const S = Sys, K = S.bsBins.length, kr = S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw), ku = S.kappa === Infinity ? '∞' : this.sci(S.kappa);
                 if (S.algo === 'FOURIER') this.push('[INFO] FOURIER (Matched Filter) selected. Baseline: no interference suppression.', 'i');
+                else if (S.algo === 'MMSEP') {
+                    this.push('[ALGO] 切換至 MMSE-P (pilot-trained Wiener)', 'i');
+                    this.push('w = R̂⁻¹ r̂_xd，r̂_xd = (1/L) Σ x_n·conj(s_n)（s_n：訓練窗內已知導頻符元）', 'f');
+                    this.push('Requires KNOWN pilot symbols in the training window; R̂ contains the target (Wiener), independent of the training-data setting.', 'n');
+                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    else this.push(`[INFO] MMSE-P: κ = ${ku}. High Doppler rotates the channel inside the window, so r̂_xd (a window average) shrinks and its direction degrades.${Number.isFinite(S.evmPilot) ? ` EVM with the pilot-based scaling ŵ^H ĥ = ${(S.evmPilot * 100).toFixed(1)} % (|ρ| = ${S.rhoPilot.toFixed(2)}).` : ''}`, 'i');
+                }
                 else if (S.algo === 'MMSE') {
-                    this.push('[ALGO] 切換至 MMSE (Minimum Mean Square Error)', 'i');
+                    this.push('[ALGO] 切換至 MMSE-M (model-based Wiener)', 'i');
                     this.push('w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)', 'f');
                     this.push('Requires known reference signal (Pilot). Minimizes MSE between output and reference.', 'n');
                     if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
@@ -472,7 +481,9 @@
                 $('eq-w').innerHTML =
                     `<div class="${cls(alg === 'FOURIER')}"><b>FOURIER</b>（匹配濾波 Matched Filter）：w = w<sub>q</sub> = (t ⊙ a(θ̂<sub>1</sub>)) / Σt<sub>n</sub>，w<sub>q</sub><sup>H</sup>a = 1<br>` +
                     `<span class="note">${tdef}<br>t = [${v(tvals)}]${alg === 'FOURIER' ? '<br>無零陷；干擾由旁瓣洩入' : ''}</span></div>` +
-                    `<div class="${cls(alg === 'MMSE')}"><b>MMSE</b>（Wiener 濾波器）：min<sub>w</sub> E|wᴴr − d|²<br>` +
+                    `<div class="${cls(alg === 'MMSEP')}"><b>MMSE-P</b>（Wiener，導頻訓練）：w = R̂<sub>r</sub><sup>−1</sup> r̂<sub>xd</sub>，r̂<sub>xd</sub> = (1/L)Σ x<sub>n</sub>·s<sub>n</sub>*<br>` +
+                    `<span class="note">需要已知導頻 s<sub>n</sub>；R̂ 含目標（與訓練資料設定無關）。EVM 縮放：ĥ = r̂<sub>xd</sub>/P<sub>s</sub>，g<sub>hat</sub> = wᴴĥ；ρ = wᴴh / g<sub>hat</sub>，EVM² = |ρ−1|² + |ρ|²(1/SINR + N<sub>ICI</sub>/S)${alg === 'MMSEP' && Number.isFinite(S.evmPilot) ? `<br>|ρ| = ${v(S.rhoPilot.toFixed(2))}，EVM(導頻縮放) = ${v((S.evmPilot * 100).toFixed(1) + ' %')}` : ''}${alg === 'MMSEP' && S.collapsed ? '<br><span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : ''}</span></div>` +
+                    `<div class="${cls(alg === 'MMSE')}"><b>MMSE-M</b>（Wiener 濾波器，模型式 r<sub>xd</sub>）：min<sub>w</sub> E|wᴴr − d|²<br>` +
                     `w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)<br>` +
                     `模擬：參考訊號與目標完全相關 ⇒ r<sub>xd</sub> = P<sub>s</sub>·a(θ<sub>t</sub>)，w = R̂<sub>r</sub><sup>−1</sup>(P<sub>s</sub>a)，P<sub>s</sub>=1<br>` +
                     `<span class="note">Requires known reference signal (Pilot). Minimizes MSE between output and reference.<br>` +
@@ -554,7 +565,7 @@
                 const kap = x => x === Infinity ? '∞' : I.sci(x);
 
                 // 空間域失配：快照數不足 (SMI-MVDR only: the other algorithms either regularise or reduce the dimension)
-                if ((A.algo === 'SMI' || A.algo === 'MMSE') && A.L < 1.5 * A.N) {
+                if ((A.algo === 'SMI' || A.algo === 'MMSE' || A.algo === 'MMSEP') && A.L < 1.5 * A.N) {
                     const gsc = A.algo === 'SMI' && A.taper !== 'NONE';
                     const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRaw)}`;
                     const fixes = [['dl', `套用 DL-${MV()} (對角線加載)`], ['bs', `切換 BEAMSPACE-${MV()} (降維)`]];
@@ -676,7 +687,7 @@
          */
         const Bench = {
             VMAX: 300, STEP: 10, TRIALS: 3,
-            ALGOS: [['FOURIER', '#22d3ee'], ['MMSE', '#60a5fa'], ['SMI', '#fb923c'], ['DL', '#34d399'], ['BEAMSPACE', '#f472b6']],
+            ALGOS: [['FOURIER', '#22d3ee'], ['MMSE', '#60a5fa'], ['MMSEP', '#2dd4bf', [6, 3]], ['SMI', '#fb923c'], ['DL', '#34d399'], ['BEAMSPACE', '#f472b6']],
             running: false, progress: 0, result: null,
 
             evmForSer(modKey, target) {                       // EVM at which the chosen M-QAM reaches SER = target
@@ -802,8 +813,8 @@
                 ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]);       // SER = 1e-3 threshold
                 ctx.beginPath(); ctx.moveTo(L, Y(db(r.thr))); ctx.lineTo(L + pw, Y(db(r.thr))); ctx.stroke(); ctx.setLineDash([]);
                 line(r.ici, '#a78bfa', [5, 4], 1.4);
-                this.ALGOS.forEach(([k, color]) => {
-                    line(r.curves[k].evm, color, [], 1.8);
+                this.ALGOS.forEach(([k, color, dash]) => {
+                    line(r.curves[k].evm, color, dash || [], 1.8);
                     document.getElementById('lg-' + k).innerText = this.label(k, r);
                 });
                 document.getElementById('lg-thr').innerText = `SER=10⁻³ 門檻 (${modInfo(r.mod).name}: ${(r.thr * 100).toFixed(1)}%)`;
@@ -1208,7 +1219,8 @@
         // RX: algorithm selector (four strategies), taper
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [
             ['FOURIER',   'FOURIER (Matched Filter) · 基準線'],
-            ['MMSE',      'MMSE (Wiener Filter) · 需參考訊號'],
+            ['MMSE',      'MMSE-M (Wiener, model-based) · 模型式'],
+            ['MMSEP',     'MMSE-P (Wiener, pilot-trained) · 需已知導頻'],
             ['SMI',       ALGO.SMI.long],
             ['DL',        ALGO.DL.long],
             ['BEAMSPACE', ALGO.BEAMSPACE.long]], v => setAlgo(v));
@@ -1229,7 +1241,7 @@
         }
         function setTrain(t) { Sys.trainMode = t; selTrain.value = t; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; }
         function syncRxControls() {
-            const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE';                    // beamspace / Wiener have no tapered variant
+            const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP';                    // beamspace / Wiener have no tapered variant
             selTaper.disabled = !taperOk;
             selTaper.parentElement.classList.toggle('off', !taperOk);
             const uni = Sys.model === 'unified';                                                // one loading control per model

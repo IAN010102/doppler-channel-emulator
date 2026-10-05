@@ -16,7 +16,7 @@
 const Core = require('../core.js');
 const U = require('./_util.js');
 
-const ALGOS = ['FOURIER', 'MMSE', 'SMI', 'DL', 'BEAMSPACE'];
+const ALGOS = ['FOURIER', 'MMSE', 'MMSEP', 'SMI', 'DL', 'BEAMSPACE'];
 const BASE = { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, latMs: 0, calDeg: 0, sll: 35, gammaDL: 0.01, gammaRelDb: 0, taper: 'NONE', mod: 'QAM16' };
 
 function sample(model, algo, over, trials, seed) {

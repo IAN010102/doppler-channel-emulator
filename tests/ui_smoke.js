@@ -45,7 +45,7 @@ const check = (name, ok, extra = '') => { if (!ok) fails++; console.log((ok ? 'P
 frames(30);
 check('page script loaded, frames ran', ev('Sys.simTime') > 0, 'simTime=' + ev('Sys.simTime').toFixed(2));
 const finite = () => ev('[Sys.sinrDb, Sys.evm, Sys.ser, Sys.kappaRaw === Infinity ? 0 : Sys.kappaRaw, Sys.psll].every(Number.isFinite) || Sys.psll === -Infinity');
-for (const algo of ['FOURIER', 'MMSE', 'SMI', 'DL', 'BEAMSPACE']) {
+for (const algo of ['FOURIER', 'MMSE', 'MMSEP', 'SMI', 'DL', 'BEAMSPACE']) {
     for (const L of [100, 4]) {
         ev(`setAlgo('${algo}'); Sys.L = ${L}; Sys.dirty = true;`); frames(4);
         check(`algo ${algo} L=${L}`, finite(), `SINR=${ev('Sys.sinrDb').toFixed(1)} dB  status=${ev('Sys.status')}`);

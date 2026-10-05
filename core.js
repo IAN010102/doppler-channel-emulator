@@ -265,7 +265,7 @@
             R_hat: [], weights: [], pattern: [], tVec: [], applied: {},
             kappa: 1, status: 'OK', fallback: false, invOk: true, delta: 0, lambdaQ: 0, noisePow: 0,
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
-            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
+            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, evmPilot: NaN, rhoPilot: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
@@ -481,7 +481,7 @@
                     pw[i] = (paths.br[i] * paths.br[i] + paths.bi[i] * paths.bi[i]) * (pr * pr + pim * pim); tot += pw[i];
                 }
                 const [jr, jim] = proj(thJ);
-                this.S = hr * hr + hi * hi;
+                this.S = hr * hr + hi * hi; this.gR = hr; this.gI = hi;      // g = w^H h(t_app) (complex gain of the output)
                 this.I = jamPow * (jr * jr + jim * jim);
                 this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
                 let nu = 0;
@@ -580,10 +580,13 @@
                 const Rr = new Float64Array(N * N), Ri = new Float64Array(N * N);
                 // MMSE (Wiener) is defined with the covariance of the received signal INCLUDING the target (R = R_n + P_s a a^H),
                 // so it keeps the target in its training data whatever trainMode says; SMI, DL, BEAMSPACE follow trainMode.
-                const addTarget = this.trainMode === 'signalFree' && this.algo === 'MMSE';
-                const zr = new Float64Array(N), zi = new Float64Array(N);
-                for (const { rr, ri, tr, ti } of this.snaps) {
+                // MMSE-M (model-based r_xd) and MMSE-P (pilot-trained r_xd) are the two Wiener variants; both keep the target (key 'MMSE' = MMSE-M, 'MMSEP' = MMSE-P).
+                const wiener = this.algo === 'MMSE' || this.algo === 'MMSEP';
+                const addTarget = this.trainMode === 'signalFree' && wiener;
+                const zr = new Float64Array(N), zi = new Float64Array(N), qr = new Float64Array(N), qi = new Float64Array(N);   // q: sum x_n conj(s_n) (MMSE-P)
+                for (const { rr, ri, tr, ti, s1r, s1i } of this.snaps) {
                     for (let m = 0; m < N; m++) { zr[m] = addTarget ? rr[m] + tr[m] : rr[m]; zi[m] = addTarget ? ri[m] + ti[m] : ri[m]; }
+                    if (this.algo === 'MMSEP') for (let m = 0; m < N; m++) { qr[m] += zr[m] * s1r + zi[m] * s1i; qi[m] += zi[m] * s1r - zr[m] * s1i; }
                     for (let m = 0; m < N; m++) for (let n = 0; n < N; n++) { // r r^H
                         Rr[m * N + n] += zr[m] * zr[n] + zi[m] * zi[n];
                         Ri[m * N + n] += zi[m] * zr[n] - zr[m] * zi[n];
@@ -625,6 +628,14 @@
                     // MMSE / Wiener:  w = R^-1 r_xd,  r_xd = E[r d*] = P_s a(theta_t)  (known pilot d, perfectly correlated with the target).
                     // Inverted like SMI (no safeguard): an exactly singular R_hat (L < N) collapses the beamformer.
                     const rxd = nomT.map(c => new Cplx(c.r * sigPow, c.i * sigPow));
+                    const w = this.wienerWeights(this.R_hat, rxd, true);
+                    if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
+                    this.collapsed = this.kappaRaw === Infinity;
+                } else if (algo === 'MMSEP') {
+                    // MMSE-P (pilot-trained Wiener):  w = R_hat^-1 r_hat_xd,  r_hat_xd = (1/L) sum x_n conj(s_n), s_n = the known training symbols (pilots).
+                    // R_hat contains the target (as in the Wiener definition), whatever trainMode says. Same inversion as MMSE-M (no safeguard).
+                    const rxd = Array.from({ length: N }, (_, m) => new Cplx(qr[m] / Lw, qi[m] / Lw));
+                    this.rxdHat = rxd;
                     const w = this.wienerWeights(this.R_hat, rxd, true);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
                     this.collapsed = this.kappaRaw === Infinity;
@@ -713,6 +724,16 @@
                 } else { this.bD = NaN; this.rho = NaN; this.agingB = NaN; this.angDrift = NaN; this.dopPhaseErr = NaN; }
                 this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
                 this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
+                // MMSE-P read-out: if the output were normalised with the pilot-based channel estimate h_hat = r_hat_xd / P_s (g_hat = w^H h_hat) instead of the true
+                // g = w^H h, the output is scaled by rho = g / g_hat: EVM^2 = |rho - 1|^2 + |rho|^2 (1/SINR + N_ICI/S)   (unified only; `evm` itself keeps perfect scaling)
+                this.evmPilot = NaN; this.rhoPilot = NaN;
+                if (uni && algo === 'MMSEP' && this.rxdHat && this.weights === w) {
+                    let ghr = 0, ghi = 0;                                   // g_hat = w^H h_hat
+                    for (let n = 0; n < N; n++) { ghr += w[n].r * this.rxdHat[n].r + w[n].i * this.rxdHat[n].i; ghi += w[n].r * this.rxdHat[n].i - w[n].i * this.rxdHat[n].r; }
+                    const d = ghr * ghr + ghi * ghi, rr_ = (this.gR * ghr + this.gI * ghi) / d, ri_ = (this.gI * ghr - this.gR * ghi) / d;
+                    this.rhoPilot = Math.hypot(rr_, ri_);
+                    this.evmPilot = Math.sqrt((rr_ - 1) * (rr_ - 1) + ri_ * ri_ + (rr_ * rr_ + ri_ * ri_) * (1 / sinrLin + this.nuICI));
+                }
 
                 // ---- symbol error rate of the chosen square M-QAM under Gaussian error (per-axis sigma = EVM/sqrt2)
                 const mi = modInfo(this.mod), sig = Math.max(this.evm, 1e-9) / Math.SQRT2;
