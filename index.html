@@ -330,9 +330,14 @@
         Sys.resetCache = function () {
                 this.snaps = []; this.snapKey = ''; this.simTime = 0;
                 this.R_raw = []; this.R_B = []; this.bsBins = []; this.bsAngles = []; Inspector.algoSeen = '';   // algorithm histories
+                this.real = null;                                                                 // unified model: draw a new path realisation
                 this.forceOnce = true; this.dirty = true;
         };
 
+        if (typeof location !== 'undefined' && location.search) {            // ?model=legacy | unified
+            const m = new URLSearchParams(location.search).get('model');
+            if (m === 'legacy' || m === 'unified') Sys.model = m;
+        }
         Core.setSeed(Core.randomSeed());     // UI default: a new random seed on every page load
         Sys.rollCal();
 
@@ -480,7 +485,8 @@
 
                 $('eq-aging').innerHTML =
                     `權重於 t−τ 估計，於 t 套用：θ̂ = θ(t−τ)<br>` +
-                    `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/R，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/R (R=${v(S.R_RNG + ' m')})<br>` +
+                    `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/R<sub>min</sub>，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/R<sub>min</sub>　(R<sub>min</sub>=${v(S.R_min + ' m')})<br>` +
+                    `<span class="note">R<sub>min</sub>：與行進軌道的最短距離 (closest-approach distance)；公式為一階模型，嚴格僅在 θ=±90°（最近點）成立</span><br>` +
                     `<span class="note">τ=${v(S.latMs + ' ms')}  Δθ<sub>1</sub>=${v(this.f(S.dTdeg, 2) + '°')}  Δθ<sub>2</sub>=${v(this.f(S.dJdeg, 2) + '°')}<br>` +
                     (S.latMs > 0 && S.v > 0 ? `零陷指向 θ₂−Δθ₂，但干擾源此刻位於 θ₂` : `τ=0 或 v=0：無通道老化`) + `</span>`;
             },
@@ -651,14 +657,14 @@
                 return Math.sqrt(lo * hi);
             },
             shadow(algo) {
-                return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {} });
+                return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {}, real: null, freshRealization: true });
             },
             point(P, v) {                                      // average of TRIALS independent snapshot windows
                 let e2 = 0, s = 0, ici = 0;
                 for (let k = 0; k < this.TRIALS; k++) {
                     P.snaps = []; P.snapKey = ''; P.v = v;
                     Sys.computeMath.call(P);
-                    e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuICI;
+                    e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuIciFloor;
                 }
                 return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici) };
             },

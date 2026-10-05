@@ -20,11 +20,13 @@
         N: 8,                 // default number of array elements
         d_lambda: 0.5,        // element spacing in wavelengths
         cpRatio: 0.07,        // cyclic-prefix ratio (T_snap = (1 + cpRatio) / scs) -- used by the unified model
-        R_RNG: 30,            // effective range (m): angular rate = v*sin(theta)/R
+        R_min: 30,            // distance of closest approach to the trajectory (m): angular rate = -v*sin(theta)/R_min (see PARAMS.md)
         SIGMA_ANG_DEG: 10,    // angular spread of the diffuse (NLoS) component (deg)
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
-        REFRESH: 0.2          // fraction of the snapshot window replaced per update (legacy model)
+        REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        model: 'legacy',      // 'legacy' | 'unified'  (see PARAMS.md)
+        M_UNIFIED: 32         // number of diffuse paths per trial in the unified model
     };
 
     /* ---------------------------------------------------------------- the single random source */
@@ -186,6 +188,23 @@
         /**
          * System parameters and signal-processing engine
          */
+        // E_delta[ 1 - sinc^2( eps_m * cos(theta + delta) ) ],  delta ~ N(0, sigma^2)   (numerical integration, +-8 sigma)
+        function diffuseIciExpectation(thetaRad, epsM, sigmaRad) {
+            if (!(sigmaRad > 0)) return 1 - Math.pow(sinc(epsM * Math.cos(thetaRad)), 2);
+            const n = 2001, lim = 8 * sigmaRad;
+            let sw = 0, acc = 0;
+            for (let i = 0; i < n; i++) {
+                const dl = -lim + 2 * lim * i / (n - 1), wgt = Math.exp(-0.5 * (dl / sigmaRad) * (dl / sigmaRad));
+                sw += wgt; acc += wgt * (1 - Math.pow(sinc(epsM * Math.cos(thetaRad + dl)), 2));
+            }
+            return acc / sw;
+        }
+        // ICI floor (no spatial filtering): sum_i q_i (1 - sinc^2(eps_i)),  q_i = |beta_i|^2 / sum |beta_k|^2, expectation over the path distribution
+        function iciFloorRatio(thetaRad, Klin, fm, scs, sigmaRad) {
+            const epsM = fm / scs;
+            return Klin / (Klin + 1) * (1 - Math.pow(sinc(epsM * Math.cos(thetaRad)), 2)) + 1 / (Klin + 1) * diffuseIciExpectation(thetaRad, epsM, sigmaRad);
+        }
+
         function createSys() {
         const Sys = {
             // UI parameters
@@ -196,20 +215,22 @@
             isRunning: true, simTime: 0, forceOnce: false,
             // constants
             fc: CONFIG.fc, c: CONFIG.c, d_lambda: CONFIG.d_lambda, scs: CONFIG.scs,
-            R_RNG: CONFIG.R_RNG,                      // effective range (m): angular rate = v*sin(theta)/R
+            R_min: CONFIG.R_min,                      // closest-approach distance (m): angular rate = -v*sin(theta)/R_min
             SIGMA_ANG: CONFIG.SIGMA_ANG_DEG * Math.PI / 180,  // angular spread of the diffuse (NLoS) component
             M_SCAT: CONFIG.M_SCAT,                      // scatterers per source per snapshot
             LAMBDA_Q: CONFIG.LAMBDA_Q, REL_Q: CONFIG.REL_Q,      // quiescent-preserving loading of the adaptive path (see computeMath)
             REFRESH: CONFIG.REFRESH,                   // fraction of the snapshot window replaced per update
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
+            model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
+            real: null, freshRealization: false,                // unified model: one path realisation per trial
 
             // computed state
             R_hat: [], weights: [], pattern: [], tVec: [], applied: {},
             kappa: 1, status: 'OK', fallback: false, invOk: true, delta: 0, lambdaQ: 0, noisePow: 0,
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
             eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, isDb: 0, nuICI: 0, evm: 0, ser: 0,
-            fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity,
+            fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
             psll: -Infinity, bw3: 0, mainL: 0, mainR: 0, jamInSL: false, jamGainDb: 0,
 
@@ -332,6 +353,92 @@
                 return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
             },
 
+            // ================= unified model =================================================================
+            // One realisation per trial: LoS (random phase phi0) + M diffuse paths (Gaussian angular offsets, CN gains) + 1 jammer path.
+            // The realisation is drawn once; afterwards the channel evolves deterministically in time:
+            //   h(t) = sum_i beta_i * Gamma.a(theta_i(t)) * exp(j 2 pi fd_i t)
+            // (parameter-free draws: K, v, tau, theta_1 are applied when the realisation is used)
+            newRealization() {
+                const M = this.M_UNIFIED;
+                const re = { M, phi0: 2 * Math.PI * rng(), delta: new Float64Array(M), gr: new Float64Array(M), gi: new Float64Array(M) };
+                for (let m = 0; m < M; m++) {
+                    re.delta[m] = this.randn() * this.SIGMA_ANG;                                  // offset of scatterer m from theta_1 (Gaussian, sigma_theta)
+                    re.gr[m] = this.randn() * Math.SQRT1_2; re.gi[m] = this.randn() * Math.SQRT1_2;   // CN(0,1); scaled by sqrt(1/((K+1)M)) when used
+                }
+                this.real = re;
+                return re;
+            },
+            // path table of the desired signal; reference angles = angles at the application time (the slider values)
+            unifiedPaths(thT, Klin) {
+                if (!this.real || this.real.M !== this.M_UNIFIED || this.freshRealization) this.newRealization();
+                const re = this.real, M = re.M, P = M + 1, vms = this.v / 3.6, fm = vms * this.fc / this.c;
+                const th0 = new Float64Array(P), br = new Float64Array(P), bi = new Float64Array(P), fd = new Float64Array(P), thd = new Float64Array(P);
+                const aL = Math.sqrt(Klin / (Klin + 1)), aD = Math.sqrt(1 / ((Klin + 1) * M));
+                th0[0] = thT; br[0] = aL * Math.cos(re.phi0); bi[0] = aL * Math.sin(re.phi0);
+                for (let m = 0; m < M; m++) { const i = m + 1; th0[i] = thT + re.delta[m]; br[i] = aD * re.gr[m]; bi[i] = aD * re.gi[m]; }
+                for (let i = 0; i < P; i++) { fd[i] = fm * Math.cos(th0[i]); thd[i] = -vms * Math.sin(th0[i]) / this.R_min; }
+                return { P, th0, br, bi, fd, thd, fm };
+            },
+            // snapshot n at t_n = n*T_snap:  x_n = h(t_n) s_n + sqrt(P_j) Gamma.a(theta_2(t_n)) e^{j 2 pi fd_2 t_n} j_n + noise
+            unifiedWindow(paths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp) {
+                const N = this.N, L = this.L, d = this.d_lambda, TWO_PI = 2 * Math.PI, vms = this.v / 3.6;
+                const sd = Math.sqrt(noisePow / 2);
+                const fdJ = paths.fm * Math.cos(thJ), thdJ = vms * Math.sin(thJ) / this.R_min;     // jammer drift keeps the legacy sign (+)
+                const hr = new Float64Array(N), hi = new Float64Array(N);
+                this.snaps = [];
+                for (let n = 0; n < L; n++) {
+                    const t = n * Tsnap, dt = t - tApp;
+                    hr.fill(0); hi.fill(0);
+                    for (let i = 0; i < paths.P; i++) {
+                        const th = paths.th0[i] + paths.thd[i] * dt, k = -TWO_PI * d * Math.sin(th), ph = TWO_PI * paths.fd[i] * t;
+                        const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
+                        for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
+                    }
+                    const thj = thJ + thdJ * dt, kj = -TWO_PI * d * Math.sin(thj), phj = TWO_PI * fdJ * t, cjr = Math.cos(phj), cji = Math.sin(phj);
+                    const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
+                    const rr = new Float64Array(N), ri = new Float64Array(N);
+                    for (let e = 0; e < N; e++) {
+                        const c = Math.cos(kj * e), s = Math.sin(kj * e);
+                        const jr = c * cjr - s * cji, jim = c * cji + s * cjr;                       // a_e(theta_2) * e^{j 2 pi fd_2 t}
+                        const ur = hr[e] * s1.r - hi[e] * s1.i + jr * s2.r - jim * s2.i;
+                        const ui = hr[e] * s1.i + hi[e] * s1.r + jr * s2.i + jim * s2.r;
+                        rr[e] = gam[e].r * ur - gam[e].i * ui + this.randn() * sd;                   // Gamma = hardware phase mismatch
+                        ri[e] = gam[e].r * ui + gam[e].i * ur + this.randn() * sd;
+                    }
+                    this.snaps.push({ rr, ri });
+                }
+            },
+            // per-trial metrics at t_app = t_est + tau (angles = reference angles):
+            //   SINR_inst = |w^H h(t_app)|^2 / (P_j |w^H a_2|^2 + sigma^2 |w|^2),  q_i = |w^H a_i beta_i|^2 / sum_k(...),
+            //   N_ICI/S = sum_i q_i (1 - sinc^2(eps_i)),  eps_i = fd_i / Delta f
+            unifiedMetrics(w, gam, thJ, tApp, paths, jamPow, noisePow) {
+                const N = this.N, TWO_PI = 2 * Math.PI, d = this.d_lambda, P = paths.P;
+                const proj = (th) => {                       // w^H (Gamma . a(th))
+                    let re = 0, im = 0; const k = -TWO_PI * d * Math.sin(th);
+                    for (let e = 0; e < N; e++) {
+                        const c = Math.cos(k * e), s = Math.sin(k * e);
+                        const ar = gam[e].r * c - gam[e].i * s, ai = gam[e].r * s + gam[e].i * c;
+                        re += w[e].r * ar + w[e].i * ai; im += w[e].r * ai - w[e].i * ar;
+                    }
+                    return [re, im];
+                };
+                let hr = 0, hi = 0, tot = 0; const pw = new Float64Array(P);
+                for (let i = 0; i < P; i++) {
+                    const [pr, pim] = proj(paths.th0[i]), ph = TWO_PI * paths.fd[i] * tApp;
+                    const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
+                    hr += cr * pr - ci * pim; hi += cr * pim + ci * pr;
+                    pw[i] = (paths.br[i] * paths.br[i] + paths.bi[i] * paths.bi[i]) * (pr * pr + pim * pim); tot += pw[i];
+                }
+                const [jr, jim] = proj(thJ);
+                this.S = hr * hr + hi * hi;
+                this.I = jamPow * (jr * jr + jim * jim);
+                this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
+                let nu = 0;
+                if (tot > 0) for (let i = 0; i < P; i++) { const e = paths.fd[i] / this.scs; nu += (pw[i] / tot) * (1 - Math.pow(sinc(e), 2)); }
+                this.fdPaths = paths.fd;
+                return { nuICI: nu };
+            },
+
             computeMath() {
                 const N = this.N, L = this.L, D2R = Math.PI / 180;
                 const sigPow = 1;
@@ -343,14 +450,22 @@
 
                 // Channel aging: weights are estimated at t - tau, applied at t.
                 const tau = this.latMs * 1e-3, vms = this.v / 3.6;
-                const thTo = thT + vms * Math.sin(thT) * tau / this.R_RNG;
-                const thJo = thJ - vms * Math.sin(thJ) * tau / this.R_RNG;
+                const thTo = thT + vms * Math.sin(thT) * tau / this.R_min;
+                const thJo = thJ - vms * Math.sin(thJ) * tau / this.R_min;
                 this.thTo = thTo; this.thJo = thJo;
                 this.dTdeg = (thTo - thT) / D2R; this.dJdeg = (thJo - thJ) / D2R;
 
                 const gam = this.gamma();
                 const withG = (a) => a.map((c, n) => Cplx.mul(c, gam[n]));
 
+                const nomT = this.steer(thTo), nomJ = this.steer(thJo);
+                const Tsnap = (1 + CONFIG.cpRatio) / this.scs, tApp = (L - 1) * Tsnap + tau;   // snapshot period (OFDM symbol incl. CP), application time
+                let uniPaths = null;
+                if (this.model === 'unified') {
+                    // ---- unified model: deterministic evolution of ONE path realisation over the training window n = 0..L-1
+                    uniPaths = this.unifiedPaths(thT, Klin);
+                    this.unifiedWindow(uniPaths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp);
+                } else {
                 // ---- snapshot window: r(l) = a1(l) s1(l) + a2(l) s2(l) + n(l)  (sources at the OLD angles)
                 // statistics-changing parameters flush the window; otherwise a fraction REFRESH is replaced per update
                 const key = [N, this.aoaT, this.aoaJ, this.snr, this.sir, this.calDeg, this.calVer, this.latMs, this.v, this.kDb].join('|');
@@ -358,7 +473,6 @@
                 const have = this.snaps.length;
                 let add = have === 0 ? L : Math.max(0, L - have);
                 if (have > 0) add = Math.max(add, Math.ceil(this.REFRESH * L));
-                const nomT = this.steer(thTo), nomJ = this.steer(thJo);
                 const sd = Math.sqrt(noisePow / 2);
                 const gTr = new Float64Array(N), gTi = new Float64Array(N), gJr = new Float64Array(N), gJi = new Float64Array(N);
                 for (let l = 0; l < add; l++) {
@@ -376,6 +490,7 @@
                     this.snaps.push({ rr, ri });
                 }
                 while (this.snaps.length > L) this.snaps.shift();
+                }
 
                 const Rr = new Float64Array(N * N), Ri = new Float64Array(N * N);
                 for (const { rr, ri } of this.snaps) {
@@ -461,13 +576,19 @@
                 this.outGain = vecDot(this.weights, nomT).r;     // w^H a: 1 for the distortionless designs, < 1 for the Wiener (MMSE) filter
 
                 // ---- SINR from TRUE covariances at the CURRENT angles (after latency)
-                const Rt = this.trueCov(thT, sigPow, gam, cL * cL, cD * cD);
-                const Rj = this.trueCov(thJ, jamPow, gam, cL * cL, cD * cD);
                 const w = this.weights;
-                this.S = quadForm(w, Rt);
-                this.I = quadForm(w, Rj);
-                this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
-                const sinrLin = this.S / (this.I + this.Nn);
+                let sinrLin, uni = null;
+                if (this.model === 'unified') {
+                    uni = this.unifiedMetrics(w, gam, thJ, tApp, uniPaths, jamPow, noisePow);   // per-trial SINR_inst (sets S, I, Nn)
+                    sinrLin = this.S / (this.I + this.Nn);
+                } else {
+                    const Rt = this.trueCov(thT, sigPow, gam, cL * cL, cD * cD);
+                    const Rj = this.trueCov(thJ, jamPow, gam, cL * cL, cD * cD);
+                    this.S = quadForm(w, Rt);
+                    this.I = quadForm(w, Rj);
+                    this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
+                    sinrLin = this.S / (this.I + this.Nn);
+                }
                 this.sinrDb = 10 * Math.log10(sinrLin);
                 this.isDb = 10 * Math.log10(this.I / this.S + 1e-30);
 
@@ -484,7 +605,9 @@
                 let dif = 0; const A = 32;
                 for (let k = 0; k < A; k++) dif += 1 - Math.pow(sinc(this.epsM * Math.cos(2 * Math.PI * (k + 0.5) / A)), 2);
                 dif /= A;
-                this.nuICI = (Klin / (Klin + 1)) * los + (1 / (Klin + 1)) * dif;   // N_ICI / S
+                const nuLegacy = (Klin / (Klin + 1)) * los + (1 / (Klin + 1)) * dif;   // N_ICI / S (legacy closed form)
+                this.nuICI = uni ? uni.nuICI : nuLegacy;                                // unified: sum_i q_i (1 - sinc^2(eps_i)) at the output
+                this.nuIciFloor = uni ? iciFloorRatio(thT, Klin, this.fm, this.scs, this.SIGMA_ANG) : nuLegacy;   // ICI floor (no spatial filtering)
                 this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
                 this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
 
@@ -521,5 +644,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, createSys };
 }));
