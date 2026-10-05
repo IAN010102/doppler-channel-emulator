@@ -351,8 +351,12 @@
             if (fcq > 0) Sys.fc = fcq * 1e9;
             if ([15, 30, 60, 120].includes(scq)) Sys.scs = scq * 1e3;
         }
-        Core.setSeed(Core.randomSeed());     // UI default: a new random seed on every page load
-        Sys.rollCal();
+        // seed: ?seed=<uint32> or a new random seed on every page load. Everything derived from it is reproducible:
+        // the phase mismatch (index calIndex), the sweep (child seed per point/algorithm/trial, Bench.point).
+        let uiSeed = 0, calIndex = 0;
+        function rollCalSeeded() { Core.withSeed(Core.deriveSeed(uiSeed, 0xCA1, calIndex), () => Sys.rollCal()); }
+        function applySeed(s) { uiSeed = s >>> 0; Core.setSeed(uiSeed); calIndex = 0; rollCalSeeded(); }
+        applySeed((typeof location !== 'undefined' && location.search && /[?&]seed=(\d+)/.test(location.search)) ? parseInt(RegExp.$1, 10) : Core.randomSeed());
 
         /**
          * Math & Derivation Inspector + 1 Hz log
@@ -686,11 +690,16 @@
             shadow(algo) {
                 return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {}, real: null, freshRealization: true });
             },
-            point(P, v) {                                      // average of TRIALS independent snapshot windows
+            // point index pi (speed), algorithm index ai: every trial k runs with its own child seed deriveSeed(deriveSeed(seed, pi), ai, k) (the inner one is the CSV's point_seed), so any single
+            // (speed, algorithm, trial) cell can be re-run alone and gives the same number; the live RNG stream is left untouched (Core.withSeed)
+            point(P, v, pi, ai) {                              // average of TRIALS independent snapshot windows
                 let e2 = 0, s = 0, ici = 0;
+                const seed = this.result ? this.result.seed : uiSeed;
                 for (let k = 0; k < this.TRIALS; k++) {
-                    P.snaps = []; P.snapKey = ''; P.v = v;
-                    Sys.computeMath.call(P);
+                    Core.withSeed(Core.deriveSeed(Core.deriveSeed(seed, pi), ai, k), () => {
+                        P.snaps = []; P.snapKey = ''; P.v = v;
+                        Sys.computeMath.call(P);
+                    });
                     e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuIciFloor;
                 }
                 return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici) };
@@ -699,7 +708,7 @@
                 if (this.running) return;
                 const vs = []; for (let v = 0; v <= this.VMAX; v += this.STEP) vs.push(v);
                 const res = {
-                    v: vs, ici: [], curves: {}, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: this.gammaOf(),
+                    v: vs, ici: [], curves: {}, seed: uiSeed, train: Sys.trainMode, model: Sys.model, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: this.gammaOf(),
                     meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: this.gammaOf() }
                 };
                 this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [] }; });
@@ -712,8 +721,8 @@
                         Inspector.push(`[SWEEP] 速度掃描完成：${vs.length} 點 × ${this.ALGOS.length} 演算法 × ${this.TRIALS} 次平均。`, 's');
                         return;
                     }
-                    this.ALGOS.forEach(([k]) => {
-                        const r = this.point(P[k], vs[i]);
+                    this.ALGOS.forEach(([k], ai) => {
+                        const r = this.point(P[k], vs[i], i, ai);
                         res.curves[k].evm.push(r.evm); res.curves[k].sinr.push(r.sinr);
                         if (k === 'FOURIER') res.ici.push(r.ici);
                     });
@@ -810,7 +819,8 @@
                 const S = Sys, f = x => this.fmt(x), rows = [];
                 const add = (sec, key, val, unit = '') => rows.push([sec, key, val, unit].join(','));
                 rows.push('section,key,value,unit');
-                add('meta', 'timestamp', new Date().toISOString());
+                add('meta', 'csv_schema_version', 2);                                   // v2: model/seed/geometry/numerology columns, new algorithm names, point_seed in the sweep table
+                add('meta', 'timestamp', new Date().toISOString());                      // the only field that differs between two runs with the same seed
                 add('meta', 'sim_time', f(S.simTime), 's');
                 add('meta', 'running', S.isRunning ? 'yes' : 'paused');
                 add('param', 'N', S.N); add('param', 'L', S.L);
@@ -819,7 +829,19 @@
                 add('param', 'AoA_target', S.aoaT, 'deg'); add('param', 'AoA_jammer', S.aoaJ, 'deg');
                 add('param', 'phase_mismatch_sigma', S.calDeg, 'deg'); add('param', 'rician_K', S.kDb, 'dB');
                 add('param', 'update_latency', S.latMs, 'ms');
-                add('param', 'algorithm', ALGO[S.algo].csv);
+                add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
+                add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
+                const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
+                add('param', 'model', S.model); add('param', 'train_mode', S.trainMode);
+                add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
+                add('param', 'd_min', S.d_min, 'm');
+                add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
+                add('param', 'K', S.kDb, 'dB'); add('param', 'sigma_theta', f(S.SIGMA_ANG * 180 / Math.PI), 'deg'); add('param', 'sigma_phi', S.calDeg, 'deg');
+                add('param', 'P_s', 1, 'normalised');                                    // sigPow is fixed to 1 in core.js
+                add('param', 'tau', S.latMs, 'ms'); add('param', 'theta1', S.aoaT, 'deg'); add('param', 'theta2', S.aoaJ, 'deg');
+                add('param', 'fc_GHz', f(S.fc / 1e9), 'GHz'); add('param', 'delta_f_kHz', f(S.scs / 1e3), 'kHz');
+                add('param', 'seed', uiSeed); add('param', 'cal_roll_index', calIndex);   // the phase mismatch is derived from (seed, cal_roll_index)
+                add('param', 'point_seed', 'n/a (live state; see the sweep table)');
                 add('param', 'loading_factor_gamma', S.algo === 'DL' ? f(S.gammaUsed) : 'n/a');
                 add('param', 'beamspace_beams', S.algo === 'BEAMSPACE' ? S.bsBins.join('|') : 'n/a');
                 add('param', 'taper', S.taper === 'CHEBYSHEV' ? `CHEBYSHEV_${S.sll}dB` : S.taper);
@@ -832,17 +854,18 @@
                 add('result', 'condition_number_R_hat', f(S.kappaRaw)); add('result', 'condition_number_inverted_matrix', f(S.kappa));
                 add('result', 'output_gain_wHa', f(S.outGain)); add('result', 'N_ICI_over_S', f(S.nIciDb), 'dB'); add('result', 'f_m', f(S.fm), 'Hz'); add('result', 'f_d', f(S.fd), 'Hz');
                 add('result', 'status', S.status);
+                add('result', 'max_angle_drift_deg', na(S.angDrift), 'deg'); add('result', 'SINR_opt_dB', na(S.sinrOptDb), 'dB');
                 S.eig.forEach((x, i) => add('R_hat_eigenvalue', `lambda_${i + 1}`, f(x)));
                 S.diagR.forEach((x, i) => add('R_hat_diagonal', `R_${i + 1}${i + 1}`, f(x)));
                 const r = Bench.result;
                 if (r && r.v.length) {
                     const ks = Bench.ALGOS.map(([k]) => k);
                     rows.push('');
-                    rows.push(`sweep_info,modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
-                    rows.push(['sweep', 'velocity_kmh', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct'].join(','));
+                    rows.push(`sweep_info,train=${r.train},model=${r.model},seed=${r.seed},modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
+                    rows.push(['sweep', 'velocity_kmh', 'point_seed', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct'].join(','));
                     r.v.forEach((v, i) => {
                         if (i >= r.ici.length) return;
-                        rows.push(['sweep', v, ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100)].join(','));
+                        rows.push(['sweep', v, Core.deriveSeed(r.seed, i), ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100)].join(','));
                     });
                 }
                 return '﻿' + rows.join('\r\n') + '\r\n';
@@ -1142,6 +1165,17 @@
         function setScs(khz) { Sys.scs = khz * 1e3; Sys.dirty = true; refreshRadio(); }
         refreshRadio();
 
+        // random seed: shown, editable, re-drawable. Same seed + same parameters => same sweep and same CSV (except the timestamp)
+        const seedWrap = document.createElement('div'); seedWrap.className = 'ctrl';
+        seedWrap.innerHTML = `<div class="row"><div class="lab"><span class="zh">隨機種子 Seed</span><span class="en">Random seed (uint32)</span></div><span class="field"><input class="num" id="num-seed" type="number" min="0" max="4294967295" step="1" style="width:110px"></span></div>`;
+        bodies.tx.appendChild(seedWrap);
+        const numSeed = seedWrap.querySelector('input'); numSeed.value = uiSeed;
+        function reseed(s) {
+            applySeed(s); numSeed.value = uiSeed; Sys.resetCache(); Render.constHist = []; Sys.dirty = true;
+            Inspector.push(`[SEED] 種子 = ${uiSeed}；相位誤差、快取已重設。`, 's'); Diagnosis.last = '';
+        }
+        numSeed.addEventListener('change', () => { const x = parseInt(numSeed.value, 10); if (Number.isFinite(x) && x >= 0 && x <= 4294967295) reseed(x); else numSeed.value = uiSeed; });
+        addButton('tx', 'btn-seed', '重新抽種子<em>Re-draw seed</em>', () => reseed(Core.randomSeed()));
 
         CONTROLS.forEach(c => {
             const el = document.createElement('div');
@@ -1169,7 +1203,7 @@
             num.addEventListener('change', () => { const x = parseFloat(num.value); num.value = Number.isFinite(x) ? show(clamp(x, c.min, c.max)) : show(Sys[c.key]); set(parseFloat(num.value)); });
             num.value = show(Sys[c.key]); rng.value = toSlider(Sys[c.key]);
         });
-        addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => Sys.rollCal());
+        addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => { calIndex++; rollCalSeeded(); });
 
         // RX: algorithm selector (four strategies), taper
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [

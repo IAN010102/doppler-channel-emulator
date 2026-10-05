@@ -50,6 +50,16 @@
     function setSeed(s) { _seed = s >>> 0; _gen = mulberry32(_seed); }
     function getSeed() { return _seed; }
     function rng() { return _gen(); }
+    // child seed from a base seed and integer indices (sweep point, algorithm, trial ...): a murmur3-style mix, so that any single cell can be re-run alone
+    function deriveSeed(seed, ...idx) {
+        let h = seed >>> 0;
+        for (const k of idx) {
+            h = Math.imul(h ^ (k >>> 0), 0x9E3779B1) >>> 0; h ^= h >>> 15; h = Math.imul(h, 0x85EBCA6B) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35) >>> 0; h ^= h >>> 16; h >>>= 0;
+        }
+        return h;
+    }
+    // run fn with a temporary generator seeded with `seed`; the previous generator (and its position in its stream) is restored afterwards
+    function withSeed(seed, fn) { const g = _gen, s = _seed; setSeed(seed); try { return fn(); } finally { _gen = g; _seed = s; } }
     setSeed(randomSeed());      // default: random seed (tests and the UI may override with setSeed)
 
         /**
@@ -737,5 +747,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
 }));
