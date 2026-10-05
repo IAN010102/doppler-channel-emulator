@@ -217,6 +217,17 @@
             return (s > 0 ? 1 : -1) * Math.atan2(1, Math.cos(th) / Math.abs(s) - vms * dt / dmin);
         }
 
+        // Doppler phase along the track (closed form). A path whose angle is `th` at the reference time (t_app) has range R(t) = d_min sqrt(1 + c(t)^2),
+        // c(t) = cos(th)/|sin(th)| - v (t - t_ref)/d_min  (R = d_min/|sin theta|). Phase accumulated between the relative times ta and tb:
+        //   phi = 2 pi [R(ta) - R(tb)] / lambda,   R(ta) - R(tb) = v (tb - ta) (ca + cb) / (sqrt(1 + ca^2) + sqrt(1 + cb^2))   (stable for d_min -> infinity)
+        // d phi/dt = 2 pi f_m cos(theta(t)) > 0 while approaching. A source on the track (sin = 0) has R(ta) - R(tb) = v (tb - ta) cos(th).
+        function trackPhase(th, vms, dmin, lam, ta, tb) {
+            const s = Math.abs(Math.sin(th));
+            if (s < 1e-12) return 2 * Math.PI / lam * vms * (tb - ta) * Math.cos(th);
+            const c0 = Math.cos(th) / s, ca = c0 - vms * ta / dmin, cb = c0 - vms * tb / dmin;
+            return 2 * Math.PI / lam * vms * (tb - ta) * (ca + cb) / (Math.sqrt(1 + ca * ca) + Math.sqrt(1 + cb * cb));
+        }
+
         function createSys() {
         const Sys = {
             // UI parameters
@@ -393,29 +404,29 @@
                 th0[0] = thT; br[0] = aL * Math.cos(re.phi0); bi[0] = aL * Math.sin(re.phi0);
                 for (let m = 0; m < M; m++) { const i = m + 1; th0[i] = thT + re.delta[m]; br[i] = aD * re.gr[m]; bi[i] = aD * re.gi[m]; }
                 for (let i = 0; i < P; i++) fd[i] = fm * Math.cos(th0[i]);       // Doppler at the angle at t_app (first-order approximation, PARAMS.md section 4)
-                return { P, th0, br, bi, fd, fm, vms };
+                return { P, th0, br, bi, fd, fm, vms, lam: this.c / this.fc };
             },
             // snapshot n at t_n = n*T_snap:  x_n = h(t_n) s_n + sqrt(P_j) Gamma.a(theta_2(t_n)) e^{j 2 pi fd_2 t_n} j_n + noise
             unifiedWindow(paths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp) {
                 const N = this.N, L = this.L, d = this.d_lambda, TWO_PI = 2 * Math.PI, vms = this.v / 3.6;
                 const sd = Math.sqrt(noisePow / 2);
-                const fdJ = paths.fm * Math.cos(thJ), dmin = this.d_min;                          // the jammer uses the same geometry as the target
+                const dmin = this.d_min, lam = paths.lam;                                         // the jammer uses the same geometry as the target
                 const hr = new Float64Array(N), hi = new Float64Array(N), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 this.snaps = [];
                 for (let n = 0; n < L; n++) {
                     const t = n * Tsnap, dt = t - tApp;
                     hr.fill(0); hi.fill(0);
                     for (let i = 0; i < paths.P; i++) {
-                        const th = trackAngle(paths.th0[i], vms, dmin, dt), k = -TWO_PI * d * Math.sin(th), ph = TWO_PI * paths.fd[i] * t;
+                        const th = trackAngle(paths.th0[i], vms, dmin, dt), k = -TWO_PI * d * Math.sin(th), ph = trackPhase(paths.th0[i], vms, dmin, lam, -tApp, dt);   // integrated Doppler phase, 0 at t = 0
                         const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
                         for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
                     }
-                    const thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = TWO_PI * fdJ * t, cjr = Math.cos(phj), cji = Math.sin(phj);
+                    const thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = trackPhase(thJ, vms, dmin, lam, -tApp, dt), cjr = Math.cos(phj), cji = Math.sin(phj);
                     const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let e = 0; e < N; e++) {
                         const c = Math.cos(kj * e), s = Math.sin(kj * e);
-                        const jr = c * cjr - s * cji, jim = c * cji + s * cjr;                       // a_e(theta_2) * e^{j 2 pi fd_2 t}
+                        const jr = c * cjr - s * cji, jim = c * cji + s * cjr;                       // a_e(theta_2) * e^{j phi_2(t)}
                         const sr = hr[e] * s1.r - hi[e] * s1.i, si = hr[e] * s1.i + hi[e] * s1.r;     // target term h s_n
                         const ur = sr * sg + jr * s2.r - jim * s2.i;                                 // sg = 0: signal-free training window
                         const ui = si * sg + jr * s2.i + jim * s2.r;
@@ -426,11 +437,12 @@
                     this.snaps.push({ rr, ri, tr, ti });
                 }
                 // diagnostics: largest angle change of any path (target paths and jammer) between the first and the last training snapshot,
-                // and the phase error of the constant-f_d approximation, pi*|f_d'|*T^2 (T = t_app, f_d' = -f_m sin(theta) theta'), worst path
+                // and the largest difference between the integrated Doppler phase and the first-order one (f_d at t_app times t), over paths
                 const tEst = (L - 1) * Tsnap; let drift = 0, perr = 0;
                 const upd = th => {
                     drift = Math.max(drift, Math.abs(trackAngle(th, vms, dmin, -tApp) - trackAngle(th, vms, dmin, tEst - tApp)));
-                    perr = Math.max(perr, Math.PI * Math.abs(paths.fm * Math.sin(th) * trackRate(th, vms, dmin)) * tApp * tApp);
+                    // difference between the integrated phase and the first-order one (f_d at t_app, constant), at t_app
+                    perr = Math.max(perr, Math.abs(trackPhase(th, vms, dmin, lam, -tApp, 0) - TWO_PI * paths.fm * Math.cos(th) * tApp));
                 };
                 for (let i = 0; i < paths.P; i++) upd(paths.th0[i]);
                 upd(thJ);
@@ -452,7 +464,7 @@
                 };
                 let hr = 0, hi = 0, tot = 0; const pw = new Float64Array(P);
                 for (let i = 0; i < P; i++) {
-                    const [pr, pim] = proj(paths.th0[i]), ph = TWO_PI * paths.fd[i] * tApp;
+                    const [pr, pim] = proj(paths.th0[i]), ph = trackPhase(paths.th0[i], paths.vms, this.d_min, paths.lam, -tApp, 0);   // phase at t_app
                     const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
                     hr += cr * pr - ci * pim; hi += cr * pim + ci * pr;
                     pw[i] = (paths.br[i] * paths.br[i] + paths.bi[i] * paths.bi[i]) * (pr * pr + pim * pim); tot += pw[i];
@@ -693,5 +705,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
 }));

@@ -45,13 +45,13 @@ Path set per trial (one draw of {φ₀, δ_m, g_m}, parameter-free; K, v, τ, θ
 | jammer | θ₂ | √P_j (single LoS path; unit-power QPSK j_n) |
 
 Time: snapshot n at `t_n = n·T_snap` (n = 0…L−1); estimation time `t_est = (L−1)·T_snap`; application time `t_app = t_est + τ` (τ = "update latency", same meaning as before: weights computed from the window, applied τ later).
-Reference angles are the slider values = angles **at t_app**; the path angle follows the exact straight-track law θ_i(t) = trackAngle(θ_i,0, v, d_min, t − t_app), θ̇ = v sinθ|sinθ|/d_min for target paths and jammer alike (§4). The Doppler frequency `f_d,i = f_m cosθ_i,0` (angle at t_app) is held constant over the trial: a first-order approximation whose validity is shown by the read-outs of §4.
+Reference angles are the slider values = angles **at t_app**; the path angle follows the exact straight-track law θ_i(t) = trackAngle(θ_i,0, v, d_min, t − t_app), θ̇ = v sinθ|sinθ|/d_min for target paths and jammer alike (§4). The Doppler phase is the integral along the track, φ_i(t) = 2π[R_i(0) − R_i(t)]/λ (§4); the ICI uses the instantaneous `f_d,i = f_m cosθ_i,0` at t_app.
 
 Channel and snapshots:
 
 ```
-h(t)  = Σ_i β_i · Γ⊙a(θ_i(t)) · exp(j2π f_d,i t)
-x_n   = h(t_n)·s_n + √P_j · Γ⊙a(θ₂(t_n))·exp(j2π f_d,2 t_n)·j_n + noise_n        (s_n, j_n unit-power QPSK, noise CN(0,σ²))
+h(t)  = Σ_i β_i · Γ⊙a(θ_i(t)) · exp(jφ_i(t))                (φ_i: integrated Doppler phase, §4)
+x_n   = h(t_n)·s_n + √P_j · Γ⊙a(θ₂(t_n))·exp(jφ₂(t_n))·j_n + noise_n        (s_n, j_n unit-power QPSK, noise CN(0,σ²))
 ```
 
 The covariance estimate and all five weight designs (FOURIER / MMSE / SMI / DL / BEAMSPACE, taper variants) are unchanged and use `R̂ = (1/L)Σ x_n x_nᴴ`, with the look direction `a(θ̂₁)`, θ̂₁ = θ₁(t_est).
@@ -93,18 +93,19 @@ Deliberate differences from the legacy model (spec-driven): static fading within
 
 **Legacy model**: kept as it was (`thTo = θ₁ + v sinθ₁ τ/d_min`, `thJo = θ₂ − v sinθ₂ τ/d_min`, only the variable was renamed from `R_min`).
 
-**First-order Doppler (kept, with its validity condition).** `f_d,i = f_m cosθ_i,0` is evaluated at the angle at t_app and held constant while the array response follows θ_i(t). The true Doppler phase is ∫f_d dt, so the constant-f_d model makes a phase error `≈ π·|ḟ_d|·T²` on a path (T = t_app = window + τ, the quadratic term relative to t_app). The approximation is valid when this is ≪ 1 rad, i.e. when the angle change within the window (and τ) is small. Diagnostics in panel D ("窗內角度漂移 Δθ_max", the worst phase error in brackets): `Sys.angDrift` = largest |θ_i(first snapshot) − θ_i(last snapshot)| over the target paths and the jammer; `Sys.dopPhaseErr` = the worst π|ḟ_d|T².
+**Integrated Doppler phase (Commit 9; replaces the first-order phase 2π·f_d(t_app)·t).** For every path (LoS, each diffuse path, jammer):
 
-Measured (v = 300 km/h, θ₁ = 45°, θ₂ = −30°, L = 100, N irrelevant): 
+```
+φ_i(t) = 2π [R_i(0) − R_i(t)] / λ,     R_i(t) = d_min / |sin θ_i(t)|,     θ_i(t) = trackAngle(θ_i,0, v, d_min, t − t_app)
+```
 
-| d_min | Δθ_max (τ = 0) | phase error τ = 0 | phase error τ = 10 ms |
-|---|---|---|---|
-| 5 m | 4.99° | 2.5 rad | 14 rad |
-| 30 m (default) | 0.87° | 0.42 rad | 2.4 rad |
-| 50 m | 0.52° | 0.25 rad | 1.5 rad |
-| 500 m | 0.05° | 0.025 rad | 0.15 rad |
+`θ_i,0` is the angle at t_app (the slider angle for the target LoS and the jammer; θ₁ + δ_m for diffuse paths). t = 0 is the first training snapshot, so φ_i(0) = 0 and the estimation window starts at t = 0 as before. Closed form (stable for d_min → ∞): with c = cosθ/|sinθ| − v(t − t_app)/d_min, `R(ta) − R(tb) = v (tb − ta)(c_a + c_b)/(√(1 + c_a²) + √(1 + c_b²))` (`Core.trackPhase`). `dφ/dt = 2π f_m cosθ(t) > 0` while approaching, and φ → 2π f_d t for d_min → ∞ (relative deviation ≈ v·t/d_min: 1.6×10⁻⁶ at 10⁶ m). Verified in `tests/t8_doppler_phase.js`.
 
-So at the default d_min = 30 m the first-order Doppler is only marginally valid at τ = 0 and not valid for τ of several ms (**待確認**: whether to evaluate f_d,i along the trajectory, i.e. use the phase 2π∫f_d dt, instead; not done — outside the agreed scope).
+**Modelling assumption (stated, not derived):** every path — LoS, diffuse and jammer — is treated as a **far-field plane wave that shares the same d_min**; a diffuse path is the same ground-point geometry with its own initial angle θ_i,0 = θ₁ + δ_m. (In reality a scatterer has its own distance; this is not modelled.) A source exactly on the track (sinθ = 0) uses R(ta) − R(tb) = v(tb − ta)cosθ.
+
+**ICI.** `ε_i = f_d,i/Δf` still uses the instantaneous `f_d,i = f_m cosθ_i,0` **at t_app** (the application time): the angle change within one OFDM symbol (T_snap ≈ 71 µs) is negligible (≈ 0.006° at 300 km/h, d_min = 30 m), so the symbol-level ICI is evaluated with the Doppler at that instant, while the slow phase evolution over the training window and τ is carried by φ_i(t).
+
+**Diagnostic (panel D, `Sys.dopPhaseErr`).** The bracketed number is now `max_i |φ_i(t_app) − 2π f_d,i t_app|`, the difference between the integrated phase and the previous first-order phase, i.e. how much the first-order model would have been off. Typical values (v = 300 km/h, θ₁ = 45°, θ₂ = −30°, τ = 0): d_min = 5 m: 2.4 rad, 30 m: 0.41 rad, 50 m: 0.25 rad, 500 m: 0.025 rad (τ = 10 ms: 13, 2.4, 1.4, 0.15 rad).
 
 ## 5. Legacy model (`model = 'legacy'`, default until the tests of `tests/` all pass)
 
