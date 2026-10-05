@@ -1,6 +1,6 @@
 'use strict';
 /**
- * T3  Aging monotonicity. Diffuse paths only (K -> 0), fixed L, no angle drift (R_min -> infinity). As tau grows, the trial
+ * T3  Aging monotonicity. Diffuse paths only (K -> 0), fixed L, no angle drift (d_min -> infinity). As tau grows, the trial
  *     mean of SINR_inst of the *adaptive* weights should decrease monotonically.  Trials are paired (same seed for every tau,
  *     so the realisation, symbols and noise are identical and only t_app moves).
  *
@@ -14,7 +14,7 @@ const Core = require('../core.js');
 const U = require('./_util.js');
 
 const TAUS_MS = [0, 0.25, 0.5, 1, 2, 4, 8];
-const BASE = { model: 'unified', freshRealization: true, kDb: -300, R_min: 1e30, N: 8, L: 100, aoaT: 60, aoaJ: -40, snr: 20, sir: -10, calDeg: 0,
+const BASE = { model: 'unified', freshRealization: true, kDb: -300, d_min: 1e30, N: 8, L: 100, aoaT: 60, aoaJ: -40, snr: 20, sir: -10, calDeg: 0,
     taper: 'NONE', gammaDL: 0.01, mod: 'QAM16' };
 
 function trialValues(sys, algo, v, tauMs, trials, seed0) {

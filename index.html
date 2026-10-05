@@ -272,6 +272,7 @@
                     <div class="kv"><span class="k">樣本窗 Window</span><span class="v" id="m-win">0</span></div>
                     <div class="kv" title="Doppler spread of the realised paths: max f_d,i − min f_d,i (unified model only)"><span class="k">Doppler 展寬 B<sub>D</sub></span><span class="v"><span id="m-bd">—</span> Hz</span></div>
                     <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
+                    <div class="kv" title="Largest angle change of any path (target paths and jammer) inside the training window; the f_d,i of the model use the angle at t_app (first-order). In parentheses: worst first-order Doppler phase error π|f_d'|T² in rad (≪ 1: approximation valid). Unified model only."><span class="k">窗內角度漂移 Δθ<sub>max</sub></span><span class="v"><span id="m-drift">—</span> °<span id="m-perr"></span></span></div>
                     <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
@@ -428,6 +429,8 @@
                 const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
                 $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
                 $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
+                $('m-drift').innerText = dash(S.angDrift) === null ? '—' : S.angDrift.toPrecision(3);
+                $('m-perr').innerText = dash(S.dopPhaseErr) === null ? '' : ` (${S.dopPhaseErr.toPrecision(2)} rad)`;
                 $('m-aging').innerText = dash(S.agingB) === null ? '—' : S.agingB.toPrecision(3);
             },
             renderEq() {
@@ -497,8 +500,11 @@
 
                 $('eq-aging').innerHTML =
                     `權重於 t−τ 估計，於 t 套用：θ̂ = θ(t−τ)<br>` +
-                    `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/R<sub>min</sub>，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/R<sub>min</sub>　(R<sub>min</sub>=${v(S.R_min + ' m')})<br>` +
-                    `<span class="note">R<sub>min</sub>：與行進軌道的最短距離 (closest-approach distance)；公式為一階模型，嚴格僅在 θ=±90°（最近點）成立</span><br>` +
+                    (S.model === 'unified'
+                        ? `θ̇ = v·sinθ·|sinθ|/d<sub>min</sub>（目標與干擾相同，各用自己當前的 θ；沿直線軌道的精確幾何）　(d<sub>min</sub>=${v(S.d_min + ' m')})<br>` +
+                          `<span class="note">d<sub>min</sub>：地面點到直線軌道的垂直距離；θ 自行進方向量起，f<sub>d</sub> = f<sub>m</sub>cosθ，θ̇ 與 f<sub>d</sub> 同步（接近時 θ 增大、f<sub>d</sub> 下降）</span><br>`
+                        : `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/d<sub>min</sub>，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/d<sub>min</sub>　(d<sub>min</sub>=${v(S.d_min + ' m')})<br>` +
+                          `<span class="note">legacy：一階線性模型（沿用舊符號），嚴格僅在 θ=±90° 成立；unified 模型改用精確幾何</span><br>`) +
                     `<span class="note">τ=${v(S.latMs + ' ms')}  Δθ<sub>1</sub>=${v(this.f(S.dTdeg, 2) + '°')}  Δθ<sub>2</sub>=${v(this.f(S.dJdeg, 2) + '°')}<br>` +
                     (S.latMs > 0 && S.v > 0 ? `零陷指向 θ₂−Δθ₂，但干擾源此刻位於 θ₂` : `τ=0 或 v=0：無通道老化`) + `</span>`;
             },

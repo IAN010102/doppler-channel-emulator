@@ -1,6 +1,6 @@
 'use strict';
 /**
- * T2  Single-path invariance. K -> infinity (only the LoS path survives), no angle drift (R_min -> infinity), tau = 0:
+ * T2  Single-path invariance. K -> infinity (only the LoS path survives), no angle drift (d_min -> infinity), tau = 0:
  *     changing v must not change R_hat and SINR_inst (only N_ICI/S). Required error < 1e-9.
  *
  *   T2a  literal specification: same seed, same everything, v = 0 / 100 / 300 / 500; compare R_hat and SINR_inst.
@@ -12,7 +12,7 @@
 const Core = require('../core.js');
 const U = require('./_util.js');
 
-const BASE = { model: 'unified', freshRealization: true, kDb: 400, R_min: 1e30, latMs: 0, N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, calDeg: 0,
+const BASE = { model: 'unified', freshRealization: true, kDb: 400, d_min: 1e30, latMs: 0, N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, calDeg: 0,
     taper: 'NONE', algo: 'SMI', gammaDL: 0.01, mod: 'QAM16' };
 const VS = [0, 100, 300, 500];
 

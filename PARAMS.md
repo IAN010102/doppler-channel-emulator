@@ -14,7 +14,7 @@ The UI picks a fresh random seed at every page load.
 | `N` | 8 | default number of array elements (UI: 2–16) |
 | `d_lambda` | 0.5 | element spacing in wavelengths (ULA) |
 | `cpRatio` | 0.07 | CP ratio; snapshot period `T_snap = (1 + cpRatio)/Δf` = 71.33 µs (5G-NR-like symbol length) |
-| `R_min` | 30 m | **closest-approach distance to the trajectory** (see §4) |
+| `d_min` | 30 m | perpendicular distance from the ground point to the straight track (§4); renamed from `R_min` |
 | `SIGMA_ANG_DEG` | 10° | angular spread σ_θ of the diffuse paths |
 | `M_SCAT` | 8 | diffuse paths per snapshot — **legacy model only** |
 | `M_UNIFIED` | 32 | diffuse paths per trial — **unified model** |
@@ -45,7 +45,7 @@ Path set per trial (one draw of {φ₀, δ_m, g_m}, parameter-free; K, v, τ, θ
 | jammer | θ₂ | √P_j (single LoS path; unit-power QPSK j_n) |
 
 Time: snapshot n at `t_n = n·T_snap` (n = 0…L−1); estimation time `t_est = (L−1)·T_snap`; application time `t_app = t_est + τ` (τ = "update latency", same meaning as before: weights computed from the window, applied τ later).
-Reference angles are the slider values = angles **at t_app**; path angle `θ_i(t) = θ_i,0 + θ̇_i·(t − t_app)`, `θ̇_i = −v·sinθ_i,0/R_min` (jammer: `+v·sinθ₂/R_min`, existing sign). The Doppler frequency `f_d,i = f_m cosθ_i,0` is held constant over the trial (first-order consistent with the drift).
+Reference angles are the slider values = angles **at t_app**; the path angle follows the exact straight-track law θ_i(t) = trackAngle(θ_i,0, v, d_min, t − t_app), θ̇ = v sinθ|sinθ|/d_min for target paths and jammer alike (§4). The Doppler frequency `f_d,i = f_m cosθ_i,0` (angle at t_app) is held constant over the trial: a first-order approximation whose validity is shown by the read-outs of §4.
 
 Channel and snapshots:
 
@@ -75,9 +75,36 @@ UI semantics of a "trial": the path realisation persists until RESET (or a chang
 
 Deliberate differences from the legacy model (spec-driven): static fading within a trial (no per-snapshot re-draw); the jammer is a single path (legacy: Rician with the shared K); the metric is instantaneous `SINR_inst`, not an expected-covariance SINR.
 
-## 4. About R_min
+## 4. Geometry: angle drift, `d_min` and the Doppler sign (unified model)
 
-`R_min` is documented as the closest-approach distance to the trajectory. The drift formula `θ̇ = −v sinθ / R_min` is kept as it was ("existing implementation and sign"). Strictly, for a straight trajectory with closest-approach distance `d`, `θ̇ = −v sin²θ / d`; the kept formula equals it only at θ = ±90° and overestimates the drift by 1/|sinθ| elsewhere. (Flagged, not changed.)
+**Setting.** A fixed ground point (target or jammer) lies at perpendicular distance `d_min` from a straight track. The receiver moves along **+x** at speed v. θ is the angle between the line of sight (receiver → source) and the heading +x (the existing convention: θ measured from the array broadside = heading, `f_d = f_m cosθ`, `a_n = e^{−j2π n d sinθ}`; θ > 0 on one side of the track, θ < 0 on the other; |θ| < 90° = source ahead).
+
+**Derivation.** Put the source at (x_s, d_s), the receiver at (x_r(t), 0), x_r = vt, r = √((x_s−x_r)² + d_s²), d_min = |d_s|:
+
+- cosθ = (x_s − x_r)/r, sinθ = d_s/r. Define c = cosθ/|sinθ| = (x_s − x_r)/d_min (valid on both sides of the track).
+- dc/dt = −v/d_min (the receiver moves v·dt along x, the perpendicular distance does not change). For θ > 0, c = cotθ.
+- Since dc/dt = −θ̇/sin²θ·sign(sinθ):  **θ̇ = v·sinθ·|sinθ| / d_min** (= +v sin²θ/d_min for θ > 0). Range rate ṙ = −v cosθ (approaching for θ < 90°).
+- Doppler: `f_d = f_m cosθ`, `ḟ_d = −f_m sinθ·θ̇ = −f_m v sin²θ|sinθ|/d_min ≤ 0` for θ > 0: as the receiver closes on the point, θ grows and f_d falls (positive f_d = approaching, consistent with the sign convention f_d = +f_m cosθ). So the drift of θ and the sign of f_d are consistent in this convention.
+- Exact solution used in the code (`Core.trackAngle`): `θ(t + Δt) = sign(sinθ)·atan2(1, cosθ/|sinθ| − vΔt/d_min)`. A source exactly on the track (θ = 0 or 180°) does not drift. Checked against explicit receiver/source coordinates by `tests/t7_geometry.js`.
+
+**Difference from the previous code.** The previous unified drift was `θ̇ = −v sinθ/R_min` (jammer `+v sinθ/R_min`): wrong magnitude (equal to the exact value only at |θ| = 90°, over-estimated by 1/|sinθ| elsewhere) **and opposite sign** for the target in this angle convention (θ moves away from the heading as the receiver approaches). The variable is now named `d_min` (`CONFIG.d_min`, `Sys.d_min`, default 30 m).
+
+**Target and jammer** use the same law, each with its own current angle (θ_i at t_app for the path table; `thTo`/`thJo`, the look and null angles at t_est, are `trackAngle(θ, v, d_min, −τ)`). The "jammer moves along −x" special case is removed (a fixed ground jammer seen from a receiver moving along +x has the same geometry as the target).
+
+**Legacy model**: kept as it was (`thTo = θ₁ + v sinθ₁ τ/d_min`, `thJo = θ₂ − v sinθ₂ τ/d_min`, only the variable was renamed from `R_min`).
+
+**First-order Doppler (kept, with its validity condition).** `f_d,i = f_m cosθ_i,0` is evaluated at the angle at t_app and held constant while the array response follows θ_i(t). The true Doppler phase is ∫f_d dt, so the constant-f_d model makes a phase error `≈ π·|ḟ_d|·T²` on a path (T = t_app = window + τ, the quadratic term relative to t_app). The approximation is valid when this is ≪ 1 rad, i.e. when the angle change within the window (and τ) is small. Diagnostics in panel D ("窗內角度漂移 Δθ_max", the worst phase error in brackets): `Sys.angDrift` = largest |θ_i(first snapshot) − θ_i(last snapshot)| over the target paths and the jammer; `Sys.dopPhaseErr` = the worst π|ḟ_d|T².
+
+Measured (v = 300 km/h, θ₁ = 45°, θ₂ = −30°, L = 100, N irrelevant): 
+
+| d_min | Δθ_max (τ = 0) | phase error τ = 0 | phase error τ = 10 ms |
+|---|---|---|---|
+| 5 m | 4.99° | 2.5 rad | 14 rad |
+| 30 m (default) | 0.87° | 0.42 rad | 2.4 rad |
+| 50 m | 0.52° | 0.25 rad | 1.5 rad |
+| 500 m | 0.05° | 0.025 rad | 0.15 rad |
+
+So at the default d_min = 30 m the first-order Doppler is only marginally valid at τ = 0 and not valid for τ of several ms (**待確認**: whether to evaluate f_d,i along the trajectory, i.e. use the phase 2π∫f_d dt, instead; not done — outside the agreed scope).
 
 ## 5. Legacy model (`model = 'legacy'`, default until the tests of `tests/` all pass)
 

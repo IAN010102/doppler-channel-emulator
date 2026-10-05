@@ -20,7 +20,7 @@
         N: 8,                 // default number of array elements
         d_lambda: 0.5,        // element spacing in wavelengths
         cpRatio: 0.07,        // cyclic-prefix ratio (T_snap = (1 + cpRatio) / scs) -- used by the unified model
-        R_min: 30,            // distance of closest approach to the trajectory (m): angular rate = -v*sin(theta)/R_min (see PARAMS.md)
+        d_min: 30,            // perpendicular distance from a ground point to the straight track (m): unified model: exact geometry theta' = v sin(theta)|sin(theta)|/d_min; legacy: -v sin(theta)/d_min (PARAMS.md section 4)
         SIGMA_ANG_DEG: 10,    // angular spread of the diffuse (NLoS) component (deg)
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
@@ -207,6 +207,16 @@
             return Klin / (Klin + 1) * (1 - Math.pow(sinc(epsM * Math.cos(thetaRad)), 2)) + 1 / (Klin + 1) * diffuseIciExpectation(thetaRad, epsM, sigmaRad);
         }
 
+        // Straight-track geometry (PARAMS.md section 4). A ground point lies at perpendicular distance d_min from the track; the receiver moves along +x
+        // at speed v. theta = angle between the line of sight and the heading (f_d = f_m cos(theta), a_n = exp(-j2 pi n d sin(theta)));
+        // cot(theta) = (x_s - x_r)/(d_min * sign(sin theta)), so d(cot theta)/dt = -v/d_min  =>  theta' = v sin(theta)|sin(theta)|/d_min  (exact).
+        function trackRate(th, vms, dmin) { const s = Math.sin(th); return vms * s * Math.abs(s) / dmin; }
+        // angle after dt seconds (dt < 0: earlier); exact solution of the equation above
+        function trackAngle(th, vms, dmin, dt) {
+            const s = Math.sin(th); if (s === 0 || vms === 0) return th;
+            return (s > 0 ? 1 : -1) * Math.atan2(1, Math.cos(th) / Math.abs(s) - vms * dt / dmin);
+        }
+
         function createSys() {
         const Sys = {
             // UI parameters
@@ -217,7 +227,7 @@
             isRunning: true, simTime: 0, forceOnce: false,
             // constants
             fc: CONFIG.fc, c: CONFIG.c, d_lambda: CONFIG.d_lambda, scs: CONFIG.scs,
-            R_min: CONFIG.R_min,                      // closest-approach distance (m): angular rate = -v*sin(theta)/R_min
+            d_min: CONFIG.d_min,                      // perpendicular distance to the track (m); see trackAngle
             SIGMA_ANG: CONFIG.SIGMA_ANG_DEG * Math.PI / 180,  // angular spread of the diffuse (NLoS) component
             M_SCAT: CONFIG.M_SCAT,                      // scatterers per source per snapshot
             LAMBDA_Q: CONFIG.LAMBDA_Q, REL_Q: CONFIG.REL_Q,      // quiescent-preserving loading of the adaptive path (see computeMath)
@@ -237,6 +247,7 @@
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
+            angDrift: NaN, dopPhaseErr: NaN,      // diagnostics (unified model): max angle change inside the training window (deg), Doppler first-order phase error (rad)
             psll: -Infinity, bw3: 0, mainL: 0, mainR: 0, jamInSL: false, jamGainDb: 0,
 
             rollCal() {
@@ -377,29 +388,29 @@
             unifiedPaths(thT, Klin) {
                 if (!this.real || this.real.M !== this.M_UNIFIED || this.freshRealization) this.newRealization();
                 const re = this.real, M = re.M, P = M + 1, vms = this.v / 3.6, fm = vms * this.fc / this.c;
-                const th0 = new Float64Array(P), br = new Float64Array(P), bi = new Float64Array(P), fd = new Float64Array(P), thd = new Float64Array(P);
+                const th0 = new Float64Array(P), br = new Float64Array(P), bi = new Float64Array(P), fd = new Float64Array(P);
                 const aL = Math.sqrt(Klin / (Klin + 1)), aD = Math.sqrt(1 / ((Klin + 1) * M));
                 th0[0] = thT; br[0] = aL * Math.cos(re.phi0); bi[0] = aL * Math.sin(re.phi0);
                 for (let m = 0; m < M; m++) { const i = m + 1; th0[i] = thT + re.delta[m]; br[i] = aD * re.gr[m]; bi[i] = aD * re.gi[m]; }
-                for (let i = 0; i < P; i++) { fd[i] = fm * Math.cos(th0[i]); thd[i] = -vms * Math.sin(th0[i]) / this.R_min; }
-                return { P, th0, br, bi, fd, thd, fm };
+                for (let i = 0; i < P; i++) fd[i] = fm * Math.cos(th0[i]);       // Doppler at the angle at t_app (first-order approximation, PARAMS.md section 4)
+                return { P, th0, br, bi, fd, fm, vms };
             },
             // snapshot n at t_n = n*T_snap:  x_n = h(t_n) s_n + sqrt(P_j) Gamma.a(theta_2(t_n)) e^{j 2 pi fd_2 t_n} j_n + noise
             unifiedWindow(paths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp) {
                 const N = this.N, L = this.L, d = this.d_lambda, TWO_PI = 2 * Math.PI, vms = this.v / 3.6;
                 const sd = Math.sqrt(noisePow / 2);
-                const fdJ = paths.fm * Math.cos(thJ), thdJ = vms * Math.sin(thJ) / this.R_min;     // jammer drift keeps the legacy sign (+)
+                const fdJ = paths.fm * Math.cos(thJ), dmin = this.d_min;                          // the jammer uses the same geometry as the target
                 const hr = new Float64Array(N), hi = new Float64Array(N), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 this.snaps = [];
                 for (let n = 0; n < L; n++) {
                     const t = n * Tsnap, dt = t - tApp;
                     hr.fill(0); hi.fill(0);
                     for (let i = 0; i < paths.P; i++) {
-                        const th = paths.th0[i] + paths.thd[i] * dt, k = -TWO_PI * d * Math.sin(th), ph = TWO_PI * paths.fd[i] * t;
+                        const th = trackAngle(paths.th0[i], vms, dmin, dt), k = -TWO_PI * d * Math.sin(th), ph = TWO_PI * paths.fd[i] * t;
                         const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
                         for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
                     }
-                    const thj = thJ + thdJ * dt, kj = -TWO_PI * d * Math.sin(thj), phj = TWO_PI * fdJ * t, cjr = Math.cos(phj), cji = Math.sin(phj);
+                    const thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = TWO_PI * fdJ * t, cjr = Math.cos(phj), cji = Math.sin(phj);
                     const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let e = 0; e < N; e++) {
@@ -414,6 +425,16 @@
                     }
                     this.snaps.push({ rr, ri, tr, ti });
                 }
+                // diagnostics: largest angle change of any path (target paths and jammer) between the first and the last training snapshot,
+                // and the phase error of the constant-f_d approximation, pi*|f_d'|*T^2 (T = t_app, f_d' = -f_m sin(theta) theta'), worst path
+                const tEst = (L - 1) * Tsnap; let drift = 0, perr = 0;
+                const upd = th => {
+                    drift = Math.max(drift, Math.abs(trackAngle(th, vms, dmin, -tApp) - trackAngle(th, vms, dmin, tEst - tApp)));
+                    perr = Math.max(perr, Math.PI * Math.abs(paths.fm * Math.sin(th) * trackRate(th, vms, dmin)) * tApp * tApp);
+                };
+                for (let i = 0; i < paths.P; i++) upd(paths.th0[i]);
+                upd(thJ);
+                this.angDrift = drift * 180 / Math.PI; this.dopPhaseErr = perr;
             },
             // per-trial metrics at t_app = t_est + tau (angles = reference angles):
             //   SINR_inst = |w^H h(t_app)|^2 / (P_j |w^H a_2|^2 + sigma^2 |w|^2),  q_i = |w^H a_i beta_i|^2 / sum_k(...),
@@ -457,8 +478,11 @@
 
                 // Channel aging: weights are estimated at t - tau, applied at t.
                 const tau = this.latMs * 1e-3, vms = this.v / 3.6;
-                const thTo = thT + vms * Math.sin(thT) * tau / this.R_min;
-                const thJo = thJ - vms * Math.sin(thJ) * tau / this.R_min;
+                const uniG = this.model === 'unified';
+                // unified: angle at t_est from the exact straight-track geometry, same law for target and jammer;
+                // legacy: kept as it was (linearised, jammer with the opposite sign)
+                const thTo = uniG ? trackAngle(thT, vms, this.d_min, -tau) : thT + vms * Math.sin(thT) * tau / this.d_min;
+                const thJo = uniG ? trackAngle(thJ, vms, this.d_min, -tau) : thJ - vms * Math.sin(thJ) * tau / this.d_min;
                 this.thTo = thTo; this.thJo = thJo;
                 this.dTdeg = (thTo - thT) / D2R; this.dJdeg = (thJo - thJ) / D2R;
 
@@ -632,7 +656,7 @@
                     let mx = -Infinity, mn = Infinity;
                     for (let i = 0; i < this.fdPaths.length; i++) { if (this.fdPaths[i] > mx) mx = this.fdPaths[i]; if (this.fdPaths[i] < mn) mn = this.fdPaths[i]; }
                     this.bD = mx - mn; this.rho = L * Tsnap * this.bD; this.agingB = tau * this.bD;
-                } else { this.bD = NaN; this.rho = NaN; this.agingB = NaN; }
+                } else { this.bD = NaN; this.rho = NaN; this.agingB = NaN; this.angDrift = NaN; this.dopPhaseErr = NaN; }
                 this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
                 this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
 
@@ -669,5 +693,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, createSys };
 }));
