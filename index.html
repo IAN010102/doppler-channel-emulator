@@ -242,7 +242,7 @@
             </section>
             <!-- B: OFDM -->
             <section class="card panel">
-                <div class="p-head">B // 頻域：OFDM 子載波與 ICI 洩漏 <em>Subcarriers &amp; ICI (Δf = 15 kHz)</em></div>
+                <div class="p-head">B // 頻域：OFDM 子載波與 ICI 洩漏 <em>Subcarriers &amp; ICI (Δf = <span id="hd-scs">15</span> kHz)</em></div>
                 <div class="kv-grid">
                     <div class="kv"><span class="k">最大都卜勒 f<sub>m</sub></span><span class="v"><span id="m-fm">0</span> Hz</span></div>
                     <div class="kv"><span class="k">有效頻偏 f<sub>d</sub></span><span class="v"><span id="m-fd">0</span> Hz</span></div>
@@ -347,6 +347,9 @@
             const q = new URLSearchParams(location.search), m = q.get('model'), tr = q.get('train');
             if (m === 'legacy' || m === 'unified') Sys.model = m;
             if (tr === 'withSignal' || tr === 'signalFree') Sys.trainMode = tr;
+            const fcq = parseFloat(q.get('fc')), scq = parseFloat(q.get('scs'));                   // ?fc=28 (GHz)  &scs=120 (kHz)
+            if (fcq > 0) Sys.fc = fcq * 1e9;
+            if ([15, 30, 60, 120].includes(scq)) Sys.scs = scq * 1e3;
         }
         Core.setSeed(Core.randomSeed());     // UI default: a new random seed on every page load
         Sys.rollCal();
@@ -430,6 +433,8 @@
                 const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
                 $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
                 $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
+                $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
+                $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
                 $('m-drift').innerText = dash(S.angDrift) === null ? '—' : S.angDrift.toPrecision(3);
                 $('m-perr').innerText = dash(S.dopPhaseErr) === null ? '' : ` (${S.dopPhaseErr.toPrecision(2)} rad)`;
                 $('m-aging').innerText = dash(S.agingB) === null ? '—' : S.agingB.toPrecision(3);
@@ -437,8 +442,6 @@
             renderEq() {
                 const S = Sys, v = t => this.v(t), $ = id => document.getElementById(id), mi = modInfo(S.mod);
                 const Klin = Math.pow(10, S.kDb / 10);
-                $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
-                $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
                 $('eq-model').innerHTML =
                     `r(l) = <b>a</b><sub>1</sub>(l)·s<sub>1</sub>(l) + <b>a</b><sub>2</sub>(l)·s<sub>2</sub>(l) + n(l), l = 0…L−1<br>` +
                     `<b>a</b><sub>k</sub>(l) = Γ[ √(K/(K+1))·a(θ<sub>k</sub>) + √(1/(K+1))·g<sub>k</sub>(l) ]<br>` +
@@ -573,10 +576,12 @@
                     });
                 }
                 // 時頻雙選擇性：都卜勒 ICI
-                if (Math.abs(S.fd) > 100) {
+                // threshold on the ICI-to-signal ratio N_ICI/S (CONFIG.iciWarnDb / iciSevereDb), not on |f_d| alone: the leakage depends on f_d/Δf (PARAMS.md section 8)
+                if (S.nIciDb > CONFIG.iciWarnDb) {
+                    const severe = S.nIciDb > CONFIG.iciSevereDb;
                     out.push({
-                        id: 'ici', stage: 'ch', cls: 'warn', map: 'bad', flag: 'ICI', tag: '[診斷]',
-                        msg: '高移動性導致 OFDM 載波間干擾 (ICI)，正交性喪失。',
+                        id: 'ici', stage: 'ch', cls: severe ? 'err' : 'warn', map: severe ? 'bad' : 'warn', flag: 'ICI', tag: severe ? '[CRITICAL]' : '[診斷]',
+                        msg: severe ? '嚴重 OFDM 載波間干擾 (ICI)：僅 ICI 即使 EVM 超過約 10 %，正交性喪失。' : '高移動性導致 OFDM 載波間干擾 (ICI)，正交性開始劣化。',
                         dim: `|f<sub>d</sub>|=${I.f(Math.abs(S.fd))} Hz，ε=${S.eps0.toFixed(3)}，N<sub>ICI</sub>/S=${I.f(S.nIciDb)} dB，SER=${S.ser < 1e-6 ? '&lt;1e-6' : S.ser.toExponential(1)} (${modInfo(A.mod).name})`,
                         actions: [], note: '[研究方向] 此為物理極限，陣列最佳化無法消除；需改用 OTFS 等次世代調變（延遲-都卜勒域 Delay-Doppler）。'
                     });
@@ -649,7 +654,7 @@
                 this.lastUI = now;
                 const S = Sys, I = Inspector, mi = modInfo(S.mod), $ = (id, s) => { document.getElementById(id).innerText = s; };
                 $('pp-tx-1', `${mi.name} · ${mi.bits} bit/符元`);
-                $('pp-tx-2', `OFDM Δf 15 kHz · fc 5 GHz`);
+                $('pp-tx-2', `OFDM Δf ${S.scs / 1e3} kHz · fc ${Number((S.fc / 1e9).toPrecision(4))} GHz`);
                 $('pp-ch-1', `v ${S.v} km/h · f_d ${I.f(S.fd, 0)} Hz · ε ${S.eps0.toFixed(3)}`);
                 $('pp-ch-2', `干擾 θ₂ ${S.aoaJ}° · SIR ${S.sir} dB · K ${S.kDb} dB · σφ ${S.calDeg}°`);
                 $('pp-rx-1', `${ALGO[S.algo].short}${S.algo === 'DL' ? ' γ=' + I.sci(S.gammaUsed) : ''}${S.algo === 'BEAMSPACE' ? ' K=' + S.bsBins.length : ''} · 加窗 ${S.taper}`);
@@ -1110,12 +1115,33 @@
         const selMod = addSelect('tx', 'sel-mod', '調變格式', 'Modulation', [['QPSK', 'QPSK (2 bit)'], ['QAM16', '16-QAM (4 bit)'], ['QAM64', '64-QAM (6 bit)']],
             v => { Sys.mod = v; Sys.dirty = true; });
         selMod.value = Sys.mod;
+        // carrier frequency (independent of the numerology) and subcarrier spacing; nothing is linked automatically
+        const FC_PRESETS = [3.5, 5, 7, 15, 28];
+        const selFc = addSelect('tx', 'sel-fc', '載波頻率 fc', 'Carrier frequency (GHz)', [...FC_PRESETS.map(x => [x, x + ' GHz']), ['custom', '自訂 Custom…']], v => {
+            if (v !== 'custom') setFc(parseFloat(v));
+        });
+        const fcWrap = document.createElement('div'); fcWrap.className = 'ctrl';
+        fcWrap.innerHTML = `<div class="row"><div class="lab"><span class="zh">自訂 fc</span><span class="en">Custom fc</span></div><span class="field"><input class="num" id="num-fc" type="number" min="0.5" max="100" step="any"><span class="unit">GHz</span></span></div>`;
+        bodies.tx.appendChild(fcWrap);
+        const numFc = fcWrap.querySelector('input');
+        numFc.addEventListener('change', () => { const x = parseFloat(numFc.value); if (Number.isFinite(x)) setFc(clamp(x, 0.5, 100)); else numFc.value = Number((Sys.fc / 1e9).toPrecision(4)); });
+        const selScs = addSelect('tx', 'sel-scs', '子載波間隔 Δf（numerology）', 'Subcarrier spacing', [15, 30, 60, 120].map(x => [x, `${x} kHz (μ=${Math.log2(x / 15)})`]), v => setScs(parseFloat(v)));
         const info = document.createElement('div'); info.className = 'tx-info';
-        info.innerHTML =
-            `<div class="kv"><span class="k">OFDM 子載波間隔 Δf</span><span class="v">15 kHz</span></div>` +
-            `<div class="kv"><span class="k">載波頻率 f<sub>c</sub></span><span class="v">5 GHz</span></div>` +
-            `<div class="kv"><span class="k">平均功率 P<sub>avg</sub></span><span class="v">1 (歸一)</span></div>`;
         bodies.tx.appendChild(info);
+        function refreshRadio() {
+            const lam = Sys.c / Sys.fc, Tsnap = (1 + CONFIG.cpRatio) / Sys.scs;
+            const g = Sys.fc / 1e9; selFc.value = FC_PRESETS.includes(g) ? String(g) : 'custom'; if (document.activeElement !== numFc) numFc.value = Number(g.toPrecision(4));
+            selScs.value = String(Sys.scs / 1e3);
+            const hd = document.getElementById('hd-scs'); if (hd) hd.textContent = Sys.scs / 1e3;
+            info.innerHTML =
+                `<div class="kv"><span class="k">波長 λ / 陣元間距 d=0.5λ</span><span class="v">${(lam * 1000).toFixed(1)} / ${(lam * 500).toFixed(1)} mm</span></div>` +
+                `<div class="kv"><span class="k">符元週期 T<sub>snap</sub>=(1+CP)/Δf</span><span class="v">${(Tsnap * 1e6).toFixed(2)} µs</span></div>` +
+                `<div class="kv"><span class="k">平均功率 P<sub>avg</sub></span><span class="v">1 (歸一)</span></div>`;
+        }
+        function setFc(ghz) { Sys.fc = ghz * 1e9; Sys.dirty = true; refreshRadio(); }
+        function setScs(khz) { Sys.scs = khz * 1e3; Sys.dirty = true; refreshRadio(); }
+        refreshRadio();
+
 
         CONTROLS.forEach(c => {
             const el = document.createElement('div');

@@ -26,6 +26,7 @@
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
         trainMode: 'withSignal',   // 'withSignal' (MPDR, current behaviour) | 'signalFree' (MVDR training assumption, idealised)
+        iciWarnDb: -30, iciSevereDb: -20,   // diagnosis: N_ICI/S above these (dB) = warning / severe (PARAMS.md section 8)
         gammaRelDb: 10,       // unified model, DL: gamma = 10^(gammaRelDb/10) * sigma_n^2  (sigma_n^2 = 10^(-SNR/10), per element)
         model: 'legacy',      // 'legacy' | 'unified'  (see PARAMS.md)
         M_UNIFIED: 32         // number of diffuse paths per trial in the unified model
@@ -479,17 +480,6 @@
                 return { nuICI: nu };
             },
 
-            computeMath() {
-                const N = this.N, L = this.L, D2R = Math.PI / 180;
-                const sigPow = 1;
-                const noisePow = Math.pow(10, -this.snr / 10);
-                const jamPow = Math.pow(10, -this.sir / 10);
-                const Klin = Math.pow(10, this.kDb / 10);
-                const cL = Math.sqrt(Klin / (Klin + 1)), cD = Math.sqrt(1 / (Klin + 1));
-                const thT = this.aoaT * D2R, thJ = this.aoaJ * D2R;
-
-                // Channel aging: weights are estimated at t - tau, applied at t.
-                const tau = this.latMs * 1e-3, vms = this.v / 3.6;
             // SINR_opt (genie upper bound, read-out only): w_opt = R_in^-1 h, SINR_opt = h^H R_in^-1 h, R_in = P_j g g^H + sigma^2 I (true interference + noise),
             // h = true channel vector of this realisation at t_app, g = Gamma a(theta_2). Rank-one inverse in closed form:
             //   SINR_opt = ( |h|^2 - P_j |g^H h|^2 / (sigma^2 + P_j |g|^2) ) / sigma^2
@@ -519,6 +509,17 @@
                 }
                 return lam;
             },
+            computeMath() {
+                const N = this.N, L = this.L, D2R = Math.PI / 180;
+                const sigPow = 1;
+                const noisePow = Math.pow(10, -this.snr / 10);
+                const jamPow = Math.pow(10, -this.sir / 10);
+                const Klin = Math.pow(10, this.kDb / 10);
+                const cL = Math.sqrt(Klin / (Klin + 1)), cD = Math.sqrt(1 / (Klin + 1));
+                const thT = this.aoaT * D2R, thJ = this.aoaJ * D2R;
+
+                // Channel aging: weights are estimated at t - tau, applied at t.
+                const tau = this.latMs * 1e-3, vms = this.v / 3.6;
                 const uniG = this.model === 'unified';
                 // unified: angle at t_est from the exact straight-track geometry, same law for target and jammer;
                 // legacy: kept as it was (linearised, jammer with the opposite sign)
@@ -661,9 +662,11 @@
                 if (this.model === 'unified') {
                     uni = this.unifiedMetrics(w, gam, thJ, tApp, uniPaths, jamPow, noisePow);   // per-trial SINR_inst (sets S, I, Nn)
                     sinrLin = this.S / (this.I + this.Nn);
+                    this.sinrOptDb = 10 * Math.log10(this.genieSinr(uniPaths, gam, thJ, tApp, jamPow, noisePow));
                 } else {
                     const Rt = this.trueCov(thT, sigPow, gam, cL * cL, cD * cD);
                     const Rj = this.trueCov(thJ, jamPow, gam, cL * cL, cD * cD);
+                    this.sinrOptDb = 10 * Math.log10(this.genieSinrExpected(Rt, Rj, noisePow));
                     this.S = quadForm(w, Rt);
                     this.I = quadForm(w, Rj);
                     this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
@@ -672,11 +675,9 @@
                 this.sinrDb = 10 * Math.log10(sinrLin);
                 this.isDb = 10 * Math.log10(this.I / this.S + 1e-30);
 
-                    this.sinrOptDb = 10 * Math.log10(this.genieSinr(uniPaths, gam, thJ, tApp, jamPow, noisePow));
                 const gJ2 = vecDot(w, withG(this.steer(thJ))).mag2();
                 const gT2 = vecDot(w, withG(this.steer(thT))).mag2();
                 this.nullDb = 10 * Math.log10(gJ2 / gT2 + 1e-30);
-                    this.sinrOptDb = 10 * Math.log10(this.genieSinrExpected(Rt, Rj, noisePow));
 
                 // ---- Doppler / ICI
                 this.fm = vms * this.fc / this.c;

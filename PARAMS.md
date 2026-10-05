@@ -8,9 +8,9 @@ The UI picks a fresh random seed at every page load.
 
 | key | value | meaning |
 |---|---|---|
-| `fc` | 5 GHz | carrier frequency |
+| `fc` | 5 GHz | carrier frequency (UI: 3.5 / 5 / 7 / 15 / 28 GHz or custom; §8) |
 | `c` | 3×10⁸ m/s | speed of light |
-| `scs` | 15 kHz | OFDM subcarrier spacing Δf |
+| `scs` | 15 kHz | OFDM subcarrier spacing Δf (UI: 15 / 30 / 60 / 120 kHz; §8) |
 | `N` | 8 | default number of array elements (UI: 2–16) |
 | `d_lambda` | 0.5 | element spacing in wavelengths (ULA) |
 | `cpRatio` | 0.07 | CP ratio; snapshot period `T_snap = (1 + cpRatio)/Δf` = 71.33 µs (5G-NR-like symbol length) |
@@ -20,6 +20,7 @@ The UI picks a fresh random seed at every page load.
 | `M_UNIFIED` | 32 | diffuse paths per trial — **unified model** |
 | `LAMBDA_Q`, `REL_Q` | 30, 10 | loading rule of the tapered (GSC) adaptive path (unchanged) |
 | `REFRESH` | 0.2 | sliding-window refresh fraction — **legacy model only** |
+| `iciWarnDb`, `iciSevereDb` | −30, −20 dB | N_ICI/S thresholds of the ICI diagnosis (§8) |
 | `gammaRelDb` | +10 dB | unified model, DL: γ = 10^(γ_rel/10)·σ_n² (see §7); legacy keeps absolute γ = 0.01 |
 | `trainMode` | `'withSignal'` | `'withSignal'` (MPDR) or `'signalFree'` (MVDR); see §6; page flag `?train=signalFree` |
 | `model` | `'legacy'` | `'legacy'` \| `'unified'`; the page also accepts `?model=unified` |
@@ -157,6 +158,16 @@ Absolute values at the default SNR = 20 dB (σ_n² = 0.01):
 | `1e-12·λ_max` | κ = ∞ decision | relative |
 | `1e-3` norm threshold | blocking-matrix Gram–Schmidt | relative (vectors are unit-scale) |
 | BEAMSPACE | **no loading constant**: K = 3 DFT beams (nearest to the target + the 2 strongest) | — |
+
+## 8. Carrier frequency, numerology and the ICI diagnosis thresholds
+
+UI (Tx card): `fc` (GHz; presets 3.5 / 5 / 7 / 15 / 28 and a custom field) and the subcarrier spacing Δf (15 / 30 / 60 / 120 kHz, μ = 0…3). They are **independent** (no automatic link between fc and numerology). URL flags `?fc=28&scs=120`. Defaults: fc = 5 GHz, Δf = 15 kHz (the legacy path is bit-identical at these values: T0a).
+
+Everything derived follows `Sys.fc` and `Sys.scs` at every computation: `f_m = v·fc/c`, `ε = f_d/Δf`, `λ = c/fc` (used by the integrated Doppler phase of §4), `T_snap = (1 + cpRatio)/Δf`, the ICI floor (a function of `f_m/Δf`), and the element spacing `d = 0.5λ` (the steering vector depends on `d/λ = 0.5` only, so the physical spacing scales with fc: 30 mm at 5 GHz, 5.4 mm at 28 GHz). `d_min`, v and the angles do not depend on fc.
+
+Consequences worth knowing: ε and the ICI floor depend on `fc/Δf` only; `ρ = L·T_snap·B_D` scales as `fc/Δf`; the aging ratio `τ·B_D` scales with fc and not with Δf (T9).
+
+**ICI diagnosis thresholds** (replace the old `|f_d| > 100 Hz`, which ignored Δf): `CONFIG.iciWarnDb = −30`, `CONFIG.iciSevereDb = −20` on `N_ICI/S` (dB): above −30 dB = warning, above −20 dB = critical. Basis: when ICI is the only impairment `EVM = √(N_ICI/S)`; −30 dB ⇒ EVM 3.2 %, −20 dB ⇒ EVM 10 %. Against the EVM that the existing SER formula needs (SER 10⁻³ / 10⁻⁶): QPSK 30 % / 20 %, 16-QAM 13.1 % / 9.0 %, 64-QAM 6.3 % / 4.4 %. So −30 dB (3.2 %) is the point where ICI starts to eat the margin of the highest-order format (64-QAM needs −27.2 dB for SER 10⁻⁶, and −30 dB is only 2.8 dB inside that), and −20 dB (10 %) is where ICI alone makes 16-QAM miss SER 10⁻⁶ (needs −20.9 dB) and 64-QAM miss 10⁻³ (needs −24.0 dB; SER at −20 dB ≈ 5×10⁻²). The two numbers are round-number choices consistent with those links, not derived optima (**待確認** if a different target SER is wanted).
 
 ## 9. Read-outs added during the investigation
 
