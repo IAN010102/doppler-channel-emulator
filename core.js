@@ -25,6 +25,8 @@
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        smiSingular: 'pinv',  // SMI when R_hat is rank deficient (L < N): 'pinv' (Moore-Penrose, only the eigenspace above epsRank*lambda_max) | 'clamp' (legacy: pivot clamped to 1e-6)
+        epsRank: 1e-10,       // relative eigenvalue threshold of the rank decision / pseudo-inverse (fraction of lambda_max)
         trainMode: 'withSignal',   // 'withSignal' (MPDR, current behaviour) | 'signalFree' (MVDR training assumption, idealised)
         iciWarnDb: -30, iciSevereDb: -20,   // diagnosis: N_ICI/S above these (dB) = warning / severe (PARAMS.md section 8)
         gammaRelDb: 10,       // unified model, DL: gamma = 10^(gammaRelDb/10) * sigma_n^2  (sigma_n^2 = 10^(-SNR/10), per element)
@@ -145,6 +147,34 @@
             }
             return eigvalsSym(M).sort((x, y) => x - y);
         }
+        // Moore-Penrose pseudo-inverse of a Hermitian matrix: only the eigenspace with lambda > epsRank * lambda_max is inverted.
+        // Done on the real symmetric embedding [[A,-B],[B,A]] (cyclic Jacobi with eigenvectors); M+ = V diag(1/lambda) V^T over the kept eigenvalues is the embedding of H+.
+        // Returns { pinv (N x N Cplx), rank, lmax, lminKept }.
+        function pinvHermitian(H, epsRank) {
+            const n = H.length, m = 2 * n, A = Array.from({ length: m }, () => new Float64Array(m)), V = Array.from({ length: m }, (_, i) => { const r = new Float64Array(m); r[i] = 1; return r; });
+            for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const a = H[i][j].r, b = H[i][j].i; A[i][j] = a; A[i + n][j + n] = a; A[i][j + n] = -b; A[i + n][j] = b; }
+            let scale = 0; for (let i = 0; i < m; i++) scale += A[i][i] * A[i][i]; scale = scale || 1;
+            for (let sweep = 0; sweep < 60; sweep++) {
+                let off = 0; for (let p = 0; p < m; p++) for (let q = p + 1; q < m; q++) off += A[p][q] * A[p][q];
+                if (off < 1e-30 * scale) break;
+                for (let p = 0; p < m - 1; p++) for (let q = p + 1; q < m; q++) {
+                    if (Math.abs(A[p][q]) < 1e-300) continue;
+                    const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+                    for (let k = 0; k < m; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+                    for (let k = 0; k < m; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+                    for (let k = 0; k < m; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+                }
+            }
+            let lmax = 0; for (let i = 0; i < m; i++) lmax = Math.max(lmax, A[i][i]);
+            const keep = []; let lminKept = Infinity;
+            for (let i = 0; i < m; i++) if (A[i][i] > epsRank * lmax) { keep.push(i); lminKept = Math.min(lminKept, A[i][i]); }
+            const P = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => {
+                let re = 0, im = 0;
+                for (const k of keep) { re += V[i][k] * V[j][k] / A[k][k]; im += V[i + n][k] * V[j][k] / A[k][k]; }
+                return new Cplx(re, im);
+            }));
+            return { pinv: P, rank: Math.round(keep.length / 2), lmax, lminKept };
+        }
         function sinc(x) { return x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x); }
         function erfc(x) { // Abramowitz-Stegun 7.1.26
             const z = Math.abs(x), t = 1 / (1 + 0.3275911 * z);
@@ -257,6 +287,7 @@
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
             gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
+            smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -605,6 +636,8 @@
                 this.diagR = this.R_raw.map((row, m) => row[m].r);
                 const lmax = evRaw[evRaw.length - 1], lmin = Math.max(evRaw[0], 0);
                 this.kappaRaw = (lmin <= 1e-12 * lmax) ? Infinity : lmax / lmin;
+                // numerical rank with the relative threshold epsRank (read-out; diagnosis shows kappa = infinity with the rank when rank < N)
+                { let rk = 0; for (let i = evRaw.length - 1; i >= 0; i -= 2) if (evRaw[i] > this.epsRank * lmax) rk++; this.rankR = rk; this.kappaRank = rk < N ? Infinity : lmax / lmin; }
 
                 // ---- DL-MVDR:  R_DL = R_hat + gamma I   (also the matrix shown in panel D)
                 // legacy: absolute gamma (gammaDL). unified: relative to the noise power, gamma = gamma_rel * sigma_n^2 (PARAMS.md section 7)
@@ -619,7 +652,7 @@
                 const wq = nomT.map((c, n) => new Cplx(c.r * t[n] / sumT, c.i * t[n] / sumT));
 
                 // ---- beamformer
-                this.fallback = false; this.collapsed = false; this.lambdaQ = 0; this.invOk = true;
+                this.fallback = false; this.collapsed = false; this.pinvUsed = false; this.lambdaQ = 0; this.invOk = true;
                 this.bsBins = []; this.bsAngles = []; this.R_B = []; this.bsSingular = false;
                 const gscTaper = this.taper !== 'NONE' && (algo === 'SMI' || algo === 'DL');
                 if (algo === 'FOURIER') {
@@ -665,12 +698,20 @@
                 } else {
                     // plain SMI-MVDR or DL-MVDR:  w = R^-1 a / (a^H R^-1 a).  SMI is inverted *without* any safeguard, so an
                     // exactly singular R_hat (L < N) yields numerically meaningless weights: the beamformer collapses.
-                    const w = this.mvdrWeights(this.R_hat, nomT, algo === 'SMI');
+                    let w;
+                    if (algo === 'SMI' && this.smiSingular === 'pinv' && this.rankR < N) {
+                        // rank-deficient R_hat (L < N): Moore-Penrose pseudo-inverse, w = R+ a / (a^H R+ a)  (w^H a = 1 holds by this normalisation)
+                        const pi = pinvHermitian(this.R_hat, this.epsRank).pinv, num = matMulVec(pi, nomT), den = vecDot(nomT, num);
+                        w = den.mag2() > 1e-300 ? num.map(c => Cplx.div(c, den)) : null;
+                        if (w && !w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i))) w = null;
+                        this.pinvUsed = true;
+                    } else w = this.mvdrWeights(this.R_hat, nomT, algo === 'SMI');
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = (algo === 'SMI' && this.kappaRaw === Infinity);
+                    this.collapsed = (algo === 'SMI' && this.kappaRaw === Infinity && !this.pinvUsed);
                 }
                 if (algo === 'FOURIER') this.status = 'OK';                       // R_hat is not used
                 else if (this.collapsed) this.status = 'SINGULAR';
+                else if (this.pinvUsed) this.status = 'RANK-DEFICIENT (pinv)';
                 else if (L < N) this.status = algo === 'BEAMSPACE' ? 'L<N (beamspace)' : ((algo === 'DL' || gscTaper) ? 'L<N (regularized)' : 'L<N');
                 else if (this.kappa > 1e6) this.status = 'ILL-COND';
                 else this.status = 'OK';
@@ -768,5 +809,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
 }));

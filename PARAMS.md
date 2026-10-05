@@ -190,3 +190,27 @@ Consequences worth knowing: ε and the ICI floor depend on `fc/Δf` only; `ρ = 
 Both solve `w = R̂⁻¹ r_xd` with R̂ containing the target (the Wiener definition: R = R_n + P_s h hᴴ), independent of `trainMode`, and both invert without a safeguard (L < N collapses, see §12). MMSE-P is the only algorithm that uses the known symbols.
 
 Scaling: the SINR does not depend on the scale of w. For EVM, perfect scaling (`g = wᴴh(t_app)`) is what `Sys.evm` uses for every algorithm, MMSE-P included. For MMSE-P (unified) the read-out `Sys.evmPilot` shows the EVM when the output is normalised with the pilot-based channel estimate instead: `ĥ = r̂_xd/P_s`, `ĝ = wᴴĥ`, `ρ = g/ĝ`, `EVM² = |ρ−1|² + |ρ|²(1/SINR + N_ICI/S)`. Effect of the estimation error of ĥ: ĥ is the window average of `h(t_n)`, so (i) the noise/interference cross terms add a random error of order `1/√L`, and (ii) when the channel rotates inside the window (Doppler), `|ĥ|` shrinks (an average of a rotating phasor) and the phase is that of the window centre, not of `t_app`: ρ is then far from 1 and the pilot-scaled EVM is large even if the SINR is high. The same rotation also degrades the direction of `r̂_xd` itself (v = 300 km/h, unified: MMSE-P SINR ≈ −12 dB at K = 20 dB, SINR_opt 29 dB). (**待確認**: the specification asks to normalise EVM with `wᴴĥ`; I kept the headline EVM with perfect scaling and show the pilot-scaled value as a read-out, since it is a second definition.)
+
+## 12. Small snapshots (L < N): what inverts what, and `smiSingular`
+
+Before Commit 15 (the numbers of `tests/diag_c15_paths.js`, N = 8, unified, K = 20 dB, SNR 20 dB, 300 trials):
+
+| algorithm | inversion path | numerical safeguard |
+|---|---|---|
+| SMI | `mvdrWeights(R̂, a, force = true)` → `invertMatrix(R̂, true)` (Gauss–Jordan, partial pivoting) | a pivot with \|pivot\|² < 1e-12 (**absolute**: \|pivot\| < 1e-6) is replaced by 1e-6 and the elimination goes on: the weights are huge and meaningless ("collapse") |
+| DL | same routine with `force = false` on R̂ + γI | none needed: R̂ + γI is non-singular (eigenvalues ≥ γ); if a pivot still failed, the quiescent weight would be used |
+| BEAMSPACE | K×K (K = 3) `invertMatrix(R_B, true)` | same absolute clamp, but R_B is singular only for L < K = 3 |
+| MMSE-M, MMSE-P | `wienerWeights(R̂, r_xd, true)` → `invertMatrix(R̂, true)` | same absolute clamp as SMI |
+
+R̂ = (1/L)Σ x_n x_nᴴ has rank min(L, N) exactly; the zero eigenvalues are rounding noise (≤ 2·10⁻¹⁴ against λ_max ≈ 80).
+
+| L | rank | κ reported (relative test λ_min ≤ 1e-12 λ_max) | smallest non-zero eigenvalue [min, median, max] | κ on the non-zero part (median) |
+|---|---|---|---|---|
+| 2 | 2 | ∞ | [1.4e-2, 3.8, 10] | 2.3e1 |
+| 4 | 4 | ∞ | [2.1e-3, 8.1e-3, 2.2e-2] | 1.0e4 |
+| 6 | 6 | ∞ | [6.6e-5, 1.6e-3, 6.2e-3] | 5.2e4 |
+| 8 | 8 | finite | [2.3e-7, 1.5e-4, 1.3e-3] | 5.4e5 |
+
+The "collapse" for L < N is thus produced by the absolute 1e-6 pivot clamp (an implementation artefact, not a physical quantity). At L = N the same absolute threshold can act on a full-rank matrix: λ_min < 1e-6 in 0.2 % of 2000 trials (smallest 3.8e-8).
+
+**`smiSingular`** (SMI only; `CONFIG.smiSingular`, default `'pinv'`): `'clamp'` = the behaviour above (legacy); `'pinv'` = Moore–Penrose pseudo-inverse of R̂ keeping the eigenvalues above `epsRank·λ_max` (`CONFIG.epsRank = 1e-10`, relative), used when the numerical rank is < N: `w = R̂⁺a / (aᴴR̂⁺a)`. The distortionless constraint wᴴa = 1 holds directly by this normalisation (when aᴴR̂⁺a ≠ 0, i.e. a is not orthogonal to the range of R̂; otherwise the quiescent weight is used). Caveat: if a has a component in the null space of R̂ the exact constrained optimum has zero output power from the training data; the pseudo-inverse solution is the one confined to the range of R̂ (the minimum-norm-type choice), not a physically optimal one. With full rank the direct inverse is used (same numbers as before; `pinvHermitian` agrees with it to 1e-12, T12a). UI: status `RANK-DEFICIENT (pinv)` and the message "秩虧：R̂ 秩 = L，求逆為偽逆" replace the "collapse" message of SMI. The legacy-equivalence test T0a runs with `smiSingular = 'clamp'`. DL, BEAMSPACE and MMSE are unchanged (DL does not read the option, T12d). Condition number read-out: `Sys.kappaRank` = λ_max/λ_min, shown as ∞ with the rank (`rank/N`) when the numerical rank (`Sys.rankR`, threshold `epsRank·λ_max`) is below N.

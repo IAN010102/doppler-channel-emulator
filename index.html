@@ -368,15 +368,16 @@
             f(x, d = 1) { return Number.isFinite(x) ? x.toFixed(d) : (x > 0 ? '∞' : '-∞'); },
             sci(x) { return Number.isFinite(x) ? x.toExponential(1) : '∞'; },
             v(txt) { return `<span class="live">${txt}</span>`; },
-            statusCls(s) { return s === 'OK' ? 'ok' : (/regularized|beamspace/.test(s) ? 'warn' : 'bad'); },
+            statusCls(s) { return s === 'OK' ? 'ok' : (/regularized|beamspace|pinv/.test(s) ? 'warn' : 'bad'); },
             // called after every computation of the *live* system: prints the result of the user's last optimisation step
             algoSeen: '', collSeen: false,
             onCompute() {
-                const S = Sys, coll = S.status === 'SINGULAR';
+                const S = Sys, coll = S.status === 'SINGULAR' || /RANK-DEFICIENT/.test(S.status);
                 if (S.algo !== this.algoSeen) { this.algoSeen = S.algo; this.collSeen = coll; this.announce(); return; }
                 if (coll !== this.collSeen) {
                     this.collSeen = coll;
-                    if (coll) this.push(`[CRITICAL] L < ${S.algo === 'BEAMSPACE' ? 'K' : 'N'}. Matrix is singular. Beamforming collapsed.`, 'e');
+                    if (coll && S.status !== 'SINGULAR') this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}（L = ${S.L} < N = ${S.N}），求逆為偽逆（Moore–Penrose，閾值 ${S.epsRank}·λmax）。`, 'w');
+                    else if (coll) this.push(`[CRITICAL] L < ${S.algo === 'BEAMSPACE' ? 'K' : 'N'}. Matrix is singular. Beamforming collapsed.`, 'e');
                     else this.push(`[RECOVERED] Matrix invertible again (κ = ${this.sci(S.kappa)}).`, 'g');
                 }
             },
@@ -398,7 +399,8 @@
                     else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MPDR (κ = ${ku}). MMSE always trains on data that contain the target.`, 'i');
                 }
                 else if (S.algo === 'SMI') {
-                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（SMI-${MV()}，Moore–Penrose）；κ = ∞（秩 ${S.rankR}/${S.N}）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
                     else this.push(`[INFO] SMI-${MV()} selected (${S.trainMode === 'signalFree' ? 'training window without the target, idealised' : 'training window contains the target: signal self-nulling possible under look-direction mismatch'}). Direct inversion succeeded (κ = ${ku}). It collapses when L < N.`, 'i');
                 } else if (S.algo === 'DL') {
                     this.push(`[OPTIMIZED] Diagonal Loading applied (γ = ${this.sci(S.gammaUsed)}). Condition number stabilized (κ ${kr} → ${ku}).`, 'g');
@@ -428,6 +430,7 @@
                 $('m-psll').innerText = this.f(S.psll); $('m-bw').innerText = this.f(S.bw3);
                 const kEl = $('m-kappa');
                 kEl.innerText = S.kappa === Infinity ? '∞' : S.kappa.toExponential(1);
+                if (S.algo !== 'FOURIER' && S.algo !== 'BEAMSPACE' && S.rankR < S.N && S.kappa === Infinity) kEl.innerText = `∞ (秩 ${S.rankR}/${S.N})`;   // relative threshold epsRank*lambda_max
                 kEl.className = 'v ' + ((S.kappa === Infinity || S.kappa > 1e6) ? 'bad' : (S.kappa > 1e3 ? 'warn' : ''));
                 const ln = $('m-ln'); ln.innerText = (S.L / S.N).toFixed(1); ln.className = 'v ' + (S.L < S.N ? 'bad' : (S.L < 1.5 * S.N ? 'warn' : ''));
                 $('m-fm').innerText = this.f(S.fm); $('m-fd').innerText = this.f(S.fd);
@@ -469,7 +472,7 @@
                     (alg === 'DL' ? `，R̂<sub>DL</sub> = R̂<sub>r</sub> + γI` : ``) +
                     (alg === 'BEAMSPACE' ? `，R̂<sub>B</sub> = BᴴR̂<sub>r</sub>B (${Kb}×${Kb})` : ``) + `<br>` +
                     `<span class="note">L=${v(S.L)}  N=${v(S.N)}  L/N=${v((S.L / S.N).toFixed(1))}  γ=${alg === 'DL' ? v(this.sci(S.gammaUsed)) : v('—')}<br>` +
-                    `rank(R̂<sub>r</sub>) ≤ min(L,N) = ${v(Math.min(S.L, S.N))}  κ(R̂<sub>r</sub>)=${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))}` +
+                    `rank(R̂<sub>r</sub>) ≤ min(L,N) = ${v(Math.min(S.L, S.N))}  κ(R̂<sub>r</sub>)=${v(S.kappaRank === Infinity ? `∞（秩 ${S.rankR}/${S.N}）` : this.sci(S.kappaRank))}` +
                     (alg === 'FOURIER' ? `  <span class="note">(Fourier 不使用 R̂)</span>` : `  κ(求逆矩陣)=${v(S.kappa === Infinity ? '∞' : this.sci(S.kappa))}  <span class="${this.statusCls(S.status)}">${S.status}</span>`) +
                     `<br>樣本窗 window：最近 L 筆快照，每次更新替換 ${v(Math.round(S.REFRESH * 100) + '%')}</span>`;
 
@@ -490,7 +493,7 @@
                     `與 MVDR 只差純量 α = P<sub>s</sub>·aᴴR̂<sup>−1</sup>a：${alg === 'MMSE' ? `wᴴa = ${v(S.outGain.toFixed(3))}（理論 α = SINR/(1+SINR) &lt; 1；樣本估計使 R̂⁻¹ 偏大約 L/(L−N)，α 會略增；場型形狀與零陷位置與 SMI-MVDR 完全相同）${S.collapsed ? '<br><span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : ''}` : '波束形狀與零陷位置與 SMI-MVDR 相同'}</span></div>` +
                     `<div class="${cls(alg === 'SMI' && !gsc)}"><b>SMI-${MV()}</b>：min<sub>w</sub> wᴴR<sub>r</sub>w s.t. wᴴa(θ̂<sub>1</sub>) = 1<br>` +
                     `⇒ w = R̂<sub>r</sub><sup>−1</sup>a / (aᴴR̂<sub>r</sub><sup>−1</sup>a)<br>` +
-                    `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
+                    `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : /RANK-DEFICIENT/.test(S.status) ? `<span class="warn">秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆 R̂⁺（w = R̂⁺a/(aᴴR̂⁺a)，wᴴa = 1）</span>` : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
                     `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-${MV()}</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
                     `⇒ w = R̂<sub>DL</sub><sup>−1</sup>a / (aᴴR̂<sub>DL</sub><sup>−1</sup>a)<br>` +
                     `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}${S.model === 'unified' ? `（= ${S.gammaRelDb} dB × σ<sub>n</sub>²，σ<sub>n</sub>²=${this.sci(S.noisePow)}）` : ''}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
@@ -534,8 +537,8 @@
                 const t = S.simTime.toFixed(0).padStart(3, ' ');
                 const tag = ALGO[S.algo].short + (S.algo === 'DL' ? `(γ=${this.sci(S.gammaUsed)})` : '');
                 const line = `[${t}s] ${tag}/${S.taper}/${modInfo(S.mod).name} κ=${S.kappa === Infinity ? '∞' : this.sci(S.kappa)} L/N=${(S.L / S.N).toFixed(1)} ${S.status} SINR=${this.f(S.sinrDb)}dB PSLL=${this.f(S.psll)}dB null=${this.f(S.nullDb)}dB N_ICI=${this.f(S.nIciDb)}dB EVM=${this.f(Math.min(S.evm * 100, 999))}%`;
-                this.push(line + (S.status === 'SINGULAR' ? '  !! 奇異：R̂ 不可逆，波束崩潰' : S.status === 'L<N' ? '  !! L<N' : ''),
-                          (S.status === 'SINGULAR' || S.status === 'L<N' || S.status === 'ILL-COND') ? 'w' : '');
+                this.push(line + (S.status === 'SINGULAR' ? '  !! 奇異：R̂ 不可逆，波束崩潰' : /RANK-DEFICIENT/.test(S.status) ? '  !! 秩虧：偽逆' : S.status === 'L<N' ? '  !! L<N' : ''),
+                          (S.status === 'SINGULAR' || S.status === 'L<N' || S.status === 'ILL-COND' || /RANK-DEFICIENT/.test(S.status)) ? 'w' : '');
             },
             push(text, cls) {
                 const log = document.getElementById('log'), div = document.createElement('div');
@@ -567,9 +570,12 @@
                 // 空間域失配：快照數不足 (SMI-MVDR only: the other algorithms either regularise or reduce the dimension)
                 if ((A.algo === 'SMI' || A.algo === 'MMSE' || A.algo === 'MMSEP') && A.L < 1.5 * A.N) {
                     const gsc = A.algo === 'SMI' && A.taper !== 'NONE';
-                    const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRaw)}`;
+                    const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRank)}${S.rankR < A.N ? `（秩 ${S.rankR}/${A.N}）` : ''}`;
                     const fixes = [['dl', `套用 DL-${MV()} (對角線加載)`], ['bs', `切換 BEAMSPACE-${MV()} (降維)`]];
-                    if (S.status === 'SINGULAR') {
+                    if (/RANK-DEFICIENT/.test(S.status)) {
+                        out.push({ id: 'starve', stage: 'rx', cls: 'warn', map: 'warn', flag: '秩虧', tag: '[診斷]',
+                            msg: `秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（只用非零特徵空間）。`, dim: detail + `，κ=∞（秩 ${S.rankR}/${A.N}）`, actions: fixes });
+                    } else if (S.status === 'SINGULAR') {
                         out.push({ id: 'starve', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]',
                             msg: 'L &lt; N. Matrix is singular. Beamforming collapsed.', dim: detail + '，波束圖失真', actions: fixes });
                     } else if (gsc) {
