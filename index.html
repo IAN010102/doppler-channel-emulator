@@ -390,14 +390,16 @@
                     this.push('[ALGO] 切換至 MMSE-P (pilot-trained Wiener)', 'i');
                     this.push('w = R̂⁻¹ r̂_xd，r̂_xd = (1/L) Σ x_n·conj(s_n)（s_n：訓練窗內已知導頻符元）', 'f');
                     this.push('Requires KNOWN pilot symbols in the training window; R̂ contains the target (Wiener), independent of the training-data setting.', 'n');
-                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（Moore–Penrose）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
                     else this.push(`[INFO] MMSE-P: κ = ${ku}. High Doppler rotates the channel inside the window, so r̂_xd (a window average) shrinks and its direction degrades.${Number.isFinite(S.evmPilot) ? ` EVM with the pilot-based scaling ŵ^H ĥ = ${(S.evmPilot * 100).toFixed(1)} % (|ρ| = ${S.rhoPilot.toFixed(2)}).` : ''}`, 'i');
                 }
                 else if (S.algo === 'MMSE') {
                     this.push('[ALGO] 切換至 MMSE-M (model-based Wiener)', 'i');
                     this.push('w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)', 'f');
                     this.push('Requires known reference signal (Pilot). Minimizes MSE between output and reference.', 'n');
-                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（Moore–Penrose）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
                     else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MPDR (κ = ${ku}). MMSE always trains on data that contain the target.`, 'i');
                 }
                 else if (S.algo === 'SMI') {
@@ -859,7 +861,7 @@
                 add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
                 add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
                 const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
-                add('param', 'model', S.model); add('param', 'train_mode', S.trainMode);
+                add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
                 add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
                 add('param', 'd_min', S.d_min, 'm');
                 add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
@@ -1248,6 +1250,8 @@
             num.value = show(Sys[c.key]); rng.value = toSlider(Sys[c.key]);
         });
         addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => { calIndex++; rollCalSeeded(); });
+        const selJam = addSelect('ch', 'sel-jam', '干擾源波形', 'Jammer waveform', [['gaussian', '高斯（OFDM 干擾近似，預設）'], ['qpsk', 'QPSK（舊行為）']], v => { Sys.jamWave = v; Sys.snaps = []; Sys.dirty = true; });
+        selJam.value = Sys.jamWave;
 
         // RX: algorithm selector (four strategies), taper
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [

@@ -37,7 +37,7 @@ vm.runInContext(script.replace(/\bconst (Sys)\b/g, 'var $1'), ctx);   // only Sy
 const legacy = ctx.Sys;
 
 // ---- scenarios
-const base = { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, calDeg: 0, latMs: 0, kDb: 20, sll: 35, gammaDL: 0.01, taper: 'NONE', mod: 'QPSK', algo: 'SMI', smiSingular: 'clamp', model: 'legacy', trainMode: 'withSignal' };   // QPSK: the old page always sent QPSK target symbols   // clamp = the behaviour of the pre-refactor page (the new default is pinv)
+const base = { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, calDeg: 0, latMs: 0, kDb: 20, sll: 35, gammaDL: 0.01, taper: 'NONE', mod: 'QPSK', algo: 'SMI', smiSingular: 'clamp', model: 'legacy', trainMode: 'withSignal', jamWave: 'qpsk' };   // QPSK: the old page always sent QPSK target symbols   // clamp = the behaviour of the pre-refactor page (the new default is pinv)
 const scenarios = [];
 for (const algo of ['FOURIER', 'MMSE', 'SMI', 'DL', 'BEAMSPACE']) scenarios.push({ name: `${algo} default`, p: { algo } });
 scenarios.push({ name: 'SMI L=4 (singular, forced inverse)', p: { algo: 'SMI', L: 4 } });

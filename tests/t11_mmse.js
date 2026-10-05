@@ -10,7 +10,7 @@
 const Core = require('../core.js');
 const U = require('./_util.js');
 
-const BASE = { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, latMs: 0, calDeg: 0, taper: 'NONE', kDb: 20, trainMode: 'withSignal', mod: 'QPSK' };   // QPSK target symbols: the reference values of the previous round were obtained with them
+const BASE = { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, latMs: 0, calDeg: 0, taper: 'NONE', kDb: 20, trainMode: 'withSignal', mod: 'QPSK', jamWave: 'qpsk' };   // QPSK target and jammer symbols: the reference values of the previous round were obtained with them
 function run(model, algo, over, trials, seed0) {
     const out = []; out.opt = [];
     for (let t = 0; t < trials; t++) {

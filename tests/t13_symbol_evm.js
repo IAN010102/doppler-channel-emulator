@@ -8,7 +8,8 @@
  *         NOTE: the interferer, noise and ICI terms are generated from the same S, I, N, nu the analytic EVM uses, so this verifies the arithmetic of the chain
  *         (scaling, normalisation, sample estimators), not the physics of the ICI model (that is T4/T5).
  *   T13b  no interferer, no noise, v = 0, single path: EVM_meas < 1e-9.
- *   T13c  (informational) Monte-Carlo SER (decisions on s_hat) vs the closed-form SER of the UI (Gaussian error, per-axis sigma = EVM/sqrt(2)), 16-QAM and 64-QAM,
+ *   T13c  Monte-Carlo SER (decisions on s_hat) vs the closed-form SER of the UI (Gaussian error, per-axis sigma = EVM/sqrt(2)), 16-QAM and 64-QAM,
+ *         check (Commit 19): Gaussian interferer, points with >= 200 expected errors: |relative difference| < 10 %; the other rows are informational.
  *         EVM = 5 ... 15 %, 4e5 symbols per point; once with a Gaussian-only error (noise) and once with an interferer-dominated error (QPSK interferer, same EVM).
  *         A deviation is flagged only where the closed form predicts >= 100 errors (otherwise 'n.s.').
  */
@@ -46,20 +47,23 @@ module.exports = {
         console.log(`T13b  no interferer, no noise, v = 0, single path: max EVM_meas over QPSK / 16-QAM / 64-QAM = ${U.e(worst)}`);
         checks.push(U.check('T13b ideal chain: EVM_meas', U.e(worst), '< 1e-9', worst < 1e-9));
 
-        // ---- T13c (informational)
-        console.log('\nT13c  (informational) Monte-Carlo SER vs closed form, 4e5 symbols per point');
+        // ---- T13c
+        console.log('\nT13c  Monte-Carlo SER vs closed form (Gaussian interferer / Gaussian noise: 2e6 symbols per point; QPSK interferer: 4e5, informational)');
         console.log(U.pad('mod', 8), U.pad('error type', 22), U.pad('EVM %', 7), U.rpad('SER MC', 11), U.rpad('SER closed', 11), U.rpad('rel. diff', 10), 'flag');
         for (const mod of ['QAM16', 'QAM64']) {
             const mi = Core.modInfo(mod);
-            for (const kind of ['Gaussian (noise)', 'QPSK interferer']) for (const evm of [0.05, 0.075, 0.10, 0.125, 0.15]) {
+            for (const kind of ['Gaussian interferer', 'Gaussian (noise)', 'QPSK interferer']) for (const evm of [0.05, 0.075, 0.10, 0.125, 0.15]) {
                 Core.setSeed(seed + 7);
-                const e2 = evm * evm, o = kind.startsWith('G') ? { S: 1, I: 0, Nn: e2, nu: 0 } : { S: 1, I: e2, Nn: 0, nu: 0 };
-                const r = Core.symbolLevel(Object.assign({ mod, Ns: 400000, keep: 0 }, o));
+                const Ns = kind.startsWith('QPSK') ? 400000 : 2000000, e2 = evm * evm;
+                const o = kind.endsWith('(noise)') ? { S: 1, I: 0, Nn: e2, nu: 0 } : { S: 1, I: e2, Nn: 0, nu: 0, jam: kind.startsWith('QPSK') ? 'qpsk' : 'gaussian' };
+                const r = Core.symbolLevel(Object.assign({ mod, Ns, keep: 0 }, o));
                 const sig = r.evm / Math.SQRT2, pAxis = Math.min(1, 2 * (1 - 1 / mi.ax) * Core.qfunc(mi.a / sig)), closed = 1 - Math.pow(1 - pAxis, 2);
-                const rd = closed > 0 ? (r.ser - closed) / closed : NaN, expected = closed * 400000;
-                const flag = expected < 100 ? 'n.s. (expected < 100 errors)' : (Math.abs(rd) > 0.2 ? 'DEVIATION > 20 %' : '');   // a deviation is only meaningful with >= 100 expected errors
+                const rd = closed > 0 ? (r.ser - closed) / closed : NaN, expected = closed * Ns;
+                const gate = kind === 'Gaussian interferer' && expected >= 200;              // PASS/FAIL only where >= 200 errors are expected and the interferer is Gaussian
+                const flag = gate ? (Math.abs(rd) < 0.10 ? 'check PASS' : 'check FAIL') : (expected < 100 ? 'n.s. (expected < 100 errors)' : (Math.abs(rd) > 0.2 ? 'DEVIATION > 20 %' : ''));
                 console.log(U.pad(mod, 8), U.pad(kind, 22), U.pad((100 * r.evm).toFixed(2), 7), U.rpad(U.e(r.ser, 2), 11), U.rpad(U.e(closed, 2), 11), U.rpad((100 * rd).toFixed(1) + ' %', 10), flag);
-                info.push({ name: `T13c ${mod} ${kind} EVM ${(100 * evm).toFixed(1)}%`, value: `MC ${U.e(r.ser, 2)} vs closed ${U.e(closed, 2)}`, note: `rel. diff ${(100 * rd).toFixed(1)} %${flag ? ', ' + flag : ''}` });
+                if (gate) checks.push(U.check(`T13c ${mod} Gaussian interferer, EVM ${(100 * evm).toFixed(1)} %: MC SER vs closed form`, `${(100 * rd).toFixed(1)} % (MC ${U.e(r.ser, 2)}, closed ${U.e(closed, 2)})`, '|rel. diff| < 10 % (>= 200 expected errors)', Math.abs(rd) < 0.10));
+                else info.push({ name: `T13c ${mod} ${kind} EVM ${(100 * evm).toFixed(1)}%`, value: `MC ${U.e(r.ser, 2)} vs closed ${U.e(closed, 2)}`, note: `rel. diff ${(100 * rd).toFixed(1)} %${flag ? ', ' + flag : ''}` });
             }
         }
         return { id: this.id, title: this.title, checks, info };

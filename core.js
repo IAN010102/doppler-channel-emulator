@@ -25,6 +25,7 @@
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        jamWave: 'gaussian',  // jammer symbols: 'gaussian' (OFDM interference is close to Gaussian in the time domain; default) | 'qpsk' (previous behaviour)
         smiSingular: 'pinv',  // SMI when R_hat is rank deficient (L < N): 'pinv' (Moore-Penrose, only the eigenspace above epsRank*lambda_max) | 'clamp' (legacy: pivot clamped to 1e-6)
         epsRank: 1e-10,       // relative eigenvalue threshold of the rank decision / pseudo-inverse (fraction of lambda_max)
         trainMode: 'signalFree',   // 'signalFree' (MVDR training assumption, idealised; default) | 'withSignal' (MPDR: the target is in the training window)
@@ -79,8 +80,12 @@
         }
 
         // Gauss-Jordan complex matrix inversion with partial pivoting. Returns null if singular.
+        // Singular test (Commit 19): |pivot| < 1e-12 * max |diagonal element| of the input (relative; before: |pivot| < 1e-6 absolute, kept as invertMatrixAbs).
+        // With `force` the pivot is then replaced by 1e-6 and the elimination goes on (meaningless huge weights: the demonstration of a collapse).
         function invertMatrix(M, force = false) {
             const n = M.length;
+            let maxDiag = 0; for (let i = 0; i < n; i++) maxDiag = Math.max(maxDiag, Math.hypot(M[i][i].r, M[i][i].i));
+            const thr = maxDiag > 0 ? 1e-12 * maxDiag : 1e-6, thr2 = thr * thr;
             const A = M.map(row => row.map(c => new Cplx(c.r, c.i)));
             const I = Array(n).fill(0).map((_, i) => Array(n).fill(0).map((_, j) => new Cplx(i === j ? 1 : 0, 0)));
             for (let i = 0; i < n; i++) {
@@ -91,7 +96,7 @@
                     const tI = I[i]; I[i] = I[maxRow]; I[maxRow] = tI;
                 }
                 let diag = A[i][i];
-                if (diag.mag2() < 1e-12) {                  // singular (e.g. L < N without regularisation)
+                if (diag.mag2() < thr2) {                   // singular (e.g. L < N without regularisation)
                     if (!force) return null;
                     diag = A[i][i] = new Cplx(1e-6, 0);     // force: carry on with a tiny pivot -> meaningless, huge weights (collapse)
                 }
@@ -103,6 +108,26 @@
                         A[k][j] = Cplx.sub(A[k][j], Cplx.mul(f, A[i][j]));
                         I[k][j] = Cplx.sub(I[k][j], Cplx.mul(f, I[i][j]));
                     }
+                }
+            }
+            return I;
+        }
+        // the inversion as it was before Commit 19 (absolute pivot threshold |pivot| < 1e-6); `info.clamped` reports whether the threshold acted (comparison tests only)
+        function invertMatrixAbs(M, force = false, info = null) {
+            const n = M.length;
+            const A = M.map(row => row.map(c => new Cplx(c.r, c.i)));
+            const I = Array(n).fill(0).map((_, i) => Array(n).fill(0).map((_, j) => new Cplx(i === j ? 1 : 0, 0)));
+            for (let i = 0; i < n; i++) {
+                let maxRow = i, maxVal = A[i][i].mag2();
+                for (let k = i + 1; k < n; k++) if (A[k][i].mag2() > maxVal) { maxVal = A[k][i].mag2(); maxRow = k; }
+                if (maxRow !== i) { const tA = A[i]; A[i] = A[maxRow]; A[maxRow] = tA; const tI = I[i]; I[i] = I[maxRow]; I[maxRow] = tI; }
+                let diag = A[i][i];
+                if (diag.mag2() < 1e-12) { if (info) info.clamped = true; if (!force) return null; diag = A[i][i] = new Cplx(1e-6, 0); }
+                for (let j = 0; j < n; j++) { A[i][j] = Cplx.div(A[i][j], diag); I[i][j] = Cplx.div(I[i][j], diag); }
+                for (let k = 0; k < n; k++) {
+                    if (k === i) continue;
+                    const f = A[k][i];
+                    for (let j = 0; j < n; j++) { A[k][j] = Cplx.sub(A[k][j], Cplx.mul(f, A[i][j])); I[k][j] = Cplx.sub(I[k][j], Cplx.mul(f, I[i][j])); }
                 }
             }
             return I;
@@ -272,16 +297,16 @@
         // Symbol-level output of one channel realisation (unified model). A fresh random symbol s (selected modulation, unit power) is sent Ns times; with
         // g = w^H h the complex output gain, the receiver output after gain normalisation (perfect channel estimate, g known) is
         //     s_hat = (g s + w^H j + w^H n + ICI) / g
-        // w^H n ~ CN(0, Nn); w^H j = sqrt(I) * (unit-power QPSK interferer symbol) with a random phase; ICI ~ CN(0, S * nu), nu = N_ICI/S (Gaussian approximation of the
+        // w^H n ~ CN(0, Nn); w^H j = sqrt(I) * (unit-power interferer symbol: Gaussian (jamWave default) or QPSK with a random phase); ICI ~ CN(0, S * nu), nu = N_ICI/S (Gaussian approximation of the
         // OFDM leakage; S = |g|^2). EVM_meas = sqrt( sum |s_hat - s|^2 / sum |s|^2 ). Returns { evm, ser (nearest-point decisions), pts: first `keep` outputs [re, im, error flag] }.
-        function symbolLevel({ S, I, Nn, nu, mod, Ns = 4000, keep = 0 }) {
+        function symbolLevel({ S, I, Nn, nu, mod, jam = 'gaussian', Ns = 4000, keep = 0 }) {
             const mi = modInfo(mod), gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
             const inv = 1 / Math.sqrt(S), sdN = Math.sqrt(Nn / 2) * inv, sdC = Math.sqrt(S * nu / 2) * inv, aI = Math.sqrt(I / 2) * inv;
             const ph = 2 * Math.PI * rng(), cph = Math.cos(ph), sph = Math.sin(ph), pts = [];
             let e2 = 0, s2 = 0, errs = 0;
             for (let k = 0; k < Ns; k++) {
                 const ii = Math.floor(rng() * mi.ax), qq = Math.floor(rng() * mi.ax), sr = mi.levels[ii], si = mi.levels[qq];
-                const jr = rng() < 0.5 ? -aI : aI, ji = rng() < 0.5 ? -aI : aI;
+                const jr = jam === 'qpsk' ? (rng() < 0.5 ? -aI : aI) : gauss() * aI, ji = jam === 'qpsk' ? (rng() < 0.5 ? -aI : aI) : gauss() * aI;   // interferer: QPSK or CN(0, I)
                 const er = gauss() * sdN + gauss() * sdC + jr * cph - ji * sph, ei = gauss() * sdN + gauss() * sdC + jr * sph + ji * cph;
                 const xr = sr + er, xi = si + ei;
                 e2 += er * er + ei * ei; s2 += sr * sr + si * si;
@@ -310,7 +335,7 @@
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
             gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
-            smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
+            jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -333,6 +358,8 @@
             },
             randn() { const u = 1 - rng(), v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); },
             qpsk(power) { const a = Math.sqrt(power / 2); return new Cplx(rng() < 0.5 ? -a : a, rng() < 0.5 ? -a : a); },
+            // jammer symbol: unit-power QPSK (old behaviour) or complex Gaussian CN(0, power)
+            jamSym(power) { if (this.jamWave === 'qpsk') return this.qpsk(power); const sd = Math.sqrt(power / 2); return new Cplx(this.randn() * sd, this.randn() * sd); },
             // target symbol of the training snapshots: follows the selected modulation (unit average power); QPSK uses the original draws (bit-identical to before)
             txSym(power) {
                 if (this.mod === 'QPSK') return this.qpsk(power);
@@ -340,7 +367,7 @@
                 return new Cplx(mi.levels[Math.floor(rng() * mi.ax)] * sc, mi.levels[Math.floor(rng() * mi.ax)] * sc);
             },
             // symbol-level measurement of the unified model (see symbolLevel); uses the last computeMath result
-            symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, Ns, keep }); },
+            symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, jam: this.jamWave, Ns, keep }); },
             taperWeights() {
                 if (this.taper === 'HAMMING') return hammingWindow(this.N);
                 if (this.taper === 'CHEBYSHEV') return chebWindow(this.N, this.sll);
@@ -416,6 +443,15 @@
                 const inv = invertMatrix(R, force); if (!inv) return null;
                 const w = matMulVec(inv, rxd);
                 return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
+            },
+            // Wiener solve w = R^-1 r_xd for MMSE-M / MMSE-P. Rank-deficient R_hat (L < N): with smiSingular = 'pinv' the pseudo-inverse (w = R+ r_xd; r_xd lies in the
+            // range of R_hat for MMSE-P, so R w = r_xd holds exactly there); 'clamp' keeps the legacy forced inversion.
+            wienerSolve(R, rxd) {
+                if (this.smiSingular === 'pinv' && this.rankR < this.N) {
+                    const w = matMulVec(pinvHermitian(R, this.epsRank).pinv, rxd); this.pinvUsed = true;
+                    return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
+                }
+                return this.wienerWeights(R, rxd, true);
             },
             // Beamspace-MVDR: project onto K = min(3,N) orthonormal DFT beams, invert only the K x K matrix
             //   B = [d_k1 ... d_kK] (N x K), d_k[n] = e^{-j2 pi n k/N}/sqrt(N)  (sin(theta_k) = 2k/N for d = 0.5 lambda)
@@ -495,7 +531,7 @@
                         for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
                     }
                     const thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = trackPhase(thJ, vms, dmin, lam, -tApp, dt), cjr = Math.cos(phj), cji = Math.sin(phj);
-                    const s1 = this.txSym(sigPow), s2 = this.qpsk(jamPow);
+                    const s1 = this.txSym(sigPow), s2 = this.jamSym(jamPow);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let e = 0; e < N; e++) {
                         const c = Math.cos(kj * e), s = Math.sin(kj * e);
@@ -621,7 +657,7 @@
                 const sd = Math.sqrt(noisePow / 2), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 const gTr = new Float64Array(N), gTi = new Float64Array(N), gJr = new Float64Array(N), gJi = new Float64Array(N);
                 for (let l = 0; l < add; l++) {
-                    const s1 = this.txSym(sigPow), s2 = this.qpsk(jamPow);
+                    const s1 = this.txSym(sigPow), s2 = this.jamSym(jamPow);
                     this.diffuse(thTo, gTr, gTi); this.diffuse(thJo, gJr, gJi);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let n = 0; n < N; n++) {
@@ -692,17 +728,17 @@
                     // MMSE / Wiener:  w = R^-1 r_xd,  r_xd = E[r d*] = P_s a(theta_t)  (known pilot d, perfectly correlated with the target).
                     // Inverted like SMI (no safeguard): an exactly singular R_hat (L < N) collapses the beamformer.
                     const rxd = nomT.map(c => new Cplx(c.r * sigPow, c.i * sigPow));
-                    const w = this.wienerWeights(this.R_hat, rxd, true);
+                    const w = this.wienerSolve(this.R_hat, rxd);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = this.kappaRaw === Infinity;
+                    this.collapsed = this.kappaRaw === Infinity && !this.pinvUsed;
                 } else if (algo === 'MMSEP') {
                     // MMSE-P (pilot-trained Wiener):  w = R_hat^-1 r_hat_xd,  r_hat_xd = (1/L) sum x_n conj(s_n), s_n = the known training symbols (pilots).
                     // R_hat contains the target (as in the Wiener definition), whatever trainMode says. Same inversion as MMSE-M (no safeguard).
                     const rxd = Array.from({ length: N }, (_, m) => new Cplx(qr[m] / Lw, qi[m] / Lw));
                     this.rxdHat = rxd;
-                    const w = this.wienerWeights(this.R_hat, rxd, true);
+                    const w = this.wienerSolve(this.R_hat, rxd);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = this.kappaRaw === Infinity;
+                    this.collapsed = this.kappaRaw === Infinity && !this.pinvUsed;
                 } else if (algo === 'BEAMSPACE') {
                     const w = this.beamspace(nomT, thTo);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
@@ -840,5 +876,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, symbolLevel, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, invertMatrixAbs, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, symbolLevel, createSys };
 }));
