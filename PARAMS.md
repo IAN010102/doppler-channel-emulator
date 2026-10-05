@@ -20,6 +20,7 @@ The UI picks a fresh random seed at every page load.
 | `M_UNIFIED` | 32 | diffuse paths per trial — **unified model** |
 | `LAMBDA_Q`, `REL_Q` | 30, 10 | loading rule of the tapered (GSC) adaptive path (unchanged) |
 | `REFRESH` | 0.2 | sliding-window refresh fraction — **legacy model only** |
+| `gammaRelDb` | +10 dB | unified model, DL: γ = 10^(γ_rel/10)·σ_n² (see §7); legacy keeps absolute γ = 0.01 |
 | `trainMode` | `'withSignal'` | `'withSignal'` (MPDR) or `'signalFree'` (MVDR); see §6; page flag `?train=signalFree` |
 | `model` | `'legacy'` | `'legacy'` \| `'unified'`; the page also accepts `?model=unified` |
 
@@ -98,3 +99,33 @@ Pairing: in `'signalFree'` the random draws are exactly those of `'withSignal'` 
 Algorithms: **SMI, DL, BEAMSPACE (and the tapered GSC variants of SMI/DL)** follow `trainMode`. **FOURIER** does not use R̂. **MMSE** always keeps the target: the Wiener filter minimises E|wᴴx − d|² with R = E[xxᴴ] = R_n + P_s h hᴴ and r_xd = P_s a, so R̂ must contain the target for w = R̂⁻¹r_xd to be the Wiener solution; with a signal-free R the same formula gives P_s·R_n⁻¹a, i.e. the MVDR direction, no longer MMSE. In code the target part of each snapshot is stored separately and added back for MMSE. MMSE is therefore unaffected by `trainMode` (and equals SMI-MPDR up to a scalar).
 
 UI: selector "訓練資料" (Rx card, URL flag `?train=signalFree`); names in legends and diagnosis read SMI-MPDR / SMI-MVDR etc. The CSV is unchanged (the `algorithm` field keeps the historical labels SMI-MVDR …). **CSV columns to add in a later round:** `param,train_mode`; `sweep_info` should carry `train=`; (Commit 6/7) `param,gamma_rel_dB`, `param,d_min`, `result,max_angle_drift_deg`.
+
+## 7. Diagonal loading relative to the noise power (DL, unified model only)
+
+Unified: `γ = γ_rel · σ_n²`, UI control `γ_rel` in dB (default **+10 dB**, range −10 … +30 dB), `Sys.gammaRelDb`.
+Legacy: unchanged, absolute `γ` (`gammaDL`, default 0.01, log slider 10⁻⁴ … 1); only one of the two controls is shown, according to the model.
+
+**σ_n² definition.** `σ_n² = 10^(−SNR/10)`, the noise power **per array element and per snapshot** (complex, CN(0, σ_n²)). The reference point of the SNR is a *single element's input*: the desired signal has unit power `P_s = 1` at the source and the channel has unit total gain (Σ_i|β_i|² = 1, |Γ_n| = 1), so the per-element signal power is 1 and SNR is the per-element input SNR (array gain is not included). The jammer power is `P_j = 10^(−SIR/10)` in the same units.
+
+Absolute values at the default SNR = 20 dB (σ_n² = 0.01):
+
+| γ_rel | γ |
+|---|---|
+| 0 dB | 0.01 |
+| +10 dB (default) | 0.1 |
+| +30 dB | 10 |
+| −10 dB | 0.001 |
+
+(For another SNR, γ = 10^((γ_rel − SNR)/10).) Rationale: the loading that matters is relative to the noise floor — the smallest eigenvalues of R̂ are ≈ σ_n² — so γ_rel keeps the same regularisation strength when SNR changes.
+
+**Other constants in the weight designs (listed, not modified):**
+
+| constant | where | absolute or relative |
+|---|---|---|
+| `LAMBDA_Q = 30` | GSC tapered path: `λ = max(30·σ_n², 10·w_qᴴR̂w_q)` | relative (to σ_n² and to the quiescent output power) |
+| `REL_Q = 10` | same | relative |
+| `1e-6` pivot clamp in `invertMatrix(..., force)` | SMI/MMSE/BEAMSPACE inversion when a pivot is ~0 | **absolute** (deliberate: it demonstrates the collapse of an exactly singular R̂) |
+| `1e-300` test on `a_Bᴴ R_B⁻¹ a_B` and `aᴴR⁻¹a` | weight normalisation guard | absolute (underflow guard only) |
+| `1e-12·λ_max` | κ = ∞ decision | relative |
+| `1e-3` norm threshold | blocking-matrix Gram–Schmidt | relative (vectors are unit-scale) |
+| BEAMSPACE | **no loading constant**: K = 3 DFT beams (nearest to the target + the 2 strongest) | — |

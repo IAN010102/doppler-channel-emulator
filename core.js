@@ -26,6 +26,7 @@
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
         trainMode: 'withSignal',   // 'withSignal' (MPDR, current behaviour) | 'signalFree' (MVDR training assumption, idealised)
+        gammaRelDb: 10,       // unified model, DL: gamma = 10^(gammaRelDb/10) * sigma_n^2  (sigma_n^2 = 10^(-SNR/10), per element)
         model: 'legacy',      // 'legacy' | 'unified'  (see PARAMS.md)
         M_UNIFIED: 32         // number of diffuse paths per trial in the unified model
     };
@@ -223,6 +224,7 @@
             REFRESH: CONFIG.REFRESH,                   // fraction of the snapshot window replaced per update
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
+            gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -526,7 +528,8 @@
                 this.kappaRaw = (lmin <= 1e-12 * lmax) ? Infinity : lmax / lmin;
 
                 // ---- DL-MVDR:  R_DL = R_hat + gamma I   (also the matrix shown in panel D)
-                this.gammaUsed = algo === 'DL' ? this.gammaDL : 0;
+                // legacy: absolute gamma (gammaDL). unified: relative to the noise power, gamma = gamma_rel * sigma_n^2 (PARAMS.md section 7)
+                this.gammaUsed = algo === 'DL' ? (this.model === 'unified' ? Math.pow(10, this.gammaRelDb / 10) * noisePow : this.gammaDL) : 0;
                 this.delta = this.gammaUsed;
                 if (this.gammaUsed > 0) this.R_hat = this.R_raw.map((row, m) => row.map((c, n) => m === n ? new Cplx(c.r + this.gammaUsed, c.i) : c));
                 this.kappa = algo === 'DL' ? (lmax + this.gammaUsed) / (lmin + this.gammaUsed) : this.kappaRaw;   // condition number of the matrix that is inverted

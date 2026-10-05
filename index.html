@@ -469,7 +469,7 @@
                     `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
                     `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-${MV()}</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
                     `⇒ w = R̂<sub>DL</sub><sup>−1</sup>a / (aᴴR̂<sub>DL</sub><sup>−1</sup>a)<br>` +
-                    `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
+                    `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}${S.model === 'unified' ? `（= ${S.gammaRelDb} dB × σ<sub>n</sub>²，σ<sub>n</sub>²=${this.sci(S.noisePow)}）` : ''}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
                     `<div class="${cls(alg === 'BEAMSPACE')}"><b>BEAMSPACE-${MV()}</b>（降維 N→K）：B = [d<sub>k₁</sub> … d<sub>k<sub>K</sub></sub>] (N×K)，d<sub>k</sub>[n] = e<sup>−j2πnk/N</sup>/√N，BᴴB = I<br>` +
                     `r<sub>B</sub> = Bᴴr，R̂<sub>B</sub> = BᴴR̂<sub>r</sub>B，a<sub>B</sub> = Bᴴa<br>` +
                     `w<sub>B</sub> = R̂<sub>B</sub><sup>−1</sup>a<sub>B</sub> / (a<sub>B</sub>ᴴR̂<sub>B</sub><sup>−1</sup>a<sub>B</sub>)，w = B·w<sub>B</sub><br>` +
@@ -668,6 +668,7 @@
                 for (let i = 0; i < 60; i++) { const mid = Math.sqrt(lo * hi); if (ser(mid) < target) lo = mid; else hi = mid; }
                 return Math.sqrt(lo * hi);
             },
+            gammaOf() { return Sys.model === 'unified' ? Math.pow(10, Sys.gammaRelDb / 10) * Math.pow(10, -Sys.snr / 10) : Sys.gammaDL; },   // absolute gamma in use
             shadow(algo) {
                 return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {}, real: null, freshRealization: true });
             },
@@ -684,8 +685,8 @@
                 if (this.running) return;
                 const vs = []; for (let v = 0; v <= this.VMAX; v += this.STEP) vs.push(v);
                 const res = {
-                    v: vs, ici: [], curves: {}, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: Sys.gammaDL,
-                    meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: Sys.gammaDL }
+                    v: vs, ici: [], curves: {}, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: this.gammaOf(),
+                    meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: this.gammaOf() }
                 };
                 this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [] }; });
                 this.result = res; this.running = true; this.progress = 0;
@@ -1074,7 +1075,8 @@
             { group: 'rx', key: 'L',      zh: '快照數 L',        en: 'Snapshots',           min: 2,   max: 200, step: 1,   unit: '' },
             { group: 'rx', key: 'latMs',  zh: '更新延遲 τ',      en: 'Beamformer latency',  min: 0,   max: 10,  step: 0.5, unit: 'ms', real: true },
             { group: 'rx', key: 'sll',    zh: '旁瓣位準 SLL',    en: 'Chebyshev SLL',       min: 20,  max: 60,  step: 1,   unit: 'dB' },
-            { group: 'rx', key: 'gammaDL', zh: '加載因子 γ', en: 'Loading factor (DL-MVDR)', min: 1e-4, max: 1, log: true, unit: '' },
+            { group: 'rx', key: 'gammaDL', zh: '加載因子 γ', en: 'Loading factor (DL, legacy: absolute)', min: 1e-4, max: 1, log: true, unit: '' },
+            { group: 'rx', key: 'gammaRelDb', zh: '加載比 γ_rel', en: 'Loading γ = γ_rel·σₙ² (DL, unified)', min: -10, max: 30, step: 1, unit: 'dB' },
         ];
         const bodies = { tx: document.getElementById('body-tx'), ch: document.getElementById('body-ch'), rx: document.getElementById('body-rx') };
         const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -1161,7 +1163,11 @@
             const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE';                    // beamspace / Wiener have no tapered variant
             selTaper.disabled = !taperOk;
             selTaper.parentElement.classList.toggle('off', !taperOk);
+            const uni = Sys.model === 'unified';                                                // one loading control per model
+            document.getElementById('ctl-gammaDL').style.display = uni ? 'none' : '';
+            document.getElementById('ctl-gammaRelDb').style.display = uni ? '' : 'none';
             document.getElementById('ctl-gammaDL').classList.toggle('off', Sys.algo !== 'DL');
+            document.getElementById('ctl-gammaRelDb').classList.toggle('off', Sys.algo !== 'DL');
             document.getElementById('ctl-sll').classList.toggle('off', !(taperOk && Sys.taper === 'CHEBYSHEV'));
         }
         function setAlgo(a) { Sys.algo = a; selAlgo.value = a; Sys.dirty = true; syncRxControls(); }
