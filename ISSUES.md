@@ -152,3 +152,15 @@
 3. 固定種子：要涵蓋 `Math.random` 的所有用途（含星座散點），並讓掃描每點使用「種子＋點索引」派生的子種子，確認這樣可以嗎？
 4. CSV 的參數欄位：是否也要加入 K、σ_θ、R、P_s、σ_φ、τ、θ₁、θ₂ 等目前未列出的欄位（我建議加入）。
 5. 是否同意把 H2（MPDR 命名）、M1（γ 相對尺度）列為任務 B 之後的下一批。
+
+
+## Update after Commits 5–8 (branch `unified-doppler`)
+
+| # | status now | what changed |
+|---|---|---|
+| H2 | **可選擇處理（預設未改）** | `trainMode`: `withSignal` = MPDR (default, unchanged numbers), `signalFree` = MVDR. UI selector + names SMI-MPDR / SMI-MVDR; MMSE keeps the target (PARAMS.md §6). The legacy-equivalence test still passes bit for bit with the default. |
+| H4 | **unified 模型已處理，legacy 仍成立** | unified: Doppler enters snapshots, covariance and weights through the deterministic sum-of-sinusoids evolution (PARAMS.md §3). |
+| M1 | **unified 已處理，legacy 仍成立** | unified: γ = γ_rel·σ_n² (γ_rel in dB, default +10 dB); legacy keeps the absolute γ (PARAMS.md §7). |
+| M7 | 仍成立，已文件化 | σ_n² and the SNR reference point are written down in PARAMS.md §7. |
+| (geometry) | **unified 已處理，legacy 保留** | `R_min` → `d_min`, exact straight-track law θ̇ = v sinθ|sinθ|/d_min for target and jammer; the old −v sinθ/R_min had a wrong magnitude and (for the target) the opposite sign in this angle convention (PARAMS.md §4). |
+| (new, 待確認) | first-order f_d | `f_d,i` is taken at the angle at t_app; the phase error π|ḟ_d|T² is 0.4 rad at d_min = 30 m, 300 km/h, τ = 0 and 2.4 rad at τ = 10 ms: the approximation is marginal at the default d_min (PARAMS.md §4). |

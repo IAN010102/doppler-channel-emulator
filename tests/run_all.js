@@ -3,8 +3,9 @@
  * node tests/run_all.js [--quick]
  *
  * T0  legacy equivalence (core.js vs the pre-refactor page, bit for bit) and UI smoke test
- * T1  regression unified vs legacy       T2  single-path invariance       T3  aging
- * T4  diffuse-path ICI (H1)              T5  time-domain OFDM chain
+ * T1  regression unified vs legacy (T1a check, T1b informational)     T2  single-path invariance     T3  aging (signalFree / MPDR)
+ * T4  diffuse-path ICI (H1)     T5  time-domain OFDM chain     T6  gamma_rel sweep (informational)     T7  straight-track geometry
+ * Informational items are listed separately and never count as PASS/FAIL.
  *
  * Every check prints PASS/FAIL with its value and tolerance. Tolerances are fixed in the test files and are never
  * adjusted to make a check pass; failures carry the reason. --quick lowers the trial counts (for development only).
@@ -29,11 +30,11 @@ function script(name, label) {
     script('legacy_equivalence.js', 'T0a core.js reproduces the pre-refactor page bit for bit (seeded)');
     script('ui_smoke.js', 'T0b UI smoke test (stubbed DOM)');
     const opts = quick ? { trials: 200 } : {};
-    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js']) {
+    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js', 't6_gamma_rel.js', 't7_geometry.js']) {
         const mod = require('./' + f);
         banner(`${mod.id}  ${mod.title}`);
         const t0 = Date.now();
-        const r = await mod.run(f.startsWith('t5') || f.startsWith('t4') ? {} : opts);
+        const r = await mod.run(/^t[457]/.test(f) ? {} : opts);
         r.ms = Date.now() - t0; results.push(r);
     }
 
@@ -47,6 +48,8 @@ function script(name, label) {
             if (!c.pass && c.note) console.log(`        reason: ${c.note}`);
         }
     }
+    console.log('\nINFORMATIONAL (not counted)');
+    for (const r of results) for (const c of (r.info || [])) console.log(`  ${c.name}   ${c.value}${c.note ? '   (' + c.note + ')' : ''}`);
     console.log(`\n${total - fails}/${total} checks passed, ${fails} failed${quick ? '   (--quick: reduced trial counts)' : ''}`);
     process.exit(fails ? 1 : 0);
 })();
