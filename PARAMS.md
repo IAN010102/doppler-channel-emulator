@@ -214,3 +214,19 @@ R̂ = (1/L)Σ x_n x_nᴴ has rank min(L, N) exactly; the zero eigenvalues are ro
 The "collapse" for L < N is thus produced by the absolute 1e-6 pivot clamp (an implementation artefact, not a physical quantity). At L = N the same absolute threshold can act on a full-rank matrix: λ_min < 1e-6 in 0.2 % of 2000 trials (smallest 3.8e-8).
 
 **`smiSingular`** (SMI only; `CONFIG.smiSingular`, default `'pinv'`): `'clamp'` = the behaviour above (legacy); `'pinv'` = Moore–Penrose pseudo-inverse of R̂ keeping the eigenvalues above `epsRank·λ_max` (`CONFIG.epsRank = 1e-10`, relative), used when the numerical rank is < N: `w = R̂⁺a / (aᴴR̂⁺a)`. The distortionless constraint wᴴa = 1 holds directly by this normalisation (when aᴴR̂⁺a ≠ 0, i.e. a is not orthogonal to the range of R̂; otherwise the quiescent weight is used). Caveat: if a has a component in the null space of R̂ the exact constrained optimum has zero output power from the training data; the pseudo-inverse solution is the one confined to the range of R̂ (the minimum-norm-type choice), not a physically optimal one. With full rank the direct inverse is used (same numbers as before; `pinvHermitian` agrees with it to 1e-12, T12a). UI: status `RANK-DEFICIENT (pinv)` and the message "秩虧：R̂ 秩 = L，求逆為偽逆" replace the "collapse" message of SMI. The legacy-equivalence test T0a runs with `smiSingular = 'clamp'`. DL, BEAMSPACE and MMSE are unchanged (DL does not read the option, T12d). Condition number read-out: `Sys.kappaRank` = λ_max/λ_min, shown as ∞ with the rank (`rank/N`) when the numerical rank (`Sys.rankR`, threshold `epsRank·λ_max`) is below N.
+
+## 13. Modulation in the signal chain and symbol-level EVM
+
+**Target symbols follow the modulation.** The target symbol s_n of the training snapshots (both models) is drawn from the selected constellation (QPSK / 16-QAM / 64-QAM, unit average power; `Sys.txSym`); with QPSK it uses the original draws, so the results are bit-identical to before (T0a runs with `mod = 'QPSK'`, the only symbol set the old page used). The UI default modulation is 16-QAM, so the default numbers of the page change slightly (non-constant modulus: |s_n|² fluctuates, the sample covariance has a different finite-sample noise; the expected covariance is the same). The jammer symbol stays QPSK. Tests that need the numbers of the previous round (T11a) select QPSK explicitly.
+
+**Symbol-level EVM (unified only; `Core.symbolLevel`, `Sys.symbolEvm(Ns = 4000, keep)`).** For one channel realisation with output gain g = wᴴh(t_app) (`Sys.gR/gI`, S = |g|²): a fresh random symbol s (selected modulation) is sent Ns times; the receiver output after gain normalisation, assuming **a perfect channel estimate (g known exactly)**, is
+
+```
+ŝ = s + ( wᴴj + wᴴn + ICI ) / g
+```
+
+with wᴴn ~ CN(0, Nn), wᴴj = √I × (unit-power QPSK interferer symbol, random phase), ICI ~ CN(0, S·N_ICI/S): **a Gaussian approximation of the OFDM leakage** (the true ICI of a few strong paths is not Gaussian). EVM_meas = √(Σ|ŝ − s|² / Σ|s|²). The first 500 outputs are the constellation scatter of the unified model (the legacy scatter remains synthetic: EVM-scaled Gaussian). Panel C shows the measured EVM next to the analytic one. This does not change `Sys.evm` (analytic, used by the sweep and the SER).
+
+**Sweep.** Option "符元層級驗證" (default off): per sweep point and algorithm, 5 further channel realisations × 4000 symbols (child seeds 1000 + j); mean EVM → CSV column `evm_meas_sample_<alg>_pct` (n/a when off; `sweep_info` carries `symbol_validation` and `evm_meas_sample_n`).
+
+Limits (T13 header): the measured chain is built from the same S, I, N_n, N_ICI/S as the analytic EVM, so T13a verifies the arithmetic of the chain (scaling, normalisation, estimators), not the ICI physics.

@@ -269,6 +269,29 @@
             return 2 * Math.PI / lam * vms * (tb - ta) * (ca + cb) / (Math.sqrt(1 + ca * ca) + Math.sqrt(1 + cb * cb));
         }
 
+        // Symbol-level output of one channel realisation (unified model). A fresh random symbol s (selected modulation, unit power) is sent Ns times; with
+        // g = w^H h the complex output gain, the receiver output after gain normalisation (perfect channel estimate, g known) is
+        //     s_hat = (g s + w^H j + w^H n + ICI) / g
+        // w^H n ~ CN(0, Nn); w^H j = sqrt(I) * (unit-power QPSK interferer symbol) with a random phase; ICI ~ CN(0, S * nu), nu = N_ICI/S (Gaussian approximation of the
+        // OFDM leakage; S = |g|^2). EVM_meas = sqrt( sum |s_hat - s|^2 / sum |s|^2 ). Returns { evm, ser (nearest-point decisions), pts: first `keep` outputs [re, im, error flag] }.
+        function symbolLevel({ S, I, Nn, nu, mod, Ns = 4000, keep = 0 }) {
+            const mi = modInfo(mod), gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
+            const inv = 1 / Math.sqrt(S), sdN = Math.sqrt(Nn / 2) * inv, sdC = Math.sqrt(S * nu / 2) * inv, aI = Math.sqrt(I / 2) * inv;
+            const ph = 2 * Math.PI * rng(), cph = Math.cos(ph), sph = Math.sin(ph), pts = [];
+            let e2 = 0, s2 = 0, errs = 0;
+            for (let k = 0; k < Ns; k++) {
+                const ii = Math.floor(rng() * mi.ax), qq = Math.floor(rng() * mi.ax), sr = mi.levels[ii], si = mi.levels[qq];
+                const jr = rng() < 0.5 ? -aI : aI, ji = rng() < 0.5 ? -aI : aI;
+                const er = gauss() * sdN + gauss() * sdC + jr * cph - ji * sph, ei = gauss() * sdN + gauss() * sdC + jr * sph + ji * cph;
+                const xr = sr + er, xi = si + ei;
+                e2 += er * er + ei * ei; s2 += sr * sr + si * si;
+                const di = Math.min(mi.ax - 1, Math.max(0, Math.round((xr / mi.a + (mi.ax - 1)) / 2))), dq = Math.min(mi.ax - 1, Math.max(0, Math.round((xi / mi.a + (mi.ax - 1)) / 2)));
+                const bad = (di !== ii || dq !== qq) ? 1 : 0; errs += bad;
+                if (k < keep) pts.push([xr, xi, bad]);
+            }
+            return { evm: Math.sqrt(e2 / s2), ser: errs / Ns, pts };
+        }
+
         function createSys() {
         const Sys = {
             // UI parameters
@@ -310,6 +333,14 @@
             },
             randn() { const u = 1 - rng(), v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); },
             qpsk(power) { const a = Math.sqrt(power / 2); return new Cplx(rng() < 0.5 ? -a : a, rng() < 0.5 ? -a : a); },
+            // target symbol of the training snapshots: follows the selected modulation (unit average power); QPSK uses the original draws (bit-identical to before)
+            txSym(power) {
+                if (this.mod === 'QPSK') return this.qpsk(power);
+                const mi = modInfo(this.mod), sc = Math.sqrt(power);
+                return new Cplx(mi.levels[Math.floor(rng() * mi.ax)] * sc, mi.levels[Math.floor(rng() * mi.ax)] * sc);
+            },
+            // symbol-level measurement of the unified model (see symbolLevel); uses the last computeMath result
+            symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, Ns, keep }); },
             taperWeights() {
                 if (this.taper === 'HAMMING') return hammingWindow(this.N);
                 if (this.taper === 'CHEBYSHEV') return chebWindow(this.N, this.sll);
@@ -464,7 +495,7 @@
                         for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
                     }
                     const thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = trackPhase(thJ, vms, dmin, lam, -tApp, dt), cjr = Math.cos(phj), cji = Math.sin(phj);
-                    const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
+                    const s1 = this.txSym(sigPow), s2 = this.qpsk(jamPow);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let e = 0; e < N; e++) {
                         const c = Math.cos(kj * e), s = Math.sin(kj * e);
@@ -590,7 +621,7 @@
                 const sd = Math.sqrt(noisePow / 2), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 const gTr = new Float64Array(N), gTi = new Float64Array(N), gJr = new Float64Array(N), gJi = new Float64Array(N);
                 for (let l = 0; l < add; l++) {
-                    const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
+                    const s1 = this.txSym(sigPow), s2 = this.qpsk(jamPow);
                     this.diffuse(thTo, gTr, gTi); this.diffuse(thJo, gJr, gJi);
                     const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let n = 0; n < N; n++) {
@@ -809,5 +840,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, symbolLevel, createSys };
 }));

@@ -257,6 +257,7 @@
                 <div class="kv-grid">
                     <div class="kv"><span class="k">調變 Modulation</span><span class="v" id="m-mod">16-QAM</span></div>
                     <div class="kv"><span class="k">誤差向量 EVM</span><span class="v"><span id="m-evm">0</span> %</span></div>
+                    <div class="kv" title="Unified model: EVM measured on 4000 simulated symbols (Core.symbolLevel), to be compared with the analytic EVM above"><span class="k">EVM 符元量測</span><span class="v"><span id="m-evm-meas">—</span> %</span></div>
                     <div class="kv"><span class="k">符元錯誤率 SER</span><span class="v" id="m-ser">0</span></div>
                     <div class="kv"><span class="k">訊干雜比 SINR</span><span class="v"><span id="m-sinr2">0</span> dB</span></div>
                 </div>
@@ -283,6 +284,7 @@
                 <div class="p-head">E // 效能對比：EVM vs. 車速 <em>Benchmarking Scanner (5 algorithms)</em></div>
                 <div class="bench-bar">
                     <button class="btn" id="btn-sweep">▶ 執行速度掃描<em>Run Velocity Sweep</em></button>
+                    <label class="lg" title="Also measure the EVM on simulated symbols (5 channel realisations x 4000 symbols per point and algorithm) and write it to the CSV (evm_meas_sample). Slower. Unified model only."><input type="checkbox" id="chk-symval"> 符元層級驗證</label>
                     <span class="lg"><i style="border-color:#22d3ee"></i><span id="lg-FOURIER">FOURIER</span></span>
                     <span class="lg"><i style="border-color:#60a5fa"></i><span id="lg-MMSE">MMSE-M</span></span>
                     <span class="lg"><i class="dash" style="border-color:#2dd4bf"></i><span id="lg-MMSEP">MMSE-P</span></span>
@@ -710,7 +712,7 @@
             // point index pi (speed), algorithm index ai: every trial k runs with its own child seed deriveSeed(deriveSeed(seed, pi), ai, k) (the inner one is the CSV's point_seed), so any single
             // (speed, algorithm, trial) cell can be re-run alone and gives the same number; the live RNG stream is left untouched (Core.withSeed)
             point(P, v, pi, ai) {                              // average of TRIALS independent snapshot windows
-                let e2 = 0, s = 0, ici = 0;
+                let e2 = 0, s = 0, ici = 0, evmMeas = NaN;
                 const seed = this.result ? this.result.seed : uiSeed;
                 for (let k = 0; k < this.TRIALS; k++) {
                     Core.withSeed(Core.deriveSeed(Core.deriveSeed(seed, pi), ai, k), () => {
@@ -719,7 +721,14 @@
                     });
                     e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuIciFloor;
                 }
-                return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici) };
+                if (this.symval && Sys.model === 'unified') {          // symbol-level EVM: mean over 5 further channel realisations, 4000 symbols each (child seeds 1000 + j)
+                    let m = 0; const n = 5;
+                    for (let j = 0; j < n; j++) Core.withSeed(Core.deriveSeed(Core.deriveSeed(seed, pi), ai, 1000 + j), () => {
+                        P.snaps = []; P.snapKey = ''; P.v = v; Sys.computeMath.call(P); m += Sys.symbolEvm.call(P, 4000, 0).evm;
+                    });
+                    evmMeas = m / n;
+                }
+                return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici), evmMeas };
             },
             start() {
                 if (this.running) return;
@@ -728,7 +737,8 @@
                     v: vs, ici: [], curves: {}, seed: uiSeed, train: Sys.trainMode, model: Sys.model, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: this.gammaOf(),
                     meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: this.gammaOf() }
                 };
-                this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [] }; });
+                this.symval = !!(document.getElementById('chk-symval') && document.getElementById('chk-symval').checked); res.symval = this.symval && Sys.model === 'unified';
+                this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [], evmMeas: [] }; });
                 this.result = res; this.running = true; this.progress = 0;
                 const P = {}; this.ALGOS.forEach(([k]) => { P[k] = this.shadow(k); });
                 let i = 0;
@@ -740,7 +750,7 @@
                     }
                     this.ALGOS.forEach(([k], ai) => {
                         const r = this.point(P[k], vs[i], i, ai);
-                        res.curves[k].evm.push(r.evm); res.curves[k].sinr.push(r.sinr);
+                        res.curves[k].evm.push(r.evm); res.curves[k].sinr.push(r.sinr); res.curves[k].evmMeas.push(r.evmMeas);
                         if (k === 'FOURIER') res.ici.push(r.ici);
                     });
                     i++; this.progress = i / vs.length; this.updateButton();
@@ -878,11 +888,11 @@
                 if (r && r.v.length) {
                     const ks = Bench.ALGOS.map(([k]) => k);
                     rows.push('');
-                    rows.push(`sweep_info,train=${r.train},model=${r.model},seed=${r.seed},modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
-                    rows.push(['sweep', 'velocity_kmh', 'point_seed', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct'].join(','));
+                    rows.push(`sweep_info,train=${r.train},model=${r.model},seed=${r.seed},symbol_validation=${r.symval ? 'on' : 'off'},evm_meas_sample_n=${r.symval ? '5 realisations x 4000 symbols' : 'n/a'},modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
+                    rows.push(['sweep', 'velocity_kmh', 'point_seed', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct', ...ks.map(k => `evm_meas_sample_${k}_pct`)].join(','));
                     r.v.forEach((v, i) => {
                         if (i >= r.ici.length) return;
-                        rows.push(['sweep', v, Core.deriveSeed(r.seed, i), ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100)].join(','));
+                        rows.push(['sweep', v, Core.deriveSeed(r.seed, i), ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100), ...ks.map(k => r.symval ? f(r.curves[k].evmMeas[i] * 100) : 'n/a')].join(','));
                     });
                 }
                 return '﻿' + rows.join('\r\n') + '\r\n';
@@ -1025,8 +1035,15 @@
                 if (this.lastModKey !== Sys.mod) { this.constHist = []; this.lastModKey = Sys.mod; }
                 const scale = Math.min(w, h) * 0.3, cx = w / 2, cy = h / 2;
 
-                if (Sys.isRunning && live) {
-                    const sd = Math.min(Sys.evm, 1.5) / Math.SQRT2;      // x_hat = x + e, e ~ CN(0, EVM^2)
+                if (Sys.isRunning && live && Sys.model === 'unified') {
+                    // unified: the scatter is the real symbol-level output (Core.symbolLevel: 4000 symbols through w^H h, interferer, noise, Gaussian ICI); the first 500 are drawn
+                    const r = Sys.symbolEvm(4000, 500);
+                    this.symEvm = r.evm; this.symSer = r.ser;
+                    const me = document.getElementById('m-evm-meas'); if (me) me.innerText = this.f ? this.f(Math.min(r.evm * 100, 999)) : (r.evm * 100).toFixed(1);
+                    this.constHist.push(r.pts);
+                    while (this.constHist.length > 4) this.constHist.shift();
+                } else if (Sys.isRunning && live) {
+                    const sd = Math.min(Sys.evm, 1.5) / Math.SQRT2;      // legacy: x_hat = x + e, e ~ CN(0, EVM^2) (synthetic scatter)
                     const pts = [];
                     for (let k = 0; k < 70; k++) {
                         const ii = Math.floor(Core.rng() * mi.ax), qq = Math.floor(Core.rng() * mi.ax);
