@@ -219,7 +219,7 @@
     <!-- LEFT SIDEBAR: Tx / Channel / Rx parameter cards -->
     <aside class="left">
         <div class="notice" id="st-note"></div>
-        <div class="card group g-tx"><div class="g-title">TX 發射端<em>Transmitter</em></div><div class="g-body" id="body-tx"></div></div>
+        <div class="card group g-tx"><div class="g-title">TX 發射端<em>Transmitter</em> <span id="model-tag" class="chip pause" style="margin-left:6px" title="channel model (selector below)">Unified（新）</span></div><div class="g-body" id="body-tx"></div></div>
         <div class="card group g-ch"><div class="g-title">CHANNEL 通道<em>Channel</em></div><div class="g-body" id="body-ch"></div></div>
         <div class="card group g-rx"><div class="g-title">RX 接收端<em>Receiver</em></div><div class="g-body" id="body-rx"></div></div>
     </aside>
@@ -1172,6 +1172,16 @@
         const selMod = addSelect('tx', 'sel-mod', '調變格式', 'Modulation', [['QPSK', 'QPSK (2 bit)'], ['QAM16', '16-QAM (4 bit)'], ['QAM64', '64-QAM (6 bit)']],
             v => { Sys.mod = v; Sys.dirty = true; });
         selMod.value = Sys.mod;
+        // channel model: unified (default) or the v4 analytic model (legacy, also ?model=legacy)
+        const MODEL_LABEL = { unified: 'Unified（新）', legacy: 'v4 analytic（舊版）' };
+        const selModel = addSelect('tx', 'sel-model', '通道模型', 'Channel model', [['unified', 'Unified · 單一實現、積分都卜勒'], ['legacy', 'v4 analytic（舊版）']], v => setModel(v));
+        selModel.value = Sys.model;
+        function setModel(m) {
+            Sys.model = m; selModel.value = m; Sys.resetCache(); Sys.dirty = true;
+            const tag = document.getElementById('model-tag'); if (tag) tag.textContent = MODEL_LABEL[m];
+            if (typeof syncRxControls === 'function') syncRxControls();
+            Render.constHist = []; Diagnosis.last = '';
+        }
         // carrier frequency (independent of the numerology) and subcarrier spacing; nothing is linked automatically
         const FC_PRESETS = [3.5, 5, 7, 15, 28];
         const selFc = addSelect('tx', 'sel-fc', '載波頻率 fc', 'Carrier frequency (GHz)', [...FC_PRESETS.map(x => [x, x + ' GHz']), ['custom', '自訂 Custom…']], v => {
@@ -1242,8 +1252,8 @@
         // RX: algorithm selector (four strategies), taper
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [
             ['FOURIER',   'FOURIER (Matched Filter) · 基準線'],
-            ['MMSE',      'MMSE-M (Wiener, model-based) · 模型式'],
             ['MMSEP',     'MMSE-P (Wiener, pilot-trained) · 需已知導頻'],
+            ['MMSE',      'MMSE-M (Wiener, model-based) · 模型式'],
             ['SMI',       ALGO.SMI.long],
             ['DL',        ALGO.DL.long],
             ['BEAMSPACE', ALGO.BEAMSPACE.long]], v => setAlgo(v));
@@ -1253,16 +1263,20 @@
             [['NONE', '無 NONE（均勻）'], ['HAMMING', 'Hamming 窗'], ['CHEBYSHEV', '套用 Chebyshev 加窗']], v => setTaper(v));
         // training data of the sample covariance (SMI, DL, BEAMSPACE; FOURIER does not use R, MMSE always keeps the target)
         const selTrain = addSelect('rx', 'sel-train', '訓練資料', 'Training data (MPDR vs MVDR)',
-            [['withSignal', '含目標訊號 → MPDR（現行）'], ['signalFree', '不含目標 → MVDR（理想化）']], v => setTrain(v));
+            [['signalFree', 'MVDR（理想化：訓練資料不含訊號）'], ['withSignal', 'MPDR（含訊號）']], v => setTrain(v));
         selTrain.value = Sys.trainMode;
+        const trainNote = document.createElement('div'); trainNote.className = 'note'; trainNote.style.cssText = 'font:0.58rem var(--mono);color:var(--yellow);margin-top:2px';
+        trainNote.textContent = '理想化假設：干擾加雜訊協方差可獨立取得';
+        selTrain.parentElement.appendChild(trainNote);
         function refreshNames() {                                                                // algorithm names follow the training mode
             ['SMI', 'DL', 'BEAMSPACE'].forEach(k => {
                 const o = selAlgo.querySelector(`option[value="${k}"]`); if (o) o.textContent = ALGO[k].long;
                 const lg = document.getElementById('lg-' + k); if (lg) lg.innerText = Bench.label(k, Bench.result);
             });
-            selTrain.querySelector('option[value="withSignal"]').textContent = '含目標訊號 → MPDR（現行）';
+            trainNote.style.display = Sys.trainMode === 'signalFree' ? '' : 'none';
         }
         function setTrain(t) { Sys.trainMode = t; selTrain.value = t; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; }
+        trainNote.style.display = Sys.trainMode === 'signalFree' ? '' : 'none';
         function syncRxControls() {
             const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP';                    // beamspace / Wiener have no tapered variant
             selTaper.disabled = !taperOk;
@@ -1309,6 +1323,7 @@
             Diagnosis.last = ''; Diagnosis.update(performance.now(), true);
         });
         setAlgo('SMI'); setTaper('NONE'); setRunning(true);
+        document.getElementById('model-tag').textContent = MODEL_LABEL[Sys.model]; refreshNames();
 
         // render safety: paint one complete frame synchronously (even if the page ever starts PAUSED), then redraw on every layout change
         Sys.computeMath(); Sys.lastCompute = performance.now(); Sys.dirty = false; Inspector.onCompute();

@@ -22,8 +22,8 @@ The UI picks a fresh random seed at every page load.
 | `REFRESH` | 0.2 | sliding-window refresh fraction — **legacy model only** |
 | `iciWarnDb`, `iciSevereDb` | −30, −20 dB | N_ICI/S thresholds of the ICI diagnosis (§8) |
 | `gammaRelDb` | +10 dB | unified model, DL: γ = 10^(γ_rel/10)·σ_n² (see §7); legacy keeps absolute γ = 0.01 |
-| `trainMode` | `'withSignal'` | `'withSignal'` (MPDR) or `'signalFree'` (MVDR); see §6; page flag `?train=signalFree` |
-| `model` | `'legacy'` | `'legacy'` \| `'unified'`; the page also accepts `?model=unified` |
+| `trainMode` | `'signalFree'` | `'signalFree'` (MVDR, idealised; default since Commit 17) or `'withSignal'` (MPDR); see §6; page flag `?train=withSignal` |
+| `model` | `'unified'` | `'unified'` (default since Commit 17) or `'legacy'` (v4 analytic); the page accepts `?model=legacy` and has a model selector |
 
 Other defaults (UI): L = 100, θ₁ = 0°, θ₂ = 40°, SNR = 20 dB (per element), SIR = −10 dB, v = 0, K = 20 dB, σ_φ = 0°, τ = 0, γ = 0.01 (absolute), 16-QAM.
 Not modelled (unchanged): number of OFDM subcarriers, sampling rate, time-domain waveform, FFT size.
@@ -108,7 +108,7 @@ Deliberate differences from the legacy model (spec-driven): static fading within
 
 **Diagnostic (panel D, `Sys.dopPhaseErr`).** The bracketed number is now `max_i |φ_i(t_app) − 2π f_d,i t_app|`, the difference between the integrated phase and the previous first-order phase, i.e. how much the first-order model would have been off. Typical values (v = 300 km/h, θ₁ = 45°, θ₂ = −30°, τ = 0): d_min = 5 m: 2.4 rad, 30 m: 0.41 rad, 50 m: 0.25 rad, 500 m: 0.025 rad (τ = 10 ms: 13, 2.4, 1.4, 0.15 rad).
 
-## 5. Legacy model (`model = 'legacy'`, default until the tests of `tests/` all pass)
+## 5. Legacy model (`model = 'legacy'`, the v4 analytic model; selectable, no longer the default)
 
 Unchanged: i.i.d. block fading per snapshot, diffuse M = 8 re-drawn each snapshot, 20 % sliding window, expected-covariance SINR, ICI = `K/(K+1)(1−sinc²ε) + 1/(K+1)·⟨1−sinc²(ε_m cosα)⟩_α` (isotropic α). `core.js` is bit-identical to the pre-refactor page (see `tests/legacy_equivalence.js`).
 
@@ -230,3 +230,15 @@ with wᴴn ~ CN(0, Nn), wᴴj = √I × (unit-power QPSK interferer symbol, rand
 **Sweep.** Option "符元層級驗證" (default off): per sweep point and algorithm, 5 further channel realisations × 4000 symbols (child seeds 1000 + j); mean EVM → CSV column `evm_meas_sample_<alg>_pct` (n/a when off; `sweep_info` carries `symbol_validation` and `evm_meas_sample_n`).
 
 Limits (T13 header): the measured chain is built from the same S, I, N_n, N_ICI/S as the analytic EVM, so T13a verifies the arithmetic of the chain (scaling, normalisation, estimators), not the ICI physics.
+
+## 14. Defaults (Commit 17)
+
+| setting | default | note |
+|---|---|---|
+| `model` | `'unified'` | legacy = "v4 analytic（舊版）": `?model=legacy` or the selector in the Tx card; the header shows the active model |
+| `trainMode` | `'signalFree'` | MVDR, **idealised**: the interference-plus-noise covariance is assumed available without the target (a one-line reminder is shown next to the selector); MPDR (`withSignal`) one click away |
+| `smiSingular` | `'pinv'` | §12 |
+| `gammaRelDb` | +10 dB | §7 (unified) |
+| algorithm menu | FOURIER, MMSE-P, MMSE-M, SMI, DL, BEAMSPACE | MMSE-P before MMSE-M; the UI default algorithm remains SMI |
+
+The pre-refactor equivalence test (T0a) runs the legacy model explicitly (`model: 'legacy'`, `trainMode: 'withSignal'`, `smiSingular: 'clamp'`, `mod: 'QPSK'`). The regression of the new defaults is `tests/t14_golden.js` against `tests/golden/default_snapshot.json` (fixed seeds and parameters; SINR, EVM, SINR_opt, SER of FOURIER / MMSE-M / MMSE-P / SMI / DL / BEAMSPACE for the default and for `withSignal`). Update the file on purpose with `node tests/make_golden.js` when a change of the numbers is intended, and say why in the commit.

@@ -27,10 +27,10 @@
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
         smiSingular: 'pinv',  // SMI when R_hat is rank deficient (L < N): 'pinv' (Moore-Penrose, only the eigenspace above epsRank*lambda_max) | 'clamp' (legacy: pivot clamped to 1e-6)
         epsRank: 1e-10,       // relative eigenvalue threshold of the rank decision / pseudo-inverse (fraction of lambda_max)
-        trainMode: 'withSignal',   // 'withSignal' (MPDR, current behaviour) | 'signalFree' (MVDR training assumption, idealised)
+        trainMode: 'signalFree',   // 'signalFree' (MVDR training assumption, idealised; default) | 'withSignal' (MPDR: the target is in the training window)
         iciWarnDb: -30, iciSevereDb: -20,   // diagnosis: N_ICI/S above these (dB) = warning / severe (PARAMS.md section 8)
         gammaRelDb: 10,       // unified model, DL: gamma = 10^(gammaRelDb/10) * sigma_n^2  (sigma_n^2 = 10^(-SNR/10), per element)
-        model: 'legacy',      // 'legacy' | 'unified'  (see PARAMS.md)
+        model: 'unified',     // 'unified' (default) | 'legacy' (v4 analytic; ?model=legacy), see PARAMS.md
         M_UNIFIED: 32         // number of diffuse paths per trial in the unified model
     };
 

@@ -20,7 +20,7 @@ function zTwoSided(p) { let lo = 0, hi = 40; for (let i = 0; i < 200; i++) { con
 const U = require('./_util.js');
 
 const BASE = { model: 'unified', freshRealization: true, kDb: 400, d_min: 1e30, latMs: 0, N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, calDeg: 0,
-    taper: 'NONE', algo: 'SMI', gammaDL: 0.01, mod: 'QAM16' };
+    taper: 'NONE', algo: 'SMI', gammaDL: 0.01, mod: 'QAM16', trainMode: 'withSignal' };
 const VS = [0, 100, 300, 500];
 
 function oneDraw(sys, v, seed) { Core.setSeed(seed); sys.v = v; sys.snaps = []; sys.computeMath(); return { R: U.cloneR(sys.R_raw), sinr: Math.pow(10, sys.sinrDb / 10), nu: sys.nuICI, eps: sys.eps0 }; }
