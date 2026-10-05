@@ -157,3 +157,8 @@ Absolute values at the default SNR = 20 dB (σ_n² = 0.01):
 | `1e-12·λ_max` | κ = ∞ decision | relative |
 | `1e-3` norm threshold | blocking-matrix Gram–Schmidt | relative (vectors are unit-scale) |
 | BEAMSPACE | **no loading constant**: K = 3 DFT beams (nearest to the target + the 2 strongest) | — |
+
+## 9. Read-outs added during the investigation
+
+- `SINR_opt` (`Sys.sinrOptDb`, panel D; read-only, not used by any algorithm): genie bound `w_opt = R_in⁻¹h`, `SINR_opt = hᴴR_in⁻¹h`, `R_in = P_j g gᴴ + σ²I` (the true interference + noise covariance of the unified model, `g = Γ⊙a(θ₂)`), `h` = this realisation's true channel vector at t_app. Closed form (rank-one inverse): `SINR_opt = (‖h‖² − P_j|gᴴh|²/(σ² + P_j‖g‖²))/σ²`. Legacy model: no per-trial h exists, so the bound is the expected-covariance version, `λ_max(R_in⁻¹ R_t)` (power iteration), with the legacy Rician jammer in `R_in`.
+- MMSE's cross-correlation vector: `r_xd = P_s·a(θ̂₁)` — the **nominal** steering vector at the estimated angle (core.js, MMSE branch of `computeMath`); a "model-based" MMSE. A data-driven `r_xd = (1/L)Σ x_n s_nᴴ` was only evaluated in `tests/diag_c10b_mmse.js`; the snapshots now carry the known target symbol (`s1r`, `s1i`) for that purpose. The existing MMSE is unchanged.

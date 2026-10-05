@@ -274,6 +274,7 @@
                     <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
                     <div class="kv" title="Largest angle change of any path (target paths and jammer) inside the training window; The model integrates the Doppler phase along the track; in parentheses: largest |integrated phase − first-order phase (f_d at t_app × t)| in rad, i.e. how much the first-order model of the previous version would have been off. Unified model only."><span class="k">窗內角度漂移 Δθ<sub>max</sub></span><span class="v"><span id="m-drift">—</span> °<span id="m-perr"></span></span></div>
                     <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
+                    <div class="kv" title="Genie upper bound: w_opt = R_in⁻¹h with the TRUE interference+noise covariance and this trial's true channel vector (unified model); legacy: λ_max(R_in⁻¹R_t) of the expected covariances. Read-out only."><span class="k">SINR<sub>opt</sub> (genie)</span><span class="v"><span id="m-opt">—</span> dB<span id="m-optgap" class="note"></span></span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
             </section>
@@ -436,6 +437,8 @@
             renderEq() {
                 const S = Sys, v = t => this.v(t), $ = id => document.getElementById(id), mi = modInfo(S.mod);
                 const Klin = Math.pow(10, S.kDb / 10);
+                $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
+                $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
                 $('eq-model').innerHTML =
                     `r(l) = <b>a</b><sub>1</sub>(l)·s<sub>1</sub>(l) + <b>a</b><sub>2</sub>(l)·s<sub>2</sub>(l) + n(l), l = 0…L−1<br>` +
                     `<b>a</b><sub>k</sub>(l) = Γ[ √(K/(K+1))·a(θ<sub>k</sub>) + √(1/(K+1))·g<sub>k</sub>(l) ]<br>` +

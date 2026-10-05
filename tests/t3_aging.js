@@ -21,12 +21,12 @@ const BASE = { model: 'unified', freshRealization: true, N: 8, L: 100, snr: 20, 
 const A_SCEN = { kDb: 400, aoaT: 0, aoaJ: -30, v: 300, trainMode: 'signalFree' };       // jammer-only aging
 
 function values(sys, over, trials, seed0) {
-    const out = [];
+    const out = []; out.opt = [];
     for (let t = 0; t < trials; t++) {
         Core.setSeed(seed0 + t);
         Object.assign(sys, BASE, over); sys.snaps = [];
         sys.computeMath();
-        out.push(sys.sinrDb);
+        out.push(sys.sinrDb); out.opt.push(sys.sinrOptDb);
     }
     return out;
 }
@@ -52,6 +52,7 @@ module.exports = {
                 const r = s > 0 ? m / s : (m > 0 ? Infinity : -Infinity);
                 if (r > worst) { worst = r; worstTxt = `${TAUS_MS[k]}->${TAUS_MS[k + 1]} ms: ${U.f(m, 4)} dB / ${U.f(s, 4)}`; }
             }
+            console.log(U.pad('', 7), U.pad('  - SINR_opt', 10), cols.map(c => U.rpad(U.f(U.mean(c) - U.mean(c.opt), 2), 8)).join(''), '   (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: ' + U.f(U.mean(cols[0].opt), 2) + ' dB)');
             const small = dmin < 100;
             console.log(U.pad(dmin, 7), U.pad(algo, 10), means.map(x => U.rpad(U.f(x, 2), 8)).join(''), '   ', worstTxt, small ? (ok ? 'PASS' : 'FAIL') : (ok ? '(info: monotone)' : '(info: not monotone)'));
             if (small) checks.push(U.check(`T3a d_min=${dmin} m ${algo}: mean SINR_inst non-increasing in tau`, `drop 0 -> 10 ms: ${U.f(means[0] - means[means.length - 1], 2)} dB`, 'each step: mean(d) <= SE(d)', ok, `worst step ${worstTxt}`));

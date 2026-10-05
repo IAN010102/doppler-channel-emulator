@@ -254,7 +254,7 @@
             R_hat: [], weights: [], pattern: [], tVec: [], applied: {},
             kappa: 1, status: 'OK', fallback: false, invOk: true, delta: 0, lambdaQ: 0, noisePow: 0,
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
-            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, isDb: 0, nuICI: 0, evm: 0, ser: 0,
+            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
@@ -434,7 +434,7 @@
                         ri[e] = gam[e].r * ui + gam[e].i * ur + this.randn() * sd;
                         tr[e] = gam[e].r * sr - gam[e].i * si; ti[e] = gam[e].r * si + gam[e].i * sr;   // target part alone (needed by MMSE, see computeMath)
                     }
-                    this.snaps.push({ rr, ri, tr, ti });
+                    this.snaps.push({ rr, ri, tr, ti, s1r: s1.r, s1i: s1.i });   // s1: the (known) target symbol, for the data-driven r_xd study
                 }
                 // diagnostics: largest angle change of any path (target paths and jammer) between the first and the last training snapshot,
                 // and the largest difference between the integrated Doppler phase and the first-order one (f_d at t_app times t), over paths
@@ -490,6 +490,35 @@
 
                 // Channel aging: weights are estimated at t - tau, applied at t.
                 const tau = this.latMs * 1e-3, vms = this.v / 3.6;
+            // SINR_opt (genie upper bound, read-out only): w_opt = R_in^-1 h, SINR_opt = h^H R_in^-1 h, R_in = P_j g g^H + sigma^2 I (true interference + noise),
+            // h = true channel vector of this realisation at t_app, g = Gamma a(theta_2). Rank-one inverse in closed form:
+            //   SINR_opt = ( |h|^2 - P_j |g^H h|^2 / (sigma^2 + P_j |g|^2) ) / sigma^2
+            genieSinr(paths, gam, thJ, tApp, jamPow, noisePow) {
+                const N = this.N, TWO_PI = 2 * Math.PI, d = this.d_lambda, hr = new Float64Array(N), hi = new Float64Array(N);
+                for (let i = 0; i < paths.P; i++) {
+                    const k = -TWO_PI * d * Math.sin(paths.th0[i]), ph = trackPhase(paths.th0[i], paths.vms, this.d_min, paths.lam, -tApp, 0);
+                    const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
+                    for (let e = 0; e < N; e++) { const cs = Math.cos(k * e), sn = Math.sin(k * e); hr[e] += cr * cs - ci * sn; hi[e] += cr * sn + ci * cs; }
+                }
+                const kj = -TWO_PI * d * Math.sin(thJ); let h2 = 0, g2 = 0, gr_ = 0, gi_ = 0;
+                for (let e = 0; e < N; e++) {
+                    const hrE = gam[e].r * hr[e] - gam[e].i * hi[e], hiE = gam[e].r * hi[e] + gam[e].i * hr[e];            // Gamma . h
+                    const cs = Math.cos(kj * e), sn = Math.sin(kj * e), gR = gam[e].r * cs - gam[e].i * sn, gI = gam[e].r * sn + gam[e].i * cs;   // Gamma . a(theta_2)
+                    h2 += hrE * hrE + hiE * hiE; g2 += gR * gR + gI * gI; gr_ += gR * hrE + gI * hiE; gi_ += gR * hiE - gI * hrE;       // g^H h
+                }
+                return (h2 - jamPow * (gr_ * gr_ + gi_ * gi_) / (noisePow + jamPow * g2)) / noisePow;
+            },
+            // legacy model: the same bound in the expected-covariance sense, lambda_max(R_in^-1 R_t) (power iteration)
+            genieSinrExpected(Rt, Rj, noisePow) {
+                const N = this.N, Rin = Rj.map((row, m) => row.map((c, n) => m === n ? new Cplx(c.r + noisePow, c.i) : c)), inv = invertMatrix(Rin, true);
+                let v = Array.from({ length: N }, (_, i) => new Cplx(1 / Math.sqrt(N), 0)), lam = 0;
+                for (let it = 0; it < 60; it++) {
+                    const u = matMulVec(inv, matMulVec(Rt, v)), nrm = Math.sqrt(u.reduce((a, c) => a + c.mag2(), 0)) || 1;
+                    v = u.map(c => new Cplx(c.r / nrm, c.i / nrm));
+                    lam = quadForm(v, Rt) / quadForm(v, Rin);
+                }
+                return lam;
+            },
                 const uniG = this.model === 'unified';
                 // unified: angle at t_est from the exact straight-track geometry, same law for target and jammer;
                 // legacy: kept as it was (linearised, jammer with the opposite sign)
@@ -532,7 +561,7 @@
                         ri[n] = si * sg + a2r * s2.i + a2i * s2.r + this.randn() * sd;
                         tr[n] = sr; ti[n] = si;
                     }
-                    this.snaps.push({ rr, ri, tr, ti });
+                    this.snaps.push({ rr, ri, tr, ti, s1r: s1.r, s1i: s1.i });
                 }
                 while (this.snaps.length > L) this.snaps.shift();
                 }
@@ -643,9 +672,11 @@
                 this.sinrDb = 10 * Math.log10(sinrLin);
                 this.isDb = 10 * Math.log10(this.I / this.S + 1e-30);
 
+                    this.sinrOptDb = 10 * Math.log10(this.genieSinr(uniPaths, gam, thJ, tApp, jamPow, noisePow));
                 const gJ2 = vecDot(w, withG(this.steer(thJ))).mag2();
                 const gT2 = vecDot(w, withG(this.steer(thT))).mag2();
                 this.nullDb = 10 * Math.log10(gJ2 / gT2 + 1e-30);
+                    this.sinrOptDb = 10 * Math.log10(this.genieSinrExpected(Rt, Rj, noisePow));
 
                 // ---- Doppler / ICI
                 this.fm = vms * this.fc / this.c;

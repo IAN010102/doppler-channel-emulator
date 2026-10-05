@@ -23,11 +23,11 @@ function sample(model, algo, over, trials, seed) {
     Core.setSeed(seed);
     const sys = Core.createSys(); sys.rollCal();
     Object.assign(sys, BASE, over, { model, algo, freshRealization: true });
-    const db = [];
+    const db = []; db.opt = [];
     for (let t = 0; t < trials; t++) {
         sys.snaps = []; sys.snapKey = '';
         sys.computeMath();
-        if (Number.isFinite(sys.sinrDb)) db.push(sys.sinrDb);
+        if (Number.isFinite(sys.sinrDb)) { db.push(sys.sinrDb); db.opt.push(sys.sinrOptDb); }
     }
     return db;
 }
@@ -54,7 +54,7 @@ module.exports = {
         // ---------------------------------------------------------------- T1b
         console.log(`\nT1b  (informational) K = 20 dB, v = 0, tau = 0, ${trials} trials per cell; mean SINR dB ± SE`);
         console.log(U.pad('algorithm', 11), U.rpad('legacy ws', 14), U.rpad('unified ws', 14), U.rpad('legacy sf', 14), U.rpad('unified sf', 14),
-            U.rpad('gap_ws', 8), U.rpad('gap_sf', 8), U.rpad('ws - sf', 8), U.rpad('SE', 6), U.rpad('L: sf-ws', 9), U.rpad('U: sf-ws', 9));
+            U.rpad('gap_ws', 8), U.rpad('gap_sf', 8), U.rpad('ws - sf', 8), U.rpad('SE', 6), U.rpad('L: sf-ws', 9), U.rpad('U: sf-ws', 9), U.rpad('opt L', 7), U.rpad('opt U', 7), U.rpad('Lws-opt', 8), U.rpad('Uws-opt', 8), U.rpad('Lsf-opt', 8), U.rpad('Usf-opt', 8));
         ALGOS.forEach((algo, k) => {
             const s0 = seed + 9000 + 211 * k;
             const Lw = sample('legacy', algo, { kDb: 20, trainMode: 'withSignal' }, trials, s0), Uw = sample('unified', algo, { kDb: 20, trainMode: 'withSignal' }, trials, s0 + 50);
@@ -63,9 +63,11 @@ module.exports = {
             const se = Math.sqrt(U.se(Lw) ** 2 + U.se(Uw) ** 2 + U.se(Ls) ** 2 + U.se(Us) ** 2);
             console.log(U.pad(algo, 11), U.rpad(fmt(Lw), 14), U.rpad(fmt(Uw), 14), U.rpad(fmt(Ls), 14), U.rpad(fmt(Us), 14),
                 U.rpad(U.f(gws, 2), 8), U.rpad(U.f(gsf, 2), 8), U.rpad(U.f(gws - gsf, 2), 8), U.rpad(U.f(se, 2), 6),
-                U.rpad(U.f(U.mean(Ls) - U.mean(Lw), 2), 9), U.rpad(U.f(U.mean(Us) - U.mean(Uw), 2), 9));
+                U.rpad(U.f(U.mean(Ls) - U.mean(Lw), 2), 9), U.rpad(U.f(U.mean(Us) - U.mean(Uw), 2), 9),
+                U.rpad(U.f(U.mean(Lw.opt), 2), 7), U.rpad(U.f(U.mean(Uw.opt), 2), 7), U.rpad(U.f(U.mean(Lw) - U.mean(Lw.opt), 2), 8), U.rpad(U.f(U.mean(Uw) - U.mean(Uw.opt), 2), 8),
+                U.rpad(U.f(U.mean(Ls) - U.mean(Ls.opt), 2), 8), U.rpad(U.f(U.mean(Us) - U.mean(Us.opt), 2), 8));
             info.push({ name: `T1b ${algo}`, value: `gap_ws ${U.f(gws, 2)}, gap_sf ${U.f(gsf, 2)}, explained by training ${U.f(gws - gsf, 2)} dB`,
-                note: `legacy ws ${fmt(Lw)}, unified ws ${fmt(Uw)}, legacy sf ${fmt(Ls)}, unified sf ${fmt(Us)}; SE of a combination ~ ${U.f(se, 2)} dB` });
+                note: `SINR_opt legacy ${U.f(U.mean(Lw.opt), 2)} / unified ${U.f(U.mean(Uw.opt), 2)} dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = ${U.f(U.mean(Lw) - U.mean(Lw.opt), 2)} / ${U.f(U.mean(Uw) - U.mean(Uw.opt), 2)} / ${U.f(U.mean(Ls) - U.mean(Ls.opt), 2)} / ${U.f(U.mean(Us) - U.mean(Us.opt), 2)} dB; legacy ws ${fmt(Lw)}, unified ws ${fmt(Uw)}, legacy sf ${fmt(Ls)}, unified sf ${fmt(Us)}; SE of a combination ~ ${U.f(se, 2)} dB` });
         });
         console.log('     gap_* = unified - legacy; ws = withSignal (MPDR), sf = signalFree (MVDR); "ws - sf" = part of the gap explained by training data that contain the signal');
         return { id: this.id, title: this.title, checks, info };
