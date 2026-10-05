@@ -20,6 +20,7 @@ The UI picks a fresh random seed at every page load.
 | `M_UNIFIED` | 32 | diffuse paths per trial — **unified model** |
 | `LAMBDA_Q`, `REL_Q` | 30, 10 | loading rule of the tapered (GSC) adaptive path (unchanged) |
 | `REFRESH` | 0.2 | sliding-window refresh fraction — **legacy model only** |
+| `trainMode` | `'withSignal'` | `'withSignal'` (MPDR) or `'signalFree'` (MVDR); see §6; page flag `?train=signalFree` |
 | `model` | `'legacy'` | `'legacy'` \| `'unified'`; the page also accepts `?model=unified` |
 
 Other defaults (UI): L = 100, θ₁ = 0°, θ₂ = 40°, SNR = 20 dB (per element), SIR = −10 dB, v = 0, K = 20 dB, σ_φ = 0°, τ = 0, γ = 0.01 (absolute), 16-QAM.
@@ -80,3 +81,20 @@ Deliberate differences from the legacy model (spec-driven): static fading within
 ## 5. Legacy model (`model = 'legacy'`, default until the tests of `tests/` all pass)
 
 Unchanged: i.i.d. block fading per snapshot, diffuse M = 8 re-drawn each snapshot, 20 % sliding window, expected-covariance SINR, ICI = `K/(K+1)(1−sinc²ε) + 1/(K+1)·⟨1−sinc²(ε_m cosα)⟩_α` (isotropic α). `core.js` is bit-identical to the pre-refactor page (see `tests/legacy_equivalence.js`).
+
+## 6. Training data mode (`trainMode`, both models)
+
+`R̂ = (1/L)Σ x_n x_nᴴ` is built from the snapshot window. Two settings:
+
+| `trainMode` | training snapshots | design name |
+|---|---|---|
+| `'withSignal'` (default) | target + jammer + noise (the previous behaviour) | **MPDR** (minimum-power distortionless response) |
+| `'signalFree'` | jammer + noise only | **MVDR** (textbook assumption: R = R_n) |
+
+Physical basis: with the target in the training data, minimising output power under a distortionless constraint on the *nominal* a(θ̂₁) also minimises the target's own contribution whenever the true target vector h differs from a(θ̂₁) (fading, calibration, aging, angle spread): the filter partly cancels the signal (self-nulling). With signal-free training this mechanism is absent. The signal-free mode is an idealisation (a receiver cannot normally separate the target from its training window); it is the reference for the MPDR loss.
+
+Pairing: in `'signalFree'` the random draws are exactly those of `'withSignal'` (target symbols and diffuse gains are drawn and then not added), so for one seed the interference and noise sequences are identical in both modes. Evaluation (SINR, EVM) always includes the target.
+
+Algorithms: **SMI, DL, BEAMSPACE (and the tapered GSC variants of SMI/DL)** follow `trainMode`. **FOURIER** does not use R̂. **MMSE** always keeps the target: the Wiener filter minimises E|wᴴx − d|² with R = E[xxᴴ] = R_n + P_s h hᴴ and r_xd = P_s a, so R̂ must contain the target for w = R̂⁻¹r_xd to be the Wiener solution; with a signal-free R the same formula gives P_s·R_n⁻¹a, i.e. the MVDR direction, no longer MMSE. In code the target part of each snapshot is stored separately and added back for MMSE. MMSE is therefore unaffected by `trainMode` (and equals SMI-MPDR up to a scalar).
+
+UI: selector "訓練資料" (Rx card, URL flag `?train=signalFree`); names in legends and diagnosis read SMI-MPDR / SMI-MVDR etc. The CSV is unchanged (the `algorithm` field keeps the historical labels SMI-MVDR …). **CSV columns to add in a later round:** `param,train_mode`; `sweep_info` should carry `train=`; (Commit 6/7) `param,gamma_rel_dB`, `param,d_min`, `result,max_angle_drift_deg`.

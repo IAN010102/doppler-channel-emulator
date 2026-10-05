@@ -25,6 +25,7 @@
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        trainMode: 'withSignal',   // 'withSignal' (MPDR, current behaviour) | 'signalFree' (MVDR training assumption, idealised)
         model: 'legacy',      // 'legacy' | 'unified'  (see PARAMS.md)
         M_UNIFIED: 32         // number of diffuse paths per trial in the unified model
     };
@@ -222,6 +223,7 @@
             REFRESH: CONFIG.REFRESH,                   // fraction of the snapshot window replaced per update
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
+            trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
 
@@ -385,7 +387,7 @@
                 const N = this.N, L = this.L, d = this.d_lambda, TWO_PI = 2 * Math.PI, vms = this.v / 3.6;
                 const sd = Math.sqrt(noisePow / 2);
                 const fdJ = paths.fm * Math.cos(thJ), thdJ = vms * Math.sin(thJ) / this.R_min;     // jammer drift keeps the legacy sign (+)
-                const hr = new Float64Array(N), hi = new Float64Array(N);
+                const hr = new Float64Array(N), hi = new Float64Array(N), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 this.snaps = [];
                 for (let n = 0; n < L; n++) {
                     const t = n * Tsnap, dt = t - tApp;
@@ -397,16 +399,18 @@
                     }
                     const thj = thJ + thdJ * dt, kj = -TWO_PI * d * Math.sin(thj), phj = TWO_PI * fdJ * t, cjr = Math.cos(phj), cji = Math.sin(phj);
                     const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
-                    const rr = new Float64Array(N), ri = new Float64Array(N);
+                    const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let e = 0; e < N; e++) {
                         const c = Math.cos(kj * e), s = Math.sin(kj * e);
                         const jr = c * cjr - s * cji, jim = c * cji + s * cjr;                       // a_e(theta_2) * e^{j 2 pi fd_2 t}
-                        const ur = hr[e] * s1.r - hi[e] * s1.i + jr * s2.r - jim * s2.i;
-                        const ui = hr[e] * s1.i + hi[e] * s1.r + jr * s2.i + jim * s2.r;
+                        const sr = hr[e] * s1.r - hi[e] * s1.i, si = hr[e] * s1.i + hi[e] * s1.r;     // target term h s_n
+                        const ur = sr * sg + jr * s2.r - jim * s2.i;                                 // sg = 0: signal-free training window
+                        const ui = si * sg + jr * s2.i + jim * s2.r;
                         rr[e] = gam[e].r * ur - gam[e].i * ui + this.randn() * sd;                   // Gamma = hardware phase mismatch
                         ri[e] = gam[e].r * ui + gam[e].i * ur + this.randn() * sd;
+                        tr[e] = gam[e].r * sr - gam[e].i * si; ti[e] = gam[e].r * si + gam[e].i * sr;   // target part alone (needed by MMSE, see computeMath)
                     }
-                    this.snaps.push({ rr, ri });
+                    this.snaps.push({ rr, ri, tr, ti });
                 }
             },
             // per-trial metrics at t_app = t_est + tau (angles = reference angles):
@@ -469,35 +473,42 @@
                 } else {
                 // ---- snapshot window: r(l) = a1(l) s1(l) + a2(l) s2(l) + n(l)  (sources at the OLD angles)
                 // statistics-changing parameters flush the window; otherwise a fraction REFRESH is replaced per update
-                const key = [N, this.aoaT, this.aoaJ, this.snr, this.sir, this.calDeg, this.calVer, this.latMs, this.v, this.kDb].join('|');
+                const key = [N, this.aoaT, this.aoaJ, this.snr, this.sir, this.calDeg, this.calVer, this.latMs, this.v, this.kDb, this.trainMode].join('|');
                 if (key !== this.snapKey) { this.snaps = []; this.snapKey = key; }
                 const have = this.snaps.length;
                 let add = have === 0 ? L : Math.max(0, L - have);
                 if (have > 0) add = Math.max(add, Math.ceil(this.REFRESH * L));
-                const sd = Math.sqrt(noisePow / 2);
+                const sd = Math.sqrt(noisePow / 2), sg = this.trainMode === 'signalFree' ? 0 : 1;
                 const gTr = new Float64Array(N), gTi = new Float64Array(N), gJr = new Float64Array(N), gJi = new Float64Array(N);
                 for (let l = 0; l < add; l++) {
                     const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
                     this.diffuse(thTo, gTr, gTi); this.diffuse(thJo, gJr, gJi);
-                    const rr = new Float64Array(N), ri = new Float64Array(N);
+                    const rr = new Float64Array(N), ri = new Float64Array(N), tr = new Float64Array(N), ti = new Float64Array(N);
                     for (let n = 0; n < N; n++) {
                         const t1r = cL * nomT[n].r + cD * gTr[n], t1i = cL * nomT[n].i + cD * gTi[n];
                         const t2r = cL * nomJ[n].r + cD * gJr[n], t2i = cL * nomJ[n].i + cD * gJi[n];
                         const a1r = gam[n].r * t1r - gam[n].i * t1i, a1i = gam[n].r * t1i + gam[n].i * t1r;
                         const a2r = gam[n].r * t2r - gam[n].i * t2i, a2i = gam[n].r * t2i + gam[n].i * t2r;
-                        rr[n] = a1r * s1.r - a1i * s1.i + a2r * s2.r - a2i * s2.i + this.randn() * sd;
-                        ri[n] = a1r * s1.i + a1i * s1.r + a2r * s2.i + a2i * s2.r + this.randn() * sd;
+                        const sr = a1r * s1.r - a1i * s1.i, si = a1r * s1.i + a1i * s1.r;           // target term
+                        rr[n] = sr * sg + a2r * s2.r - a2i * s2.i + this.randn() * sd;
+                        ri[n] = si * sg + a2r * s2.i + a2i * s2.r + this.randn() * sd;
+                        tr[n] = sr; ti[n] = si;
                     }
-                    this.snaps.push({ rr, ri });
+                    this.snaps.push({ rr, ri, tr, ti });
                 }
                 while (this.snaps.length > L) this.snaps.shift();
                 }
 
                 const Rr = new Float64Array(N * N), Ri = new Float64Array(N * N);
-                for (const { rr, ri } of this.snaps) {
+                // MMSE (Wiener) is defined with the covariance of the received signal INCLUDING the target (R = R_n + P_s a a^H),
+                // so it keeps the target in its training data whatever trainMode says; SMI, DL, BEAMSPACE follow trainMode.
+                const addTarget = this.trainMode === 'signalFree' && this.algo === 'MMSE';
+                const zr = new Float64Array(N), zi = new Float64Array(N);
+                for (const { rr, ri, tr, ti } of this.snaps) {
+                    for (let m = 0; m < N; m++) { zr[m] = addTarget ? rr[m] + tr[m] : rr[m]; zi[m] = addTarget ? ri[m] + ti[m] : ri[m]; }
                     for (let m = 0; m < N; m++) for (let n = 0; n < N; n++) { // r r^H
-                        Rr[m * N + n] += rr[m] * rr[n] + ri[m] * ri[n];
-                        Ri[m * N + n] += ri[m] * rr[n] - rr[m] * ri[n];
+                        Rr[m * N + n] += zr[m] * zr[n] + zi[m] * zi[n];
+                        Ri[m * N + n] += zi[m] * zr[n] - zr[m] * zi[n];
                     }
                 }
                 const Lw = this.snaps.length;
@@ -649,7 +660,7 @@
                 this.jamGainDb = p[jIdx];
 
                 // snapshot of the parameters this result was computed with (diagnosis reads these, not the live sliders)
-                this.applied = { algo: this.algo, taper: this.taper, gamma: this.gammaUsed, L, N, aoaJ: this.aoaJ, mod: this.mod };
+                this.applied = { train: this.trainMode, algo: this.algo, taper: this.taper, gamma: this.gammaUsed, L, N, aoaJ: this.aoaJ, mod: this.mod };
             }
         };
         return Sys;

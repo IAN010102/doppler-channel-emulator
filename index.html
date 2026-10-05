@@ -319,12 +319,16 @@
     <script>
         const { Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, CONFIG } = Core;
 
+        // Training data: 'withSignal' (target inside the training window) -> the design is MPDR (minimum power distortionless response);
+        // 'signalFree' (interference + noise only, the textbook MVDR assumption) -> MVDR. The algorithm names follow the setting.
+        // `csv` keeps the historical labels, so the CSV file does not change.
+        const MV = () => Sys.trainMode === 'signalFree' ? 'MVDR' : 'MPDR';
         const ALGO = {
-            FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)' },
-            MMSE:      { short: 'MMSE',     long: 'MMSE (Wiener Filter)' },
-            SMI:       { short: 'SMI-MVDR', long: 'SMI-MVDR (Capon Beamformer)' },
-            DL:        { short: 'DL-MVDR',  long: 'DL-MVDR (Tikhonov Regularization)' },
-            BEAMSPACE: { short: 'BS-MVDR',  long: 'BEAMSPACE-MVDR (Dimensionality Reduction)' },
+            FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)', csv: 'FOURIER' },
+            MMSE:      { short: 'MMSE',     long: 'MMSE (Wiener Filter)', csv: 'MMSE' },
+            SMI:       { get short() { return 'SMI-' + MV(); }, get long() { return `SMI-${MV()} (Capon Beamformer)`; }, csv: 'SMI-MVDR' },
+            DL:        { get short() { return 'DL-' + MV(); },  get long() { return `DL-${MV()} (Tikhonov Regularization)`; }, csv: 'DL-MVDR' },
+            BEAMSPACE: { get short() { return 'BS-' + MV(); },  get long() { return `BEAMSPACE-${MV()} (Dimensionality Reduction)`; }, csv: 'BS-MVDR' },
         };
 
         const Sys = Core.createSys();
@@ -337,9 +341,10 @@
                 this.forceOnce = true; this.dirty = true;
         };
 
-        if (typeof location !== 'undefined' && location.search) {            // ?model=legacy | unified
-            const m = new URLSearchParams(location.search).get('model');
+        if (typeof location !== 'undefined' && location.search) {            // ?model=legacy|unified  &train=withSignal|signalFree
+            const q = new URLSearchParams(location.search), m = q.get('model'), tr = q.get('train');
             if (m === 'legacy' || m === 'unified') Sys.model = m;
+            if (tr === 'withSignal' || tr === 'signalFree') Sys.trainMode = tr;
         }
         Core.setSeed(Core.randomSeed());     // UI default: a new random seed on every page load
         Sys.rollCal();
@@ -372,11 +377,11 @@
                     this.push('w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)', 'f');
                     this.push('Requires known reference signal (Pilot). Minimizes MSE between output and reference.', 'n');
                     if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
-                    else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MVDR (κ = ${ku}).`, 'i');
+                    else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MPDR (κ = ${ku}). MMSE always trains on data that contain the target.`, 'i');
                 }
                 else if (S.algo === 'SMI') {
                     if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
-                    else this.push(`[INFO] SMI-MVDR selected. Direct inversion succeeded (κ = ${ku}). It collapses when L < N.`, 'i');
+                    else this.push(`[INFO] SMI-${MV()} selected (${S.trainMode === 'signalFree' ? 'training window without the target, idealised' : 'training window contains the target: signal self-nulling possible under look-direction mismatch'}). Direct inversion succeeded (κ = ${ku}). It collapses when L < N.`, 'i');
                 } else if (S.algo === 'DL') {
                     this.push(`[OPTIMIZED] Diagonal Loading applied (γ = ${this.sci(S.gammaUsed)}). Condition number stabilized (κ ${kr} → ${ku}).`, 'g');
                 } else if (S.algo === 'BEAMSPACE') {
@@ -459,13 +464,13 @@
                     `模擬：參考訊號與目標完全相關 ⇒ r<sub>xd</sub> = P<sub>s</sub>·a(θ<sub>t</sub>)，w = R̂<sub>r</sub><sup>−1</sup>(P<sub>s</sub>a)，P<sub>s</sub>=1<br>` +
                     `<span class="note">Requires known reference signal (Pilot). Minimizes MSE between output and reference.<br>` +
                     `與 MVDR 只差純量 α = P<sub>s</sub>·aᴴR̂<sup>−1</sup>a：${alg === 'MMSE' ? `wᴴa = ${v(S.outGain.toFixed(3))}（理論 α = SINR/(1+SINR) &lt; 1；樣本估計使 R̂⁻¹ 偏大約 L/(L−N)，α 會略增；場型形狀與零陷位置與 SMI-MVDR 完全相同）${S.collapsed ? '<br><span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : ''}` : '波束形狀與零陷位置與 SMI-MVDR 相同'}</span></div>` +
-                    `<div class="${cls(alg === 'SMI' && !gsc)}"><b>SMI-MVDR</b>：min<sub>w</sub> wᴴR<sub>r</sub>w s.t. wᴴa(θ̂<sub>1</sub>) = 1<br>` +
+                    `<div class="${cls(alg === 'SMI' && !gsc)}"><b>SMI-${MV()}</b>：min<sub>w</sub> wᴴR<sub>r</sub>w s.t. wᴴa(θ̂<sub>1</sub>) = 1<br>` +
                     `⇒ w = R̂<sub>r</sub><sup>−1</sup>a / (aᴴR̂<sub>r</sub><sup>−1</sup>a)<br>` +
                     `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
-                    `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-MVDR</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
+                    `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-${MV()}</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
                     `⇒ w = R̂<sub>DL</sub><sup>−1</sup>a / (aᴴR̂<sub>DL</sub><sup>−1</sup>a)<br>` +
                     `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
-                    `<div class="${cls(alg === 'BEAMSPACE')}"><b>BEAMSPACE-MVDR</b>（降維 N→K）：B = [d<sub>k₁</sub> … d<sub>k<sub>K</sub></sub>] (N×K)，d<sub>k</sub>[n] = e<sup>−j2πnk/N</sup>/√N，BᴴB = I<br>` +
+                    `<div class="${cls(alg === 'BEAMSPACE')}"><b>BEAMSPACE-${MV()}</b>（降維 N→K）：B = [d<sub>k₁</sub> … d<sub>k<sub>K</sub></sub>] (N×K)，d<sub>k</sub>[n] = e<sup>−j2πnk/N</sup>/√N，BᴴB = I<br>` +
                     `r<sub>B</sub> = Bᴴr，R̂<sub>B</sub> = BᴴR̂<sub>r</sub>B，a<sub>B</sub> = Bᴴa<br>` +
                     `w<sub>B</sub> = R̂<sub>B</sub><sup>−1</sup>a<sub>B</sub> / (a<sub>B</sub>ᴴR̂<sub>B</sub><sup>−1</sup>a<sub>B</sub>)，w = B·w<sub>B</sub><br>` +
                     `<span class="note">${alg === 'BEAMSPACE' ? `K=${v(S.bsBins.length)}  波束 k=[${v(S.bsBins.join(', '))}] ≈ [${v(S.bsAngles.map(a => a.toFixed(0) + '°').join(', '))}]<br>κ<sub>B</sub>=${v(S.kappa === Infinity ? '∞' : this.sci(S.kappa))}，只需 ${S.bsBins.length}×${S.bsBins.length} 求逆（L ≥ K 即可）` : '選取目標與強干擾所在的 DFT 波束'}</span></div>` +
@@ -536,7 +541,7 @@
                 if ((A.algo === 'SMI' || A.algo === 'MMSE') && A.L < 1.5 * A.N) {
                     const gsc = A.algo === 'SMI' && A.taper !== 'NONE';
                     const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRaw)}`;
-                    const fixes = [['dl', '套用 DL-MVDR (對角線加載)'], ['bs', '切換 BEAMSPACE-MVDR (降維)']];
+                    const fixes = [['dl', `套用 DL-${MV()} (對角線加載)`], ['bs', `切換 BEAMSPACE-${MV()} (降維)`]];
                     if (S.status === 'SINGULAR') {
                         out.push({ id: 'starve', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]',
                             msg: 'L &lt; N. Matrix is singular. Beamforming collapsed.', dim: detail + '，波束圖失真', actions: fixes });
@@ -575,7 +580,7 @@
                 } else if (A.algo === 'BEAMSPACE') {
                     const K = S.bsBins.length;
                     out.push(S.status === 'SINGULAR'
-                        ? { id: 'bs', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]', actions: [['dl', '套用 DL-MVDR (對角線加載)']],
+                        ? { id: 'bs', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]', actions: [['dl', `套用 DL-${MV()} (對角線加載)`]],
                             msg: `L &lt; K=${K}. Beamspace matrix is singular.`, dim: `κ<sub>B</sub>=${kap(S.kappa)}` }
                         : { id: 'bs', stage: 'rx', cls: 'okk', map: 'ok', flag: '', tag: '[OPTIMIZED]', optimized: true, actions: [],
                             msg: `Projected to ${K}D Beamspace. Subspace inversion successful.`,
@@ -799,7 +804,7 @@
                 add('param', 'AoA_target', S.aoaT, 'deg'); add('param', 'AoA_jammer', S.aoaJ, 'deg');
                 add('param', 'phase_mismatch_sigma', S.calDeg, 'deg'); add('param', 'rician_K', S.kDb, 'dB');
                 add('param', 'update_latency', S.latMs, 'ms');
-                add('param', 'algorithm', ALGO[S.algo].short);
+                add('param', 'algorithm', ALGO[S.algo].csv);
                 add('param', 'loading_factor_gamma', S.algo === 'DL' ? f(S.gammaUsed) : 'n/a');
                 add('param', 'beamspace_beams', S.algo === 'BEAMSPACE' ? S.bsBins.join('|') : 'n/a');
                 add('param', 'taper', S.taper === 'CHEBYSHEV' ? `CHEBYSHEV_${S.sll}dB` : S.taper);
@@ -1133,13 +1138,25 @@
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [
             ['FOURIER',   'FOURIER (Matched Filter) · 基準線'],
             ['MMSE',      'MMSE (Wiener Filter) · 需參考訊號'],
-            ['SMI',       'SMI-MVDR (Capon Beamformer)'],
-            ['DL',        'DL-MVDR (Tikhonov Regularization)'],
-            ['BEAMSPACE', 'BEAMSPACE-MVDR (Dimensionality Reduction)']], v => setAlgo(v));
+            ['SMI',       ALGO.SMI.long],
+            ['DL',        ALGO.DL.long],
+            ['BEAMSPACE', ALGO.BEAMSPACE.long]], v => setAlgo(v));
         selAlgo.parentElement.classList.add('wide');
         bodies.rx.insertBefore(selAlgo.parentElement, bodies.rx.firstChild);                  // selector first in the Rx card
         const selTaper = addSelect('rx', 'sel-taper', '旁瓣加窗', 'Sidelobe taper (w = t ⊙ a)',
             [['NONE', '無 NONE（均勻）'], ['HAMMING', 'Hamming 窗'], ['CHEBYSHEV', '套用 Chebyshev 加窗']], v => setTaper(v));
+        // training data of the sample covariance (SMI, DL, BEAMSPACE; FOURIER does not use R, MMSE always keeps the target)
+        const selTrain = addSelect('rx', 'sel-train', '訓練資料', 'Training data (MPDR vs MVDR)',
+            [['withSignal', '含目標訊號 → MPDR（現行）'], ['signalFree', '不含目標 → MVDR（理想化）']], v => setTrain(v));
+        selTrain.value = Sys.trainMode;
+        function refreshNames() {                                                                // algorithm names follow the training mode
+            ['SMI', 'DL', 'BEAMSPACE'].forEach(k => {
+                const o = selAlgo.querySelector(`option[value="${k}"]`); if (o) o.textContent = ALGO[k].long;
+                const lg = document.getElementById('lg-' + k); if (lg) lg.innerText = Bench.label(k, Bench.result);
+            });
+            selTrain.querySelector('option[value="withSignal"]').textContent = '含目標訊號 → MPDR（現行）';
+        }
+        function setTrain(t) { Sys.trainMode = t; selTrain.value = t; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; }
         function syncRxControls() {
             const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE';                    // beamspace / Wiener have no tapered variant
             selTaper.disabled = !taperOk;
