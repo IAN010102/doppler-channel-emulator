@@ -231,6 +231,7 @@
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
             eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, isDb: 0, nuICI: 0, evm: 0, ser: 0,
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
+            bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
             psll: -Infinity, bw3: 0, mainL: 0, mainR: 0, jamInSL: false, jamGainDb: 0,
 
@@ -608,6 +609,16 @@
                 const nuLegacy = (Klin / (Klin + 1)) * los + (1 / (Klin + 1)) * dif;   // N_ICI / S (legacy closed form)
                 this.nuICI = uni ? uni.nuICI : nuLegacy;                                // unified: sum_i q_i (1 - sinc^2(eps_i)) at the output
                 this.nuIciFloor = uni ? iciFloorRatio(thT, Klin, this.fm, this.scs, this.SIGMA_ANG) : nuLegacy;   // ICI floor (no spatial filtering)
+
+                // ---- read-outs only (do not feed back into any result)
+                //   B_D  = max_i fd_i - min_i fd_i over the realised paths of the desired signal (LoS + diffuse) of this trial
+                //   rho  = L * T_snap * B_D   (<< 1: the channel is nearly static over the training window)
+                //   aging= tau * B_D          (>= ~0.1: the weights are outdated when they are applied)
+                if (uni) {
+                    let mx = -Infinity, mn = Infinity;
+                    for (let i = 0; i < this.fdPaths.length; i++) { if (this.fdPaths[i] > mx) mx = this.fdPaths[i]; if (this.fdPaths[i] < mn) mn = this.fdPaths[i]; }
+                    this.bD = mx - mn; this.rho = L * Tsnap * this.bD; this.agingB = tau * this.bD;
+                } else { this.bD = NaN; this.rho = NaN; this.agingB = NaN; }
                 this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
                 this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
 

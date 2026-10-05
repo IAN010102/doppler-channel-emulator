@@ -270,6 +270,9 @@
                     <div class="kv"><span class="k">加載因子 γ</span><span class="v" id="m-delta">OFF</span></div>
                     <div class="kv"><span class="k">秩上限 rank bound</span><span class="v" id="m-rank">0</span></div>
                     <div class="kv"><span class="k">樣本窗 Window</span><span class="v" id="m-win">0</span></div>
+                    <div class="kv" title="Doppler spread of the realised paths: max f_d,i − min f_d,i (unified model only)"><span class="k">Doppler 展寬 B<sub>D</sub></span><span class="v"><span id="m-bd">—</span> Hz</span></div>
+                    <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
+                    <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
             </section>
@@ -417,6 +420,10 @@
                 const dimN = S.algo === 'BEAMSPACE' ? Math.min(3, S.N) : S.N;
                 $('m-rank').innerText = Math.min(S.snaps.length, dimN) + ' / ' + dimN;
                 $('m-win').innerText = `${S.snaps.length} / ${S.L}`;
+                const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
+                $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
+                $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
+                $('m-aging').innerText = dash(S.agingB) === null ? '—' : S.agingB.toPrecision(3);
             },
             renderEq() {
                 const S = Sys, v = t => this.v(t), $ = id => document.getElementById(id), mi = modInfo(S.mod);
