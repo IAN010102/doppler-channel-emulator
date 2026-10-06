@@ -103,8 +103,22 @@
         .stage-wrap { grid-area: stage; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
         .stage-grid { display: grid; gap: 10px; min-height: 100%;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(250px, 0.9fr) minmax(260px, 0.8fr); }
+            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(250px, 0.9fr) minmax(300px, 0.9fr) minmax(260px, 0.8fr); }
         .panel.wide { grid-column: 1 / -1; }
+        .exp-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr); gap: 10px; padding: 8px 10px; overflow: auto; }
+        .exp-btns { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+        .exp-btns .btn { width: auto; height: 26px; padding: 0 9px; }
+        .exp-btns .btn.sel { border-color: var(--cyan); color: var(--cyan); }
+        .exp-text p { margin: 0 0 6px; font: 0.68rem/1.45 var(--sans); color: var(--text); }
+        .exp-text p b { color: var(--yellow); font-weight: 650; }
+        .exp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .exp-actions .btn { width: auto; height: 28px; padding: 0 12px; }
+        .exp-result { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .exp-result canvas { width: 100%; height: 190px; display: block; background: #10131b; border: 1px solid var(--line); border-radius: 4px; }
+        .exp-table { font: 0.66rem var(--mono); color: var(--text); line-height: 1.5; }
+        #btn-lang { width: auto; min-width: 44px; }
+        html[lang="en"] .lab .zh { display: none; }
+        html[lang="en"] .lab .en { font-size: inherit; color: var(--white); }
         .bench { grid-column: 1 / -1; }
         .panel { display: flex; flex-direction: column; min-height: 250px; min-width: 0; overflow: hidden; }
         .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -214,6 +228,7 @@
         </section>
         <div class="card hdr-export">
             <button class="btn" id="btn-csv">⬇ 匯出 CSV<em>Export</em></button>
+            <button class="btn" id="btn-lang" aria-label="language">EN</button>
         </div>
     </header>
 
@@ -295,6 +310,26 @@
                 <div class="note" id="doa-note" style="padding:4px 10px;font:0.6rem var(--mono);color:var(--muted)"></div>
             </section>
 
+            <!-- G: experiments -->
+            <section class="card panel wide" id="exp-panel">
+                <div class="p-head">G // 實驗：一鍵情境 <em>Experiments (one-click scenarios)</em></div>
+                <div class="exp-body">
+                    <div>
+                        <div class="exp-btns" id="exp-btns"></div>
+                        <div class="exp-text" id="exp-text"></div>
+                        <div class="exp-actions">
+                            <button class="btn" id="btn-exp-apply">套用參數<em>Apply</em></button>
+                            <button class="btn" id="btn-exp-run">▶ 套用並執行<em>Apply &amp; run</em></button>
+                            <select class="btn" id="sel-exp-variant" style="width:auto"></select>
+                        </div>
+                    </div>
+                    <div class="exp-result">
+                        <canvas id="cvs-exp"></canvas>
+                        <div class="exp-table" id="exp-table"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- E: benchmark scanner -->
             <section class="card panel bench">
                 <div class="p-head">E // 效能對比：EVM vs. 車速 <em>Benchmarking Scanner (5 algorithms)</em></div>
@@ -337,6 +372,9 @@
     </aside>
 
     <script src="core.js"></script>
+    <script src="i18n.js"></script>
+    <script src="experiment_numbers.js"></script>
+    <script src="experiments.js"></script>
     <script>
         const { Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, CONFIG } = Core;
 
@@ -354,6 +392,72 @@
         };
 
         const Sys = Core.createSys();
+
+        /* ---------------------------------------------------------------- language (繁中 / English)
+           The page text is written in Chinese (with an English <em> hint in many places). In English mode every Chinese phrase of the page - static labels, generated diagnosis /
+           inspector text, tooltips, canvas text - is replaced through the phrase table of i18n.js; where an element carries an <em> English sibling, the Chinese part is dropped instead.
+           New texts (tooltips, experiments, buttons) are keyed in i18n.js for both languages. A MutationObserver re-translates content that the page re-renders. */
+        const CJK = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/, CJK_RUNS = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+/g;
+        const Lang = {
+            cur: 'zh', map: new Map(), re: null, done: new WeakMap(),
+            init() {
+                const ph = I18N.PHRASES.slice().sort((a, b) => b[0].length - a[0].length);
+                ph.forEach(([z, e]) => this.map.set(z, e));
+                this.re = new RegExp(ph.map(p => p[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+            },
+            tr(s) { return this.cur === 'zh' || !this.re ? s : String(s).replace(this.re, m => this.map.get(m)); },
+            node(n) {
+                if (this.cur === 'zh' || !CJK.test(n.nodeValue)) return;
+                const p = n.parentNode;
+                if (p && p.id === 'btn-lang') return;                                  // the language button always names the other language
+                const hasEm = p && p.children && Array.prototype.some.call(p.children, c => c.tagName === 'EM');
+                const t = hasEm ? n.nodeValue.replace(CJK_RUNS, '').replace(/\s+/g, ' ') : this.tr(n.nodeValue);     // English comes from the <em> sibling
+                if (!this.done.has(n)) this.done.set(n, n.nodeValue);
+                n.nodeValue = t;
+            },
+            walk(root) {
+                const tw = document.createTreeWalker(root, 4 /* SHOW_TEXT */); let n; const nodes = [];
+                while ((n = tw.nextNode())) nodes.push(n);
+                nodes.forEach(x => this.node(x));
+                if (root.querySelectorAll) root.querySelectorAll('[title]').forEach(el => this.title(el));
+            },
+            title(el) {
+                if (el.dataset.tip) return;
+                const t = el.getAttribute('title'); if (t === null) return;
+                if (this.cur === 'en' && CJK.test(t)) { if (!el.dataset.titleZh) el.dataset.titleZh = t; el.setAttribute('title', this.tr(t)); }
+            },
+            restore(root) {
+                const tw = document.createTreeWalker(root, 4); let n; const nodes = [];
+                while ((n = tw.nextNode())) nodes.push(n);
+                nodes.forEach(x => { if (this.done.has(x)) { x.nodeValue = this.done.get(x); this.done.delete(x); } });
+                if (root.querySelectorAll) root.querySelectorAll('[data-title-zh]').forEach(el => { el.setAttribute('title', el.dataset.titleZh); delete el.dataset.titleZh; });
+            },
+            set(l) {
+                this.cur = l; document.documentElement.lang = l === 'en' ? 'en' : 'zh-Hant';
+                try { localStorage.setItem('lang', l); } catch (e) { /* storage not available: the choice is simply not remembered */ }
+                const b = document.getElementById('btn-lang'); if (b) b.textContent = l === 'en' ? '中文' : 'EN';
+                if (l === 'zh') this.restore(document.body); else this.walk(document.body);
+                this.tips();
+                if (typeof ExpUI !== 'undefined') ExpUI.renderText();
+                Sys.dirty = true;
+                if (typeof Diagnosis !== 'undefined') Diagnosis.last = '';
+            },
+            // tooltips (<= 40 characters, both languages): keyed by element id; 'm-...' read-outs put the tip on their row
+            tips() {
+                Object.keys(I18N.TIPS).forEach(id => {
+                    let el = document.getElementById(id); if (!el) return;
+                    if (/^m-/.test(id) && el.closest) el = el.closest('.kv') || el;
+                    el.setAttribute('title', I18N.TIPS[id][this.cur]); el.dataset.tip = '1';
+                });
+            },
+            initial() {
+                let stored = null, ok = true;
+                try { stored = localStorage.getItem('lang'); } catch (e) { ok = false; }
+                if (!ok) return 'zh';                                                 // storage unavailable: Traditional Chinese
+                if (stored === 'zh' || stored === 'en') return stored;
+                return (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language || '')) ? 'zh' : 'en';
+            }
+        };
 
         // clear the snapshot window, R_hat history, time (RESET)
         Sys.resetCache = function () {
@@ -825,7 +929,7 @@
                     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.moveTo(X(v), T); ctx.lineTo(X(v), T + ph); ctx.stroke();
                     ctx.fillStyle = '#6b7280'; ctx.fillText(`${v}`, X(v), T + ph + 12);
                 }
-                ctx.fillText('車速 Velocity (km/h)', L + pw / 2, h - 6);
+                ctx.fillText(Lang.tr('車速 Velocity (km/h)'), L + pw / 2, h - 6);
                 ctx.save(); ctx.translate(11, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('EVM (dB / %)', 0, 0); ctx.restore();
                 ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.strokeRect(L, T, pw, ph);
 
@@ -834,7 +938,7 @@
 
                 if (!r) {
                     ctx.fillStyle = '#6b7280'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-                    ctx.fillText('按「▶ 執行速度掃描」以目前參數比較五種演算法的 EVM–車速曲線', L + pw / 2, T + ph / 2);
+                    ctx.fillText(Lang.tr('按「▶ 執行速度掃描」以目前參數比較五種演算法的 EVM–車速曲線'), L + pw / 2, T + ph / 2);
                     return;
                 }
                 const clampDb = e => Math.min(hi, Math.max(lo, db(e)));
@@ -1115,7 +1219,7 @@
                 const curve = (arr, color) => { ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath(); arr.forEach((db, i) => { const x = X(-90 + 0.5 * i), y = Y(db); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); };
                 curve(D.capon, '#22d3ee'); curve(D.music, '#e879f9');
                 const vline = (deg, color, label) => { ctx.strokeStyle = color; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(X(deg), T); ctx.lineTo(X(deg), T + ph); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = color; ctx.fillText(label, X(deg) + 3, T + 10); };
-                vline(Sys.aoaT, '#34d399', 'θ₁ 目標 target'); vline(Sys.aoaJ, '#f87171', 'θ₂ 干擾 jammer');
+                vline(Sys.aoaT, '#34d399', Lang.cur === 'en' ? 'θ₁ target' : 'θ₁ 目標 target'); vline(Sys.aoaJ, '#f87171', Lang.cur === 'en' ? 'θ₂ jammer' : 'θ₂ 干擾 jammer');
                 const marks = (pk, color) => pk.slice(0, 4).forEach(p => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(p.deg), Y(p.db), 3, 0, 2 * Math.PI); ctx.fill(); });
                 marks(D.peaksCapon, '#22d3ee'); marks(D.peaksMusic, '#e879f9');
                 ctx.fillStyle = '#22d3ee'; ctx.fillText('— Capon', L + pw - 120, T + 22); ctx.fillStyle = '#e879f9'; ctx.fillText('— MUSIC (2 sources)', L + pw - 120, T + 34);
@@ -1126,8 +1230,8 @@
                 const rk = document.getElementById('m-doa-rank'); if (rk) rk.innerText = `${D.rank} / ${Sys.N}`;
                 const nt = document.getElementById('doa-note');
                 if (nt) nt.innerText = (Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP')
-                    ? 'MVDR 訓練資料不含訊號，譜只看到干擾（目標不出現）。MVDR training data contain no signal: the spectrum sees only the interferer. MUSIC 假設 2 個源 / assumes 2 sources.'
-                    : '譜含目標與干擾（訓練資料含訊號）。The spectrum contains target and interferer (training data include the signal). MUSIC 假設 2 個源（目標與干擾）/ assumes 2 sources.';
+                    ? '訓練資料不含訊號，譜只看到干擾（目標不出現）。MUSIC 假設 2 個源（目標與干擾）。'
+                    : '譜含目標與干擾（訓練資料含訊號）。MUSIC 假設 2 個源（目標與干擾）。';
             },
 
             drawMatrix() {
@@ -1186,6 +1290,7 @@
             { group: 'ch', key: 'aoaJ',   zh: '干擾角度 θ₂',     en: 'Jammer AoA',          min: -90, max: 90,  step: 1,   unit: '°' },
             { group: 'ch', key: 'v',      zh: '車速 v',          en: 'Velocity',            min: 0,   max: 500, step: 1,   unit: 'km/h' },
             { group: 'ch', key: 'calDeg', zh: '陣列相位失真 σφ', en: 'Phase mismatch',      min: 0,   max: 30,  step: 1,   unit: '°',  real: true },
+            { group: 'ch', key: 'd_min', zh: '離軌道最近距離 d_min', en: 'Distance to the track', min: 5, max: 500, log: true, unit: 'm' },
             { group: 'ch', key: 'kDb',    zh: '萊斯因子 K',      en: 'Rician K-factor',     min: -10, max: 20,  step: 1,   unit: 'dB', real: true },
             { group: 'rx', key: 'N',      zh: '天線數 N',        en: 'Antennas',            min: 2,   max: 16,  step: 1,   unit: '' },
             { group: 'rx', key: 'L',      zh: '快照數 L',        en: 'Snapshots',           min: 2,   max: 200, step: 1,   unit: '' },
@@ -1267,6 +1372,7 @@
         numSeed.addEventListener('change', () => { const x = parseInt(numSeed.value, 10); if (Number.isFinite(x) && x >= 0 && x <= 4294967295) reseed(x); else numSeed.value = uiSeed; });
         addButton('tx', 'btn-seed', '重新抽種子<em>Re-draw seed</em>', () => reseed(Core.randomSeed()));
 
+        const ctlSet = {};                                   // key -> setter (used by the experiment presets to move the sliders)
         CONTROLS.forEach(c => {
             const el = document.createElement('div');
             el.className = 'ctrl' + (c.real ? ' real' : ''); el.id = 'ctl-' + c.key;
@@ -1292,6 +1398,7 @@
             num.addEventListener('input', () => { const x = parseFloat(num.value); if (Number.isFinite(x)) set(x); });
             num.addEventListener('change', () => { const x = parseFloat(num.value); num.value = Number.isFinite(x) ? show(clamp(x, c.min, c.max)) : show(Sys[c.key]); set(parseFloat(num.value)); });
             num.value = show(Sys[c.key]); rng.value = toSlider(Sys[c.key]);
+            ctlSet[c.key] = val => { const x = clamp(val, c.min, c.max); num.value = show(x); set(x); rng.value = toSlider(x); };
         });
         addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => { calIndex++; rollCalSeeded(); });
         const selJam = addSelect('ch', 'sel-jam', '干擾源波形', 'Jammer waveform', [['gaussian', '高斯（OFDM 干擾近似，預設）'], ['qpsk', 'QPSK（舊行為）']], v => { Sys.jamWave = v; Sys.snaps = []; Sys.dirty = true; });
@@ -1372,6 +1479,84 @@
         });
         setAlgo('SMI'); setTaper('NONE'); setRunning(true);
         document.getElementById('model-tag').textContent = MODEL_LABEL[Sys.model]; refreshNames();
+
+        /* ---------------------------------------------------------------- experiments (presets of experiments.js; texts of i18n.js)
+           Apply = set the parameters (sliders and menus follow), Run = apply + compute: a sweep (E1, the existing benchmark), a table (E2, E3) or a curve (E4, E5). */
+        function applyParams(p) {
+            Object.keys(ctlSet).forEach(k => { if (p[k] !== undefined) ctlSet[k](p[k]); });
+            Sys.jamWave = p.jamWave; selJam.value = p.jamWave; Sys.smiSingular = p.smiSingular;
+            Sys.mod = p.mod; selMod.value = p.mod; Sys.taper = p.taper;
+            setModel(p.model); setTrain(p.trainMode); setFc(p.fc / 1e9); setScs(p.scs / 1e3); setAlgo(p.algo); setTaper(p.taper);
+            Sys.resetCache(); Render.constHist = []; Diagnosis.last = ''; Sys.dirty = true; Sys.doa = null;
+        }
+        const ExpUI = {
+            sel: 'E1', variant: '28', busy: false,
+            init() {
+                const box = document.getElementById('exp-btns');
+                Experiments.EXPERIMENTS.forEach(e => {
+                    const b = document.createElement('button'); b.className = 'btn'; b.dataset.exp = e.id; b.addEventListener('click', () => this.select(e.id)); box.appendChild(b);
+                });
+                document.getElementById('btn-exp-apply').addEventListener('click', () => this.apply());
+                document.getElementById('btn-exp-run').addEventListener('click', () => this.run());
+                document.getElementById('sel-exp-variant').addEventListener('change', ev => { this.variant = ev.target.value; this.renderText(); });
+                this.select('E1');
+            },
+            select(id) {
+                this.sel = id; const e = Experiments.byId(id); this.variant = e.defaultVariant;
+                this.renderText();
+                const c = document.getElementById('cvs-exp'); const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+                document.getElementById('exp-table').innerHTML = '';
+            },
+            renderText() {
+                const U = I18N.UI[Lang.cur], t = I18N.EXP[this.sel], n = EXP_NUMBERS, e = Experiments.byId(this.sel), L = Lang.cur;
+                document.querySelectorAll('#exp-btns .btn').forEach(b => { b.textContent = I18N.EXP[b.dataset.exp].title[L]; b.classList.toggle('sel', b.dataset.exp === this.sel); });
+                const sv = document.getElementById('sel-exp-variant'), vs = Object.keys(e.variants);
+                sv.style.display = vs.length > 1 ? '' : 'none';
+                sv.innerHTML = vs.map(k => `<option value="${k}">${(I18N.EXP[this.sel].variantLabel || {})[k] ? I18N.EXP[this.sel].variantLabel[k][L] : k}</option>`).join(''); sv.value = this.variant;
+                document.getElementById('exp-text').innerHTML = ['look', 'why', 'real'].map(k => `<p><b>${U[k]}</b> ${t[k][L](n, this.variant)}</p>`).join('');
+                const ba = document.getElementById('btn-exp-apply'), br = document.getElementById('btn-exp-run');
+                if (ba.firstChild) ba.firstChild.textContent = U.apply + ' ';
+                if (br.firstChild) br.firstChild.textContent = U.run + ' ';
+            },
+            apply() { applyParams(Experiments.params(this.sel, this.variant)); Inspector.push(`[EXP] ${this.sel}: ${I18N.EXP[this.sel].title[Lang.cur]}`, 's'); },
+            run() {
+                if (this.busy) return; this.apply();
+                const e = Experiments.byId(this.sel), tab = document.getElementById('exp-table'), U = I18N.UI[Lang.cur];
+                if (e.action === 'bench') { Bench.start(); tab.textContent = U.benchHint; return; }
+                if (e.action === 'table') {
+                    const rows = Experiments.runTable(Core, this.sel, this.variant, 60);
+                    tab.innerHTML = `<div>${U.tableHead}</div>` + rows.map(r => `<div>${ALGO[r.algo].short.padEnd(10, ' ').replace(/ /g, '&nbsp;')} ${r.sinr.toFixed(1)} dB  (rank ${r.rank}/${Sys.N})</div>`).join('');
+                    return;
+                }
+                this.busy = true; tab.textContent = U.running;
+                setTimeout(() => { const res = Experiments.runCurve(Core, this.sel, this.variant, 40); this.busy = false; this.draw(res); tab.textContent = U.curveNote; }, 30);
+            },
+            draw(res) {
+                const c = document.getElementById('cvs-exp'), dpr = window.devicePixelRatio || 1, w = c.clientWidth || 400, h = c.clientHeight || 190;
+                c.width = w * dpr; c.height = h * dpr; const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);
+                const L = 44, R = 10, T = 12, B = 28, pw = w - L - R, ph = h - T - B, all = [].concat(...res.series.map(s => s.ys)), lo = Math.floor(Math.min(...all) / 5) * 5, hi = Math.ceil(Math.max(...all) / 5) * 5 + 5;
+                const X = x => L + (x - res.xs[0]) / (res.xs[res.xs.length - 1] - res.xs[0]) * pw, Y = y => T + (1 - (y - lo) / (hi - lo)) * ph;
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.fillStyle = '#6b7280'; ctx.font = '9px monospace';
+                for (let y = lo; y <= hi; y += 5) { ctx.beginPath(); ctx.moveTo(L, Y(y)); ctx.lineTo(L + pw, Y(y)); ctx.stroke(); ctx.fillText(y + ' dB', 2, Y(y) + 3); }
+                res.xs.filter((x, i) => i % Math.ceil(res.xs.length / 6) === 0).forEach(x => ctx.fillText(x + res.unit, X(x) - 8, h - 14));
+                ctx.fillText(I18N.UI[Lang.cur].xLabel[res.x] || res.x, L + pw / 2 - 40, h - 3);
+                const cols = ['#fb923c', '#34d399', '#e879f9'];
+                res.series.forEach((s, k) => { ctx.strokeStyle = cols[k % 3]; ctx.lineWidth = 1.8; ctx.beginPath(); s.ys.forEach((y, i) => { const px = X(res.xs[i]), py = Y(y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }); ctx.stroke(); ctx.fillStyle = cols[k % 3]; ctx.fillText('— ' + s.label, L + 8 + k * 100, T + 10); });
+            }
+        };
+
+        /* ---------------------------------------------------------------- language start-up */
+        Lang.init(); ExpUI.init();
+        document.getElementById('btn-lang').addEventListener('click', () => Lang.set(Lang.cur === 'zh' ? 'en' : 'zh'));
+        if (typeof MutationObserver !== 'undefined') new MutationObserver(muts => {
+            if (Lang.cur === 'zh') return;
+            for (const m of muts) {
+                if (m.type === 'characterData') Lang.node(m.target);
+                else m.addedNodes.forEach(n => { if (n.nodeType === 3) Lang.node(n); else if (n.nodeType === 1) Lang.walk(n); });
+            }
+        }).observe(document.body, { childList: true, subtree: true, characterData: true });
+        Lang.set(Lang.initial());
 
         // render safety: paint one complete frame synchronously (even if the page ever starts PAUSED), then redraw on every layout change
         Sys.computeMath(); Sys.lastCompute = performance.now(); Sys.dirty = false; Inspector.onCompute();

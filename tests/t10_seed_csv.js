@@ -14,6 +14,7 @@ const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const inline = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
 const coreSrc = fs.readFileSync(path.join(root, 'core.js'), 'utf8');
+const extraSrc = ['i18n.js', 'experiment_numbers.js', 'experiments.js'].map(f => fs.readFileSync(path.join(root, f), 'utf8'));
 
 function stubEl(id) {
     const L = {}, el = { id, innerHTML: '', innerText: '', textContent: '', className: '', style: {}, dataset: {}, children: [], disabled: false, title: '', value: '',
@@ -23,16 +24,17 @@ function stubEl(id) {
         appendChild(c) { c.parentElement = el; el.children.push(c); return c; }, insertBefore(c) { c.parentElement = el; el.children.unshift(c); return c; },
         removeChild() {}, get firstChild() { return el.children[0]; }, closest() { return null },
         querySelector() { return Object.assign(stubEl(), { parentElement: el }); },
+        setAttribute(k, v) { el[k] = v; }, getAttribute(k) { return el[k] === undefined ? null : el[k]; }, querySelectorAll() { return []; },
         getContext() { return new Proxy({}, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } }); } };
     return el;
 }
 function loadPage() {
     const els = {};
     const ctx = vm.createContext({
-        document: { getElementById: id => els[id] || (els[id] = stubEl(id)), createElement: () => stubEl(), body: stubEl(), activeElement: null, querySelectorAll: () => [] },
+        document: { getElementById: id => els[id] || (els[id] = stubEl(id)), createElement: () => stubEl(), body: stubEl(), activeElement: null, querySelectorAll: () => [], documentElement: {}, createTreeWalker: () => ({ nextNode: () => null }) },
         window: { devicePixelRatio: 1 }, performance, console, setTimeout, clearTimeout, URL: {}, Blob: function () {}, requestAnimationFrame: () => {}
     });
-    vm.runInContext(coreSrc, ctx); vm.runInContext(inline, ctx);
+    vm.runInContext(coreSrc, ctx); extraSrc.forEach(s => vm.runInContext(s, ctx)); vm.runInContext(inline, ctx);
     return code => vm.runInContext(code, ctx);
 }
 async function makeCsv(model, seed) {

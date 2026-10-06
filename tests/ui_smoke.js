@@ -13,6 +13,7 @@ const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const inline = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
 const coreSrc = fs.readFileSync(path.join(root, 'core.js'), 'utf8');
+const extraSrc = ['i18n.js', 'experiment_numbers.js', 'experiments.js'].map(f => fs.readFileSync(path.join(root, f), 'utf8'));
 
 function stubEl(id) {
     const listeners = {};
@@ -24,17 +25,19 @@ function stubEl(id) {
         removeChild(c) { el.children.splice(el.children.indexOf(c), 1); }, get firstChild() { return el.children[0]; }, closest() { return null; },
         querySelector() { return Object.assign(stubEl(), { parentElement: el }); },
         getContext() { return new Proxy({}, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } }); },
+        setAttribute(k, v) { el[k] = v; }, getAttribute(k) { return el[k] === undefined ? null : el[k]; }, querySelectorAll() { return []; },
         fire(t, ev) { (listeners[t] || []).forEach(f => f(ev || { target: el })); } };
     return el;
 }
 const els = {};
 let pending = null, now = 1000;
 const ctx = vm.createContext({
-    document: { getElementById: id => els[id] || (els[id] = stubEl(id)), createElement: () => stubEl(), body: stubEl(), activeElement: null, querySelectorAll: () => [] },
+    document: { getElementById: id => els[id] || (els[id] = stubEl(id)), createElement: () => stubEl(), body: stubEl(), activeElement: null, querySelectorAll: () => [], documentElement: {}, createTreeWalker: () => ({ nextNode: () => null }) },
     window: { devicePixelRatio: 1 }, performance, console, setTimeout, clearTimeout, URL: {}, Blob: function () {},
     requestAnimationFrame: f => { pending = f; }
 });
 vm.runInContext(coreSrc, ctx);                       // UMD: no `module` in the context -> defines the global `Core`
+extraSrc.forEach(s => vm.runInContext(s, ctx));      // I18N, EXP_NUMBERS, Experiments
 vm.runInContext(inline, ctx);                        // the page's own script (top-level const/function stay reachable below)
 const ev = code => vm.runInContext(code, ctx);
 const frames = n => { for (let i = 0; i < n; i++) { const f = pending; pending = null; now += 50; if (f) f(now); } };
