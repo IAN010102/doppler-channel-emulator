@@ -25,6 +25,7 @@
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        pointingMode: 'manual', // 'manual': the weights use theta_hat_1 + delta_theta (slider); 'mobility': delta_theta is ignored, the weights use the nominal angle at the estimation time (drift not compensated)
         pointErrDeg: 0,       // pointing error delta_theta (deg): the weights use a(theta_hat_1 + delta_theta); SINR/EVM are always evaluated on the true channel
         covSource: 'sample',  // SMI and MMSE-M: 'sample' (R_hat of the snapshots) | 'theory' (expected covariance accumulated from the path model; lecture version, comparison only)
         angleSource: 'true',  // SMI, DL, BEAMSPACE, MMSE-M: 'true' (nominal angle theta_hat_1 + delta_theta) | 'music' (the MUSIC estimate of the full-data covariance, 2 sources)
@@ -392,7 +393,7 @@
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
             gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
-            covSource: CONFIG.covSource, angleSource: CONFIG.angleSource, pointErrDeg: CONFIG.pointErrDeg, jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
+            covSource: CONFIG.covSource, angleSource: CONFIG.angleSource, pointErrDeg: CONFIG.pointErrDeg, pointingMode: CONFIG.pointingMode, jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -405,7 +406,7 @@
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             doa: null,
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
-            thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
+            thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, dEffT: 0, dEffJ: 0, pointUsedDeg: 0, nullDb: 0,
             angDrift: NaN, dopPhaseErr: NaN,      // diagnostics (unified model): max angle change inside the training window (deg), Doppler first-order phase error (rad)
             psll: -Infinity, bw3: 0, mainL: 0, mainR: 0, jamInSL: false, jamGainDb: 0,
 
@@ -737,6 +738,9 @@
                 const thJo = uniG ? trackAngle(thJ, vms, this.d_min, -tau) : thJ - vms * Math.sin(thJ) * tau / this.d_min;
                 this.thTo = thTo; this.thJo = thJo;
                 this.dTdeg = (thTo - thT) / D2R; this.dJdeg = (thJo - thJ) / D2R;
+                // effective pointing deviation caused by mobility: angle at t_app minus angle at t_est = t_app - tau (the nominal angle the weights are built from); same for the jammer
+                this.dEffT = (thT - thTo) / D2R; this.dEffJ = (thJ - thJo) / D2R;
+                this.pointUsedDeg = this.pointingMode === 'mobility' ? 0 : this.pointErrDeg;   // the slider value that is actually applied
 
                 const gam = this.gamma();
                 const withG = (a) => a.map((c, n) => Cplx.mul(c, gam[n]));
@@ -826,7 +830,7 @@
                 const sumT = t.reduce((a, b) => a + b, 0);
                 // pointing error: the weights are designed for a(theta_hat_1 + delta_theta) (FOURIER, SMI, DL, BEAMSPACE incl. the beam choice, MMSE-M); MMSE-P does not use a nominal
                 // steering vector (its r_xd comes from the data), so it is not affected. SINR / EVM below use the true channel.
-                let thAs = thTo + this.pointErrDeg * D2R;
+                let thAs = thTo + this.pointUsedDeg * D2R;
                 // angleSource 'music' (SMI, DL, BEAMSPACE, MMSE-M): the steering vector uses the MUSIC estimate (2 sources) of the covariance of the FULL data (target included, even if the weights train
                 // without it); the MUSIC peak nearest to the nominal angle (theta_hat_1 + delta_theta) is taken as the target. The errors against the true angles are read-outs.
                 this.musicErrT = NaN; this.musicErrJ = NaN; this.angleUsedDeg = NaN;

@@ -295,6 +295,7 @@
                     <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
                     <div class="kv" title="Steering angle source; with MUSIC: estimation error against theta_1 / theta_2"><span class="k">導向角度 / MUSIC 誤差</span><span class="v" id="m-angsrc">—</span></div>
                     <div class="kv" title="Pointing error as a fraction of the 3 dB main-lobe width: |δθ| / θ_3dB (weights are designed for a(θ̂₁+δθ); MMSE-P is not affected)"><span class="k">指向偏差 δθ/θ<sub>3dB</sub></span><span class="v"><span id="m-point">—</span></span></div>
+                    <div class="kv" title="Effective pointing deviation caused by mobility: target angle at the application time minus the angle at the estimation time (deg), its ratio to the 3 dB beamwidth; the jammer drift in the same interval"><span class="k">有效指向偏差 δθ<sub>eff</sub>（目標 / 干擾）</span><span class="v"><span id="m-deff">—</span></span></div>
                     <div class="kv" title="Genie upper bound: w_opt = R_in⁻¹h with the TRUE interference+noise covariance and this trial's true channel vector (unified model); legacy: λ_max(R_in⁻¹R_t) of the expected covariances. Read-out only."><span class="k">SINR<sub>opt</sub> (genie)</span><span class="v"><span id="m-opt">—</span> dB<span id="m-optgap" class="note"></span></span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
@@ -577,7 +578,8 @@
                 const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
                 $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
                 $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
-                $('m-point').innerText = S.pointErrDeg === 0 ? '0' : `${(S.pointErrDeg).toFixed(1)}° / ${this.f(S.bw3)}° = ${(100 * Math.abs(S.pointErrDeg) / Math.max(S.bw3, 1e-9)).toFixed(0)} %${S.algo === 'MMSEP' ? '（MMSE-P 不受影響）' : ''}`;
+                $('m-point').innerText = S.pointUsedDeg === 0 ? '0' : `${(S.pointUsedDeg).toFixed(1)}° / ${this.f(S.bw3)}° = ${(100 * Math.abs(S.pointUsedDeg) / Math.max(S.bw3, 1e-9)).toFixed(0)} %${S.algo === 'MMSEP' ? '（MMSE-P 不受影響）' : ''}`;
+                $('m-deff').innerText = `${S.dEffT.toFixed(2)}° (${(100 * Math.abs(S.dEffT) / Math.max(S.bw3, 1e-9)).toFixed(0)} % θ₃dB) / ${S.dEffJ.toFixed(2)}°`;
                 $('m-evm-raw').innerText = Number.isFinite(S.evmRaw) ? this.f(Math.min(S.evmRaw * 100, 999)) : '—';
                 $('m-angsrc').innerText = S.angleSource === 'music' && Number.isFinite(S.angleUsedDeg) ? `MUSIC ${S.angleUsedDeg.toFixed(1)}° (Δθ₁ ${S.musicErrT.toFixed(1)}°, Δθ₂ ${S.musicErrJ.toFixed(1)}°)` : (S.angleSource === 'music' ? 'MUSIC —' : '名義');
                 $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
@@ -988,7 +990,7 @@
                 add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
                 add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
                 const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
-                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'cov_source', S.covSource); add('param', 'angle_source', S.angleSource); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
+                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'pointing_mode', S.pointingMode); add('result', 'delta_theta_eff_deg', f(S.dEffT), 'deg'); add('result', 'delta_theta_eff_jammer_deg', f(S.dEffJ), 'deg'); add('param', 'cov_source', S.covSource); add('param', 'angle_source', S.angleSource); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
                 add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
                 add('param', 'd_min', S.d_min, 'm');
                 add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
@@ -1433,6 +1435,11 @@
         selCov.value = Sys.covSource;
         const selAng = addSelect('rx', 'sel-angsrc', '導向角度來源', 'Steering angle source (SMI, DL, BEAMSPACE, MMSE-M)', [['true', '名義角度 θ̂₁+δθ（現行）'], ['music', 'MUSIC 估計角（2 個源）']], v => { Sys.angleSource = v; Sys.dirty = true; Diagnosis.last = ''; });
         selAng.value = Sys.angleSource;
+        const selPm = addSelect('rx', 'sel-pmode', '指向模式', 'Pointing mode', [['manual', '手動：用上面的 δθ 滑桿（現行）'], ['mobility', '由移動性決定（忽略 δθ 滑桿）']], v => { Sys.pointingMode = v; Sys.dirty = true; Diagnosis.last = ''; syncRxControls(); });
+        selPm.value = Sys.pointingMode;
+        const pmNote = document.createElement('div'); pmNote.className = 'note'; pmNote.style.cssText = 'font:0.58rem var(--mono);color:var(--muted);margin-top:2px';
+        pmNote.textContent = '由移動性決定：權重用估計時刻的角度、不補償漂移，偏差由 d_min、v、τ 自動決定';
+        selPm.parentElement.appendChild(pmNote);
         function refreshNames() {                                                                // algorithm names follow the training mode
             ['SMI', 'MMSE', 'DL', 'BEAMSPACE'].forEach(k => {
                 const o = selAlgo.querySelector(`option[value="${k}"]`); if (o) o.textContent = ALGO[k].long;
@@ -1451,6 +1458,7 @@
             document.getElementById('ctl-gammaRelDb').style.display = uni ? '' : 'none';
             document.getElementById('ctl-gammaDL').classList.toggle('off', Sys.algo !== 'DL');
             document.getElementById('ctl-gammaRelDb').classList.toggle('off', Sys.algo !== 'DL');
+            document.getElementById('ctl-pointErrDeg').classList.toggle('off', Sys.pointingMode === 'mobility');
             document.getElementById('ctl-sll').classList.toggle('off', !(taperOk && Sys.taper === 'CHEBYSHEV'));
         }
         function setAlgo(a) { Sys.algo = a; selAlgo.value = a; Sys.dirty = true; syncRxControls(); }
@@ -1496,7 +1504,7 @@
             Object.keys(ctlSet).forEach(k => { if (p[k] !== undefined) ctlSet[k](p[k]); });
             if (p.kDb > 20) { Sys.kDb = p.kDb; const nk = document.getElementById('num-kDb'); if (nk) nk.value = p.kDb; }       // K = infinity (E0): beyond the slider range
             Sys.jamWave = p.jamWave; selJam.value = p.jamWave; Sys.smiSingular = p.smiSingular;
-            Sys.covSource = p.covSource; selCov.value = p.covSource; Sys.angleSource = p.angleSource; selAng.value = p.angleSource;
+            Sys.pointingMode = p.pointingMode; selPm.value = p.pointingMode; Sys.covSource = p.covSource; selCov.value = p.covSource; Sys.angleSource = p.angleSource; selAng.value = p.angleSource;
             Sys.mod = p.mod; selMod.value = p.mod; Sys.taper = p.taper;
             setModel(p.model); setTrain(p.trainMode); setFc(p.fc / 1e9); setScs(p.scs / 1e3); setAlgo(p.algo); setTaper(p.taper);
             Sys.resetCache(); Render.constHist = []; Diagnosis.last = ''; Sys.dirty = true; Sys.doa = null;
@@ -1541,7 +1549,7 @@
                     return;
                 }
                 this.busy = true; tab.textContent = U.running;
-                setTimeout(() => { const res = Experiments.runCurve(Core, this.sel, this.variant, 40); this.busy = false; this.draw(res); tab.textContent = U.curveNote; }, 30);
+                setTimeout(() => { const res = Experiments.runCurve(Core, this.sel, this.variant, 40); this.busy = false; this.draw(res); tab.textContent = U.curveNote; if (res.aux) tab.innerHTML = '<div>' + U.curveNote + '</div><div>' + U.auxHead + '</div>' + res.xs.map((x, i) => [0, 100, 200, 300].includes(x) ? '<div>' + (res.x + ' = ' + x).padEnd(10, ' ').replace(/ /g, '&nbsp;') + ' δθ_eff ' + res.aux.dEffT[i].toFixed(2) + '° (' + (100 * Math.abs(res.aux.dEffT[i]) / res.aux.bw3[i]).toFixed(1) + ' % θ₃dB), ' + res.aux.dEffJ[i].toFixed(2) + '°;  N_ICI/S ' + res.aux.iciDb[i].toFixed(1) + ' dB</div>' : '').join(''); }, 30);
             },
             draw(res) {
                 const c = document.getElementById('cvs-exp'), dpr = window.devicePixelRatio || 1, w = c.clientWidth || 400, h = c.clientHeight || 190;
@@ -1553,8 +1561,8 @@
                 for (let y = lo; y <= hi; y += 5) { ctx.beginPath(); ctx.moveTo(L, Y(y)); ctx.lineTo(L + pw, Y(y)); ctx.stroke(); ctx.fillText(y + ' dB', 2, Y(y) + 3); }
                 res.xs.filter((x, i) => i % Math.ceil(res.xs.length / 6) === 0).forEach(x => ctx.fillText(x + res.unit, X(x) - 8, h - 14));
                 ctx.fillText(I18N.UI[Lang.cur].xLabel[res.x] || res.x, L + pw / 2 - 40, h - 3);
-                const cols = ['#fb923c', '#34d399', '#e879f9'];
-                res.series.forEach((s, k) => { ctx.strokeStyle = cols[k % 3]; ctx.lineWidth = 1.8; ctx.beginPath(); s.ys.forEach((y, i) => { const px = X(res.xs[i]), py = Y(y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }); ctx.stroke(); ctx.fillStyle = cols[k % 3]; ctx.fillText('— ' + s.label, L + 8 + k * 100, T + 10); });
+                const cols = ['#fb923c', '#34d399', '#e879f9', '#60a5fa'];
+                res.series.forEach((s, k) => { ctx.strokeStyle = cols[k % 4]; ctx.lineWidth = 1.8; ctx.beginPath(); s.ys.forEach((y, i) => { const px = X(res.xs[i]), py = Y(y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }); ctx.stroke(); ctx.fillStyle = cols[k % 4]; ctx.fillText('— ' + s.label, L + 8 + (k % 2) * 120, T + 10 + Math.floor(k / 2) * 11); });
             }
         };
 

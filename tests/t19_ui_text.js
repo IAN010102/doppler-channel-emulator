@@ -62,12 +62,13 @@ module.exports = {
         const D = X.BASE, EXPECT = {
             'E0/': { N: 8, aoaT: -20, aoaJ: 30, snr: 30, sir: 0, L: 1000, kDb: 400, v: 0, pointErrDeg: 0, mod: 'QPSK', trainMode: 'withSignal', covSource: 'theory', algo: 'MMSE' },
             'E1/28': { fc: 28e9, scs: 120e3, v: 300 }, 'E1/5': { fc: 5e9, scs: 15e3, v: 300 }, 'E2/': { L: 4 }, 'E3/': { trainMode: 'withSignal', pointErrDeg: 3 },
-            'E4/': { trainMode: 'signalFree', pointErrDeg: 3 }, 'E5/': { v: 300, latMs: 10, d_min: 30, aoaT: 0, aoaJ: -30 }
+            'E4/': { trainMode: 'signalFree', pointErrDeg: 3 }, 'E5/': { v: 300, latMs: 10, d_min: 30, aoaT: 0, aoaJ: -30 },
+            'E6/': { v: 300, latMs: 10, d_min: 10, aoaT: 20, aoaJ: -30, pointingMode: 'mobility' }
         };
         for (const [key, exp] of Object.entries(EXPECT)) {
             const [id, variant] = key.split('/'), s = Core.createSys(); X.applyTo(s, id, variant);
             const want = Object.assign({}, { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, kDb: 20, latMs: 0, calDeg: 0, taper: 'NONE', mod: 'QAM16', pointErrDeg: 0, d_min: 30, fc: 5e9, scs: 15e3,
-                model: 'unified', trainMode: 'signalFree', jamWave: 'gaussian', smiSingular: 'pinv', gammaRelDb: 10, algo: 'SMI', covSource: 'sample', angleSource: 'true' }, exp);
+                model: 'unified', trainMode: 'signalFree', jamWave: 'gaussian', smiSingular: 'pinv', gammaRelDb: 10, algo: 'SMI', covSource: 'sample', angleSource: 'true', pointingMode: 'manual' }, exp);
             const bad = Object.keys(want).filter(k => s[k] !== want[k]).map(k => `${k}: ${s[k]} (expected ${want[k]})`);
             checks.push(U.check(`T19b ${id}${variant ? ' (' + variant + ')' : ''}: parameters after applying`, bad.length ? bad.join('; ') : `${Object.keys(want).length} values as expected`, 'all equal to the table', bad.length === 0));
         }
@@ -114,7 +115,12 @@ module.exports = {
             ['E3: SMI and DL drop by more than 10 dB from 0 to 3 degrees, MMSE-P changes by < 0.05 dB', m.E3.SMI.d0 - m.E3.SMI.d3 > 10 && m.E3.DL.d0 - m.E3.DL.d3 > 10 && Math.abs(m.E3.MMSEP.d0 - m.E3.MMSEP.d3) < 0.05],
             ['E3: SMI without the signal in the training data is far above SMI with it (0 degrees)', m.E3.ref_signalFree_SMI_d0 - m.E3.SMI.d0 > 20],
             ['E4: signalFree falls slowly (0 > 3 > 5 degrees, total < 5 dB), withSignal falls steeply (0 > 1 > 3 degrees, > 10 dB)', m.E4.signalFree[0] > m.E4.signalFree[3] && m.E4.signalFree[3] > m.E4.signalFree[5] && m.E4.signalFree[0] - m.E4.signalFree[5] < 5 && m.E4.withSignal[0] > m.E4.withSignal[1] && m.E4.withSignal[1] > m.E4.withSignal[3] && m.E4.withSignal[0] - m.E4.withSignal[3] > 10],
-            ['E5: SINR falls with tau for SMI and DL (0 > 5 > 10 ms) at d_min = 30 m and 5 m', ['d30', 'd5'].every(d => ['SMI', 'DL'].every(a => m.E5[d][a][0] > m.E5[d][a][5] && m.E5[d][a][5] > m.E5[d][a][10]))]
+            ['E5: SINR falls with tau for SMI and DL (0 > 5 > 10 ms) at d_min = 30 m and 5 m', ['d30', 'd5'].every(d => ['SMI', 'DL'].every(a => m.E5[d][a][0] > m.E5[d][a][5] && m.E5[d][a][5] > m.E5[d][a][10]))],
+            ['E6: delta_theta_eff grows with the speed and stays below 10 % of the 3 dB beamwidth', m.E6.byV[0].dEffT === 0 && m.E6.byV[100].dEffT < m.E6.byV[200].dEffT && m.E6.byV[200].dEffT < m.E6.byV[300].dEffT && m.E6.byV[300].ratio_pct < 10],
+            ['E6: SMI (signalFree) and DL (signalFree) fall from 0 to 300 km/h, MMSE-P drops by more than 20 dB', m.E6.byV[0].smiSF > m.E6.byV[300].smiSF && m.E6.byV[0].dlSF > m.E6.byV[300].dlSF && m.E6.byV[0].mmseP - m.E6.byV[300].mmseP > 20],
+            ['E6: SMI withSignal rises first (peak strictly between 0 and 300 km/h, > 5 dB above its 0 km/h value) and is lower at 300 km/h than at the peak', m.E6.peak_smiWS.v > 0 && m.E6.peak_smiWS.v < 300 && m.E6.peak_smiWS.sinr - m.E6.byV[0].smiWS > 5 && m.E6.byV[300].smiWS < m.E6.peak_smiWS.sinr],
+            ['E6: the ICI floor is above the SMI (signalFree) aging loss from the first non-zero speed of the sweep (25 km/h)', m.E6.cross_ici_over_aging_kmh === 25],
+            ['E6: with tau = 0, SMI signalFree at 300 km/h is within 0.5 dB of its 0 km/h value and SMI withSignal is > 5 dB above its 0 km/h value', Math.abs(m.E6.tau0.smiSF_300 - m.E6.byV[0].smiSF) < 0.5 && m.E6.tau0.smiWS_300 - m.E6.byV[0].smiWS > 5]
         ];
         for (const [txt, ok] of claims) { console.log(`T19d  ${ok ? 'holds ' : 'FAILS '} ${txt}`); checks.push(U.check('T19d stated phenomenon: ' + txt, ok ? 'holds' : 'does not hold', 'holds', ok)); }
         return { id: this.id, title: this.title, checks, info };

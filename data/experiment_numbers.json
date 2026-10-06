@@ -147,5 +147,79 @@
     "10": 17.17
    }
   }
+ },
+ "E6": {
+  "byV": {
+   "0": {
+    "dEffT": 0,
+    "dEffJ": 0,
+    "ratio_pct": 0,
+    "bw3": 13.84,
+    "iciDb": -300,
+    "agingDb": -300,
+    "smiSF": 28.61,
+    "smiWS": -5.61,
+    "dlSF": 28.88,
+    "mmseP": 28.63
+   },
+   "50": {
+    "dEffT": 0.09,
+    "dEffJ": -0.2,
+    "ratio_pct": 0.67,
+    "bw3": 13.83,
+    "iciDb": -31.6,
+    "agingDb": -39.21,
+    "smiSF": 28.24,
+    "smiWS": 4.62,
+    "dlSF": 28.62,
+    "mmseP": -3.47
+   },
+   "100": {
+    "dEffT": 0.18,
+    "dEffJ": -0.39,
+    "ratio_pct": 1.33,
+    "bw3": 13.86,
+    "iciDb": -25.58,
+    "agingDb": -35.08,
+    "smiSF": 27.73,
+    "smiWS": 6.99,
+    "dlSF": 27.81,
+    "mmseP": -5.21
+   },
+   "200": {
+    "dEffT": 0.37,
+    "dEffJ": -0.78,
+    "ratio_pct": 2.63,
+    "bw3": 13.92,
+    "iciDb": -19.58,
+    "agingDb": -32.94,
+    "smiSF": 27.24,
+    "smiWS": 5.9,
+    "dlSF": 25.61,
+    "mmseP": -8.35
+   },
+   "300": {
+    "dEffT": 0.54,
+    "dEffJ": -1.15,
+    "ratio_pct": 3.89,
+    "bw3": 14,
+    "iciDb": -16.08,
+    "agingDb": -33.38,
+    "smiSF": 27.36,
+    "smiWS": 5.05,
+    "dlSF": 23.91,
+    "mmseP": -11.17
+   }
+  },
+  "cross_ici_over_aging_kmh": 25,
+  "peak_smiWS": {
+   "v": 175,
+   "sinr": 7.14
+  },
+  "tau0": {
+   "smiSF_300": 28.51,
+   "smiWS_300": 6.58,
+   "smiWS_100": 0.11
+  }
  }
 }

@@ -103,7 +103,7 @@ async function blankCanvases(page, ids) {
         R.steps.push('controls: model, training data, modulation, fc, numerology, seed, pointing error, algorithms, DOA panel');
 
         // ---- experiments
-        const exps = [['E0', ''], ['E1', '28'], ['E1', '5'], ['E2', ''], ['E3', ''], ['E4', ''], ['E5', '']];
+        const exps = [['E0', ''], ['E6', ''], ['E1', '28'], ['E1', '5'], ['E2', ''], ['E3', ''], ['E4', ''], ['E5', '']];
         for (const [id, variant] of exps) {
             await page.click(`#exp-btns .btn[data-exp="${id}"]`); await settle(300);
             if (variant) await page.selectOption('#sel-exp-variant', variant);

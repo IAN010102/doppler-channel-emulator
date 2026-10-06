@@ -1,11 +1,12 @@
 {
- "generated": "2026-10-06T08:22:37.374Z",
+ "generated": "2026-10-06T09:24:36.935Z",
  "runs": {
   "zh": {
    "steps": [
     "html lang = zh-Hant",
     "controls: model, training data, modulation, fc, numerology, seed, pointing error, algorithms, DOA panel",
     "experiment E0 applied and run",
+    "experiment E6 applied and run",
     "experiment E1 (28) applied and run",
     "experiment E1 (5) applied and run",
     "experiment E2 applied and run",
@@ -17,7 +18,7 @@
    ],
    "blank": [],
    "csv": {
-    "bytes": 7904,
+    "bytes": 8007,
     "missing": []
    },
    "errors": []
@@ -27,6 +28,7 @@
     "html lang = en",
     "controls: model, training data, modulation, fc, numerology, seed, pointing error, algorithms, DOA panel",
     "experiment E0 applied and run",
+    "experiment E6 applied and run",
     "experiment E1 (28) applied and run",
     "experiment E1 (5) applied and run",
     "experiment E2 applied and run",
@@ -38,7 +40,7 @@
    ],
    "blank": [],
    "csv": {
-    "bytes": 7904,
+    "bytes": 8010,
     "missing": []
    },
    "errors": []

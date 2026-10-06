@@ -49,7 +49,7 @@ const strip = csv => csv.split('\r\n').filter(l => !l.startsWith('meta,timestamp
 module.exports = {
     id: 'T10', title: 'seed reproducibility of the sweep and of the CSV; per-point re-run; CSV schema v2',
     async run() {
-        const checks = [], REQ = ['model', 'train_mode', 'gamma_rel_dB', 'd_min', 'M', 'K', 'sigma_theta', 'sigma_phi', 'P_s', 'tau', 'theta1', 'theta2', 'fc_GHz', 'delta_f_kHz', 'N', 'L', 'seed', 'point_seed',
+        const checks = [], REQ = ['pointing_mode', 'delta_theta_eff_deg', 'model', 'train_mode', 'gamma_rel_dB', 'd_min', 'M', 'K', 'sigma_theta', 'sigma_phi', 'P_s', 'tau', 'theta1', 'theta2', 'fc_GHz', 'delta_f_kHz', 'N', 'L', 'seed', 'point_seed',
             'max_angle_drift_deg', 'SINR_opt_dB', 'algorithm', 'algorithm_legacy'];
         for (const model of ['legacy', 'unified']) {
             const A = await makeCsv(model, 12345), B = await makeCsv(model, 12345), C = await makeCsv(model, 54321);
