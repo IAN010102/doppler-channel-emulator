@@ -18,6 +18,16 @@ const r2 = x => Math.round(x * 100) / 100;
 function sinr(over, trials, seed0) { let a = 0, rk = 0; for (let t = 0; t < trials; t++) { const s = setup(over, seed0 + t); s.snaps = []; s.computeMath(); a += s.sinrDb; rk = s.rankR; } return { sinr: r2(a / trials), rank: rk }; }
 function evmRms(over, trials, seed0) { let e2 = 0, ici = 0; for (let t = 0; t < trials; t++) { const s = setup(over, seed0 + t); s.snaps = []; s.computeMath(); e2 += s.evm * s.evm; ici = Math.sqrt(s.nuIciFloor); } return { evm: Math.sqrt(e2 / trials), ici }; }
 
+// summary of the S1 grid (docs/diagnostics/s1_sensitivity.csv, written by tests/diag_s_sensitivity.js s1): the scope of the E6 statement
+function s1Scope() {
+    const f = path.join(__dirname, '..', 'docs', 'diagnostics', 's1_sensitivity.csv');
+    if (!fs.existsSync(f)) return null;
+    const L = fs.readFileSync(f, 'utf8').trim().split(/\r?\n/), h = L[0].split(','), rows = L.slice(1).map(l => { const c = l.split(','), o = {}; h.forEach((k, i) => { o[k] = c[i]; }); return o; });
+    let best = null, ge = 0;
+    for (const r of rows) { const ag = +r.aging_loss_dB, ic = +r.ici_loss_dB; if (ag >= ic) ge++; const q = ag / ic; if (best === null || q > best.q) best = { q, r }; }
+    return { cells: rows.length, ge, maxRatio: r2(best.q), at: { fc: +best.r.fc_GHz, scs: +best.r.scs_kHz, dmin: +best.r.d_min_m, tau: +best.r.tau_ms, v: +best.r.v_kmh, algo: best.r.algo, aging: r2(+best.r.aging_loss_dB), ici: r2(+best.r.ici_loss_dB) } };
+}
+
 function measureE6(trials) {
     // E6: speed -> pointing deviation (pointingMode 'mobility'); SINR of four series per speed, delta_theta_eff, its ratio to the 3 dB beamwidth, ICI floor, and the speed at which
     // the ICI floor N_ICI/S exceeds the aging loss of SMI signalFree (1/SINR(v) - 1/SINR(0), linear) -- both are contributions to the EVM^2 = 1/SINR + N_ICI/S
@@ -35,6 +45,7 @@ function measureE6(trials) {
     // the same with tau = 0: no angle deviation, only the Doppler inside the training window
     const t0 = sinr(Object.assign({}, X.params('E6'), { algo: 'SMI', trainMode: 'signalFree', latMs: 0, v: 300 }), trials, 5000), w0 = sinr(Object.assign({}, X.params('E6'), { algo: 'SMI', trainMode: 'withSignal', latMs: 0, v: 300 }), trials, 5000), w1 = sinr(Object.assign({}, X.params('E6'), { algo: 'SMI', trainMode: 'withSignal', latMs: 0, v: 100 }), trials, 5000);
     out.E6.tau0 = { smiSF_300: t0.sinr, smiWS_300: w0.sinr, smiWS_100: w1.sinr };
+    out.E6.scope = s1Scope();
     return out.E6;
 }
 

@@ -120,6 +120,7 @@ module.exports = {
             ['E6: SMI (signalFree) and DL (signalFree) fall from 0 to 300 km/h, MMSE-P drops by more than 20 dB', m.E6.byV[0].smiSF > m.E6.byV[300].smiSF && m.E6.byV[0].dlSF > m.E6.byV[300].dlSF && m.E6.byV[0].mmseP - m.E6.byV[300].mmseP > 20],
             ['E6: SMI withSignal rises first (peak strictly between 0 and 300 km/h, > 5 dB above its 0 km/h value) and is lower at 300 km/h than at the peak', m.E6.peak_smiWS.v > 0 && m.E6.peak_smiWS.v < 300 && m.E6.peak_smiWS.sinr - m.E6.byV[0].smiWS > 5 && m.E6.byV[300].smiWS < m.E6.peak_smiWS.sinr],
             ['E6: the ICI floor is above the SMI (signalFree) aging loss from the first non-zero speed of the sweep (25 km/h)', m.E6.cross_ici_over_aging_kmh === 25],
+            ['E6: over the S1 grid (docs/diagnostics/s1_sensitivity.csv) the aging loss reaches the ICI loss in no cell', m.E6.scope.ge === 0 && m.E6.scope.cells === 240],
             ['E6: with tau = 0, SMI signalFree at 300 km/h is within 0.5 dB of its 0 km/h value and SMI withSignal is > 5 dB above its 0 km/h value', Math.abs(m.E6.tau0.smiSF_300 - m.E6.byV[0].smiSF) < 0.5 && m.E6.tau0.smiWS_300 - m.E6.byV[0].smiWS > 5]
         ];
         for (const [txt, ok] of claims) { console.log(`T19d  ${ok ? 'holds ' : 'FAILS '} ${txt}`); checks.push(U.check('T19d stated phenomenon: ' + txt, ok ? 'holds' : 'does not hold', 'holds', ok)); }
