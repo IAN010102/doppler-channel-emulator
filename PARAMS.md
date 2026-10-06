@@ -270,6 +270,18 @@ Panel F ("空間譜 / DOA spectrum"; core: `Core.doaSpectra`, `Core.spectrumPeak
 - **Tooltips:** every control and read-out has a tip of at most 40 characters per language (`I18N.TIPS`).
 - **Language:** button at the top right (繁中 / English). The default follows the browser language, the choice is kept in `localStorage` (if storage is unavailable: Traditional Chinese). All page text is Chinese in the source; in English mode every Chinese phrase (labels, generated diagnosis and inspector text, tooltips, canvas text) is replaced through `I18N.PHRASES` (longest match first, re-applied by a MutationObserver when the page re-renders); where an `<em>` English text already sits next to a Chinese label, the Chinese part is dropped. Coverage is tested (T19a lists missing phrases).
 
+## 19. Data for MATLAB and the report (Commits 23-24)
+
+`data/` (see `data/README_data.md` for every column): `matlab_cases.json` (22 fixed cases with the snapshots, the true channel, the weights and the SINR computed by the web code; made by `tests/make_matlab_cases.js`)
+and `curve_*.csv` (EVM vs speed with the ICI floor for two (fc, Δf) pairs; SINR vs L with SINR_opt; SINR vs δθ; Capon/MUSIC spectra; mean and standard error per point, ≥ 500 / 1000 trials; made by `tests/make_curves.js`).
+`matlab/`: `verify_cases.m` (recompute everything in MATLAB and compare: linear algebra and formulas, not the channel generator), `mc_independent.m` (independent channel generator written from §3, Bonferroni-corrected z-test
+against `curve_sinr_vs_L.csv`: implementation vs the specification, not the specification itself), `plot_figures.m` (figures, 3.5 inch single column, one style per algorithm), and the learning ladder `exercises/ex1..ex5`,
+`solutions/`, `check_my_work.m`, `selftest.m`, `README.md`. The MATLAB files were **not run** in the development environment (no MATLAB); `tests/t20_matlab_data.js` checks the data and a Node port of the grader
+(`tests/exercise_check.js`). Grading rules of `check_my_work.m`: ex1 relative error < 1e-9 vs `a_assumed`; ex2 relative Frobenius error < 1e-9 vs the web R̂; ex3 (only L ≥ N) and ex5: SINR of the weights equal to the web value
+within 1e-6 dB **and** wᴴa = 1 within 1e-9 (the SINR alone is scale-invariant and could not detect a forgotten normalisation); ex4 SINR within 1e-6 dB. In the exercises the interferer steering vector passed to
+`ex4_sinr` already contains the amplitude √P_j, and `gamma_rel` of `ex5_diagload` is a linear factor (10 dB = 10), so that the function signatures of the task are kept.
+
+
 ## 20. Lecture baseline and angle source (Commit 22b)
 
 **Angle convention.** The simulator's steering vector is `a_n(θ) = exp(−j·2π·n·(d/λ)·sinθ)`, n = 0…N−1, with θ measured from the array broadside; the vehicle heads along the broadside direction (+x), which is also where the Doppler convention `f_d = f_m cosθ` takes its angle from (§2). The lecture uses exactly the same steering vector with the angle measured from the antenna normal. The two conventions are therefore **identical, including the sign: θ_lab = θ_sim**; no conversion is needed. `data/matlab_cases.json` repeats the angles as `theta1_hat_lab_deg` / `theta2_lab_deg` and states this in `lab_convention`; the MATLAB scripts use the lecture convention.
