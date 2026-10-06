@@ -49,6 +49,24 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); i
             }, id);
             check(`${L} experiment ${id} can be applied`, r.bad.length === 0, r.bad.length ? r.bad.join('; ') : `${r.n} parameters set`);
         }
+        // E0: L = 1000 is applied beyond the slider range; the slider keeps working; the next preset restores its own L; the live computation stays fast
+        const e0 = await page.evaluate(async () => {
+            const wait = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            ExpUI.select('E0'); document.getElementById('btn-exp-apply').click(); await wait(400);
+            out.L = Sys.L; out.numL = document.getElementById('num-L').value; out.win = document.getElementById('m-win').innerText;
+            const t0 = performance.now(); for (let i = 0; i < 5; i++) { Sys.snaps = []; Sys.computeMath(); } out.msPerCompute1000 = (performance.now() - t0) / 5;
+            const rng = document.getElementById('rng-L'); rng.value = 150; rng.dispatchEvent(new Event('input', { bubbles: true })); await wait(300);
+            out.afterSlider = Sys.L; out.numAfterSlider = document.getElementById('num-L').value;
+            ExpUI.select('E1'); document.getElementById('btn-exp-apply').click(); await wait(300); out.afterE1 = Sys.L;
+            ExpUI.select('E0'); document.getElementById('btn-exp-apply').click(); await wait(300); out.again = Sys.L;
+            ExpUI.select('E6'); document.getElementById('btn-exp-apply').click(); await wait(300); out.afterE6 = Sys.L;
+            const t1 = performance.now(); for (let i = 0; i < 5; i++) { Sys.snaps = []; Sys.computeMath(); } out.msPerCompute100 = (performance.now() - t1) / 5;
+            return out;
+        });
+        check(`${L} E0: Sys.L = 1000 and the L read-out shows 1000`, e0.L === 1000 && String(e0.numL) === '1000' && /1000/.test(e0.win), `Sys.L ${e0.L}, input ${e0.numL}, window "${e0.win}"`);
+        check(`${L} E0: the L slider still works afterwards`, e0.afterSlider === 150 && String(e0.numAfterSlider) === '150', `Sys.L ${e0.afterSlider}, input ${e0.numAfterSlider}`);
+        check(`${L} E1 and E6 restore their own L (100); E0 again gives 1000`, e0.afterE1 === 100 && e0.afterE6 === 100 && e0.again === 1000, `E1 ${e0.afterE1}, E0 again ${e0.again}, E6 ${e0.afterE6}`);
+        check(`${L} L = 1000: one computation is fast (< 100 ms)`, e0.msPerCompute1000 < 100, `${e0.msPerCompute1000.toFixed(1)} ms per computation at L = 1000 against ${e0.msPerCompute100.toFixed(1)} ms at L = 100`);
         const csv = await page.evaluate(() => Exporter.buildCsv());
         const m = /(^|\n)meta,csv_schema_version,(\d+),/.exec(csv);
         check(`${L} CSV schema version`, !!m && m[2] === '2', m ? 'csv_schema_version = ' + m[2] : 'not found');

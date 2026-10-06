@@ -1503,6 +1503,7 @@
         function applyParams(p) {
             Object.keys(ctlSet).forEach(k => { if (p[k] !== undefined) ctlSet[k](p[k]); });
             if (p.kDb > 20) { Sys.kDb = p.kDb; const nk = document.getElementById('num-kDb'); if (nk) nk.value = p.kDb; }       // K = infinity (E0): beyond the slider range
+            if (p.L > 200) { Sys.L = p.L; const nl = document.getElementById('num-L'); if (nl) nl.value = p.L; }                                  // L = 1000 (E0): beyond the slider range (max 200), like K
             Sys.jamWave = p.jamWave; selJam.value = p.jamWave; Sys.smiSingular = p.smiSingular;
             Sys.pointingMode = p.pointingMode; selPm.value = p.pointingMode; Sys.covSource = p.covSource; selCov.value = p.covSource; Sys.angleSource = p.angleSource; selAng.value = p.angleSource;
             Sys.mod = p.mod; selMod.value = p.mod; Sys.taper = p.taper;
