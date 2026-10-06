@@ -3,8 +3,14 @@
  * T13  Symbol-level EVM (Commit 16), unified model. Core.symbolLevel: Ns random symbols of the selected modulation through the output gain g = w^H h, the residual
  *      interferer (unit-power QPSK x sqrt(I), random phase), the noise w^H n ~ CN(0, Nn) and a Gaussian ICI term of power |g|^2 N_ICI/S; the receiver divides by g
  *      (perfect channel estimate, g known). EVM_meas = sqrt(sum|s_hat - s|^2 / sum|s|^2).
- *   T13a  four settings (signalFree / withSignal  x  v = 0 / 300 km/h), SMI, 16-QAM, K = 20 dB, theta1 = 0, theta2 = 40, L = 100, 300 channel realisations each,
- *         Ns = 4000 per realisation. Criterion: |mean over realisations of (EVM_meas/EVM_analytic - 1)| <= 3 SE of that mean. The relative difference and SE are reported.
+ *   T13a  four settings (signalFree / withSignal  x  v = 0 / 300 km/h), SMI, 16-QAM, K = 20 dB, theta1 = 0, theta2 = 40, L = 100, Ns = 4000 symbols per realisation.
+ *         CHANGED (after the B2 investigation, docs/diagnostics/b2_t13a_*.txt): ten independent blocks of 300 realisations per setting (seeds seed + 300 k + t, k = 0 ... 9; block 0 is the
+ *         former single block). Block k gives the mean m_k of (EVM_meas/EVM_analytic - 1) and its SE_k, z_k = m_k / SE_k. Criterion: the combined z, Z = sum_k z_k / sqrt(10)
+ *         (Stouffer; N(0,1) under the null if the SE_k are right), satisfies |Z| <= 3 (the multiple of 3 is unchanged). The pooled mean and SE over the 3000 realisations and the distribution of
+ *         the ten z_k are printed; a standard deviation of the z_k above 1.5 is reported (note) as evidence that the SE is underestimated. SE_k = sample standard deviation / sqrt(300) of the
+ *         per-realisation relative differences (no heavy-tail correction, no bootstrap).
+ *         Before: one block of 300 realisations (seeds seed + t), |mean| <= 3 SE; signalFree, v = 300 gave +0.1957 % (SE 0.0526 %, z = 3.72) since Commit 19 (+0.0708 % before it); the other nine
+ *         blocks have |z| <= 1.45 (B2), the 2000-realisation mean is +0.033 % +- 0.020 %: the failure was a fluctuation of that seed block, not a bias.
  *         NOTE: the interferer, noise and ICI terms are generated from the same S, I, N, nu the analytic EVM uses, so this verifies the arithmetic of the chain
  *         (scaling, normalisation, sample estimators), not the physics of the ICI model (that is T4/T5).
  *   T13b  no interferer, no noise, v = 0, single path: EVM_meas < 1e-9.
@@ -22,20 +28,26 @@ module.exports = {
     id: 'T13', title: 'symbol-level EVM vs the analytic sqrt(1/SINR + N_ICI/S); no-impairment limit; SER closed form (info)',
     async run({ realisations = 300, seed = 1313 } = {}) {
         const checks = [], info = [];
-        console.log(`T13a  SMI, 16-QAM, K = 20 dB, ${realisations} realisations x 4000 symbols per setting`);
-        console.log(U.pad('setting', 24), U.rpad('EVM analytic %', 15), U.rpad('EVM measured %', 15), U.rpad('mean rel. diff', 15), U.rpad('SE', 10), U.rpad('|diff|/SE', 10), 'result');
+        console.log(`T13a  SMI, 16-QAM, K = 20 dB, 10 blocks x ${realisations} realisations x 4000 symbols per setting`);
+        console.log(U.pad('setting', 24), U.rpad('EVM analytic %', 15), U.rpad('EVM measured %', 15), U.rpad('pooled rel. diff', 15), U.rpad('pooled SE', 10), U.rpad('combined Z', 10), 'result');
         for (const tm of ['signalFree', 'withSignal']) for (const v of [0, 300]) {
-            const rel = [], an = [], me = [];
-            for (let t = 0; t < realisations; t++) {
-                Core.setSeed(seed + t);
-                const s = Core.createSys(); s.calZ = new Array(16).fill(0); Object.assign(s, BASE, { trainMode: tm, v });
-                s.snaps = []; s.computeMath();
-                const r = s.symbolEvm(4000, 0);
-                rel.push(r.evm / s.evm - 1); an.push(s.evm); me.push(r.evm);
+            const NB = 10, zs = [], allRel = [], an = [], me = [];
+            for (let k = 0; k < NB; k++) {
+                const rel = [];
+                for (let t = 0; t < realisations; t++) {
+                    Core.setSeed(seed + realisations * k + t);
+                    const s = Core.createSys(); s.calZ = new Array(16).fill(0); Object.assign(s, BASE, { trainMode: tm, v });
+                    s.snaps = []; s.computeMath();
+                    const r = s.symbolEvm(4000, 0);
+                    rel.push(r.evm / s.evm - 1); allRel.push(r.evm / s.evm - 1); an.push(s.evm); me.push(r.evm);
+                }
+                zs.push(U.mean(rel) / U.se(rel));
             }
-            const m = U.mean(rel), se = U.se(rel), z = Math.abs(m) / se, pass = Math.abs(m) <= 3 * se;
-            console.log(U.pad(`${tm}, v = ${v}`, 24), U.rpad(U.f(100 * U.mean(an), 3), 15), U.rpad(U.f(100 * U.mean(me), 3), 15), U.rpad((100 * m).toFixed(4) + ' %', 15), U.rpad((100 * se).toFixed(4) + ' %', 10), U.rpad(z.toFixed(2), 10), pass ? 'PASS' : 'FAIL');
-            checks.push(U.check(`T13a ${tm}, v = ${v}: mean EVM_meas / EVM_analytic - 1`, `${(100 * m).toFixed(4)} % (SE ${(100 * se).toFixed(4)} %)`, '|mean| <= 3 SE', pass, `analytic ${U.f(100 * U.mean(an), 3)} %, measured ${U.f(100 * U.mean(me), 3)} %`));
+            const m = U.mean(allRel), se = U.se(allRel), Z = zs.reduce((a, b) => a + b, 0) / Math.sqrt(NB), zsd = Math.sqrt(U.variance(zs)), pass = Math.abs(Z) <= 3;
+            console.log(U.pad(`${tm}, v = ${v}`, 24), U.rpad(U.f(100 * U.mean(an), 3), 15), U.rpad(U.f(100 * U.mean(me), 3), 15), U.rpad((100 * m).toFixed(4) + ' %', 15), U.rpad((100 * se).toFixed(4) + ' %', 10), U.rpad(Z.toFixed(2), 10), pass ? 'PASS' : 'FAIL',
+                `  block z: ${zs.map(z => z.toFixed(2)).join(' ')}  (sd ${zsd.toFixed(2)}${zsd > 1.5 ? ' > 1.5: SE underestimated?' : ''})`);
+            checks.push(U.check(`T13a ${tm}, v = ${v}: combined z of 10 blocks of mean EVM_meas / EVM_analytic - 1`, `Z = ${Z.toFixed(2)} (pooled ${(100 * m).toFixed(4)} %, SE ${(100 * se).toFixed(4)} %; block z sd ${zsd.toFixed(2)})`, '|Z| <= 3', pass,
+                `analytic ${U.f(100 * U.mean(an), 3)} %, measured ${U.f(100 * U.mean(me), 3)} %; block z: ${zs.map(z => z.toFixed(2)).join(' ')}${zsd > 1.5 ? '; sd of the block z above 1.5: the SE is probably underestimated' : ''}`));
         }
         // ---- T13b
         let worst = 0;

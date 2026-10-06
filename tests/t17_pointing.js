@@ -7,6 +7,11 @@
  *         model, R_exp = P_s h h^H (withSignal only) + P_j g g^H + sigma^2 I  (h = sum_i beta_i Gamma a(theta_i) of the realisation, g = Gamma a(theta_2); v = 0: no Doppler phase),
  *         w = R_exp^-1 a_assumed / (a_assumed^H R_exp^-1 a_assumed), is compared with the sample SMI of L = 20000 snapshots of the same realisation: the mean over realisations of the
  *         paired SINR difference must be within 3 SE. This verifies that the sample pipeline converges to the population solution (it does not test the physics of the model).
+ *         CHANGED (after T17b2): for signalFree with delta = 0 and 1 deg the comparison value is no longer 0 but the known expected finite-sample loss of SMI with signal-free training,
+ *         E[10 log10 rho] = (10 / ln 10) (psi(L + 2 - N) - psi(L + 1)) = -0.00152 dB at L = 20000, N = 8 (Reed-Mallett-Brennan: rho = SINR_SMI / SINR_opt ~ Beta(L + 2 - N, N - 1)); the criterion
+ *         |mean difference - (-0.00152)| <= 3 SE is unchanged in its multiple. Before: |mean difference| <= 3 SE. Measured (T17b2): delta = 0: -0.0022 +- 0.0003 dB (z against the theory -2.07),
+ *         delta = 1: -0.0026 +- 0.0006 dB (z = -1.78); against 0 the same cells failed (7.3 and 4.3 SE). The rule for the change was that the difference to the theory is within 3 SE for both cells.
+ *         delta >= 3 deg (the formula is not strictly applicable: the steering vector is wrong) and all withSignal rows keep the original criterion (comparison with 0) and their results.
  *   T17c  signalFree, SMI (L = 100): mean SINR must decrease with |delta_theta| (|delta_theta| = 0, 1, 2, 3, 5, 7, 10); a step violates this only if the paired increase exceeds one SE.
  *   T17d  (informational) SINR vs delta_theta (-5 ... 5 deg, 0.5 deg steps), SMI / DL / BEAMSPACE / MMSE-M / MMSE-P, signalFree and withSignal, L = 100 and L = 12, 1000 trials, SE.
  *         Also K = 40 dB (nearly pure LoS) for SMI withSignal vs signalFree to show where the self-nulling driven by the pointing error becomes significant.
@@ -39,7 +44,7 @@ module.exports = {
         checks.push(U.check('T17a delta_theta = 0: identical to the golden snapshot', U.e(worst), '0 (bit-identical)', worst === 0));
 
         // ---- T17b
-        const b2 = [], digamma = x => { let r = 0; while (x < 10) { r -= 1 / x; x += 1; } return r + Math.log(x) - 1 / (2 * x) - 1 / (12 * x * x) + 1 / (120 * x ** 4); };
+        const b2 = [], digamma = x => { let r = 0; while (x < 10) { r -= 1 / x; x += 1; } return r + Math.log(x) - 1 / (2 * x) - 1 / (12 * x * x) + 1 / (120 * x ** 4); }, thRMB = (10 / Math.LN10) * (digamma(20000 + 2 - 8) - digamma(20000 + 1));
         console.log('\nT17b  population solution from the path model vs sample SMI (L = 20000), K = 20 dB, v = 0, 100 realisations per cell; paired SINR difference (sample - population) [dB]');
         console.log(U.pad('trainMode', 11), U.pad('delta deg', 10), U.rpad('population', 14), U.rpad('sample L=20000', 16), U.rpad('mean diff', 11), U.rpad('SE', 8), 'result');
         for (const tm of ['signalFree', 'withSignal']) for (const dth of [0, 1, 3, 5]) {
@@ -59,10 +64,10 @@ module.exports = {
                 const Ts = (1 + Core.CONFIG.cpRatio) / s.scs; s.unifiedMetrics(w, gam, 40 * Math.PI / 180, (s.L - 1) * Ts, paths, Pj, sg);
                 pop.push(10 * Math.log10(s.S / (s.I + s.Nn)));
             }
-            const d = smp.map((x, i) => x - pop[i]), m = U.mean(d), se = U.se(d), pass = Math.abs(m) <= 3 * se;
-            console.log(U.pad(tm, 11), U.pad(dth, 10), U.rpad(cell(pop), 14), U.rpad(cell(smp), 16), U.rpad(U.f(m, 4), 11), U.rpad(U.f(se, 4), 8), pass ? 'PASS' : 'FAIL');
+            const d = smp.map((x, i) => x - pop[i]), m = U.mean(d), se = U.se(d), useTheory = tm === 'signalFree' && dth <= 1, ref = useTheory ? thRMB : 0, pass = Math.abs(m - ref) <= 3 * se;
+            console.log(U.pad(tm, 11), U.pad(dth, 10), U.rpad(cell(pop), 14), U.rpad(cell(smp), 16), U.rpad(U.f(m, 4), 11), U.rpad(U.f(se, 4), 8), pass ? 'PASS' : 'FAIL', useTheory ? `(compared with the theory ${U.f(thRMB, 5)} dB)` : '');
             b2.push({ tm, dth, m, se });
-            checks.push(U.check(`T17b ${tm}, delta = ${dth} deg: sample SMI (L = 20000) vs population solution`, `${U.f(m, 4)} dB (SE ${U.f(se, 4)})`, '|mean diff| <= 3 SE', pass));
+            checks.push(U.check(`T17b ${tm}, delta = ${dth} deg: sample SMI (L = 20000) vs population solution`, `${U.f(m, 4)} dB (SE ${U.f(se, 4)})`, useTheory ? `|mean diff - (${U.f(thRMB, 5)})| <= 3 SE (population solution + Reed-Mallett-Brennan loss)` : '|mean diff| <= 3 SE', pass));
         }
 
         // ---- T17b2 (informational): the finite-L loss of SMI against the Reed-Mallett-Brennan expectation. For signal-free (interference-plus-noise) training, Gaussian data and the correct

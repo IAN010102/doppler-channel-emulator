@@ -4,8 +4,13 @@
  *   T11a  MMSE-M is unchanged: K = 20 dB, v = 0, tau = 0, L = 100, withSignal, 2000 trials (same seeds as the investigation of Commit 10):
  *         legacy 12.03 +- 0.04 dB, unified -5.63 +- 0.08 dB (reference values of the previous round). Criterion: |mean - reference| <= 3 sqrt(SE^2 + SE_ref^2).
  *   T11b  MMSE-P, unified, same scenario: mean (SINR - SINR_opt) > -1 dB, for both training-data settings (MMSE-P ignores trainMode).
- *   T11c  MMSE-P, unified, L = 4, 8, 12, 24, 48, 100: mean SINR must rise monotonically with L; a step violates this only if the paired decrease exceeds one SE
- *         of that paired difference. The whole curve is printed (informational), with the gap to SINR_opt.
+ *   T11c  MMSE-P, unified, mean SINR must rise monotonically with L; a step violates this only if the paired decrease exceeds one SE of that paired difference (unchanged).
+ *         CHANGED (Commit after the B1 investigation, docs/diagnostics/b1_mmsep_L.txt): the monotone claim is made only for L >= N + 2 (here L = 12, 24, 48, 100).
+ *         Before: all of L = 4, 8, 12, 24, 48, 100 were tested, and the step 4 -> 8 failed (-2.5 dB). Reason: for L <= N + 1 the sample covariance is rank deficient (L < N, pseudo-inverse)
+ *         or ill conditioned (L = N: median condition number 5.5e5 against 1.9e5 at L = 9; the weight norm is largest, 1.12 against 0.75 at L = 9) and the least-squares / minimum-norm
+ *         solution passes through a valley at L = N (the SINR falls from L = 4 to 8 and recovers from L = 9 on, B1: 25.86, 25.14, 23.89, 21.88, 17.44, 21.52 dB for L = 4 ... 9).
+ *         The threshold (one SE of the paired difference) is unchanged. The whole curve and the observation at L = N - 1, N, N + 1 (SINR, median condition number of R_hat, median ||w||)
+ *         are printed as information.
  */
 const Core = require('../core.js');
 const U = require('./_util.js');
@@ -37,16 +42,31 @@ module.exports = {
             console.log(`T11b unified MMSE-P (${tm}): ${cell(a)} dB, SINR_opt ${U.f(U.mean(a.opt), 2)} dB, gap ${U.f(gap, 2)} dB`);
             checks.push(U.check(`T11b MMSE-P unified (${tm}): SINR - SINR_opt`, `${U.f(gap, 2)} dB`, '> -1 dB', gap > -1));
         }
-        const Ls = [4, 8, 12, 24, 48, 100], cols = Ls.map(L => run('unified', 'MMSEP', { L }, trials, seed));
+        const Ls = [4, 8, 12, 24, 48, 100], cols = Ls.map(L => run('unified', 'MMSEP', { L }, trials, seed)), NN = BASE.N, tested = L => L >= NN + 2;
         console.log('\nT11c  MMSE-P, unified, K = 20 dB, v = 0, withSignal: mean SINR vs L');
         console.log(U.pad('L', 6), U.rpad('SINR dB', 14), U.rpad('SINR_opt', 9), U.rpad('gap', 8), U.rpad('step vs previous (mean d / SE d)', 34));
         let ok = true, worst = '';
         Ls.forEach((L, i) => {
             let step = '';
-            if (i > 0) { const d = cols[i].map((x, k) => x - cols[i - 1][k]), m = U.mean(d), s = U.se(d); step = `${U.f(m, 3)} / ${U.f(s, 3)}`; if (m < -s) { ok = false; worst += ` ${Ls[i - 1]}->${L}: ${U.f(m, 3)}/${U.f(s, 3)}`; } }
+            if (i > 0) {
+                const d = cols[i].map((x, k) => x - cols[i - 1][k]), m = U.mean(d), s = U.se(d); step = `${U.f(m, 3)} / ${U.f(s, 3)}`;
+                if (tested(L) && tested(Ls[i - 1])) { if (m < -s) { ok = false; worst += ` ${Ls[i - 1]}->${L}: ${U.f(m, 3)}/${U.f(s, 3)}`; } } else step += '  (not tested: L <= N + 1 involved)';
+            }
             console.log(U.pad(L, 6), U.rpad(cell(cols[i]), 14), U.rpad(U.f(U.mean(cols[i].opt), 2), 9), U.rpad(U.f(U.mean(cols[i]) - U.mean(cols[i].opt), 2), 8), U.rpad(step, 34));
         });
-        checks.push(U.check('T11c MMSE-P unified: mean SINR rises with L', `${U.f(U.mean(cols[0]), 2)} -> ${U.f(U.mean(cols[cols.length - 1]), 2)} dB`, 'each step: decrease <= SE(d)', ok, worst ? 'violations:' + worst : ''));
+        checks.push(U.check('T11c MMSE-P unified: mean SINR rises with L', `${U.f(U.mean(cols[0]), 2)} -> ${U.f(U.mean(cols[cols.length - 1]), 2)} dB`, 'L >= N + 2 only (12, 24, 48, 100); each step: decrease <= SE(d)', ok, worst ? 'violations:' + worst : ''));
+        // informational: the ill-conditioned region around L = N
+        console.log('\nT11c  observation around L = N (MMSE-P, same setting): mean SINR, median condition number of R_hat (Infinity = rank deficient), median ||w||');
+        for (const L of [NN - 1, NN, NN + 1]) {
+            const a = [], kap = [], wn = [];
+            for (let tt = 0; tt < trials; tt++) {
+                Core.setSeed(seed + tt); const s = Core.createSys(); s.calZ = new Array(16).fill(0); Object.assign(s, BASE, { L, model: 'unified', algo: 'MMSEP', freshRealization: true }); s.snaps = []; s.snapKey = ''; s.computeMath();
+                a.push(s.sinrDb); kap.push(s.kappaRaw); wn.push(Math.sqrt(s.weights.reduce((x, c) => x + c.r * c.r + c.i * c.i, 0)));
+            }
+            const med = x => { const b = x.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
+            console.log(`  L = ${L}: ${cell(a)} dB, median kappa ${U.e(med(kap), 2)}, median ||w|| ${U.f(med(wn), 3)}`);
+            info.push({ name: `T11c observation L = ${L} (N ${L === NN ? '' : L < NN ? '- 1' : '+ 1'})`, value: `${cell(a)} dB, median kappa(R_hat) ${U.e(med(kap), 2)}, median ||w|| ${U.f(med(wn), 3)}` });
+        }
         info.push({ name: 'T11c curve (MMSE-P, unified)', value: Ls.map((L, i) => `L=${L}: ${U.f(U.mean(cols[i]), 2)}`).join(' / ') + ' dB' });
         return { id: this.id, title: this.title, checks, info };
     }
