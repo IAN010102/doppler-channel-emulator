@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>陣列訊號處理 × 高移動性都卜勒 實驗平台 V4.0</title>
     <style>
@@ -83,8 +84,8 @@
         .ctrl { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-family: var(--mono); }
         .ctrl .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
         .ctrl .lab { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-        .ctrl .lab .zh { font-size: 0.66rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ctrl .lab .en { font-size: 0.54rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ctrl .lab .zh { font-size: 0.66rem; color: var(--text); white-space: normal; overflow-wrap: anywhere; }
+        .ctrl .lab .en { font-size: 0.54rem; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
         .ctrl.real .lab .zh { color: var(--violet); }
         .ctrl .field { display: flex; align-items: baseline; gap: 3px; flex: 0 0 auto; }
         .ctrl .unit { font-size: 0.58rem; color: var(--muted); min-width: 2.2em; }
@@ -118,14 +119,14 @@
         .exp-table { font: 0.66rem var(--mono); color: var(--text); line-height: 1.5; }
         #btn-lang { width: auto; min-width: 44px; }
         html[lang="en"] .lab .zh { display: none; }
-        html[lang="en"] .lab .en { font-size: inherit; color: var(--white); }
+        html[lang="en"] .lab .en { font-size: 0.66rem; color: var(--text); }
         .bench { grid-column: 1 / -1; }
         .panel { display: flex; flex-direction: column; min-height: 250px; min-width: 0; overflow: hidden; }
-        .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: normal; line-height: 1.3; }
         .p-head em { color: var(--muted); margin-left: 4px; }
-        .kv-grid { flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 1px 14px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-        .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 0.62rem var(--mono); min-width: 0; }
-        .kv .k { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .kv-grid { flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 3px 14px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+        .kv { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font: 0.62rem var(--mono); min-width: 0; }
+        .kv .k { color: var(--muted); white-space: normal; overflow-wrap: anywhere; line-height: 1.15; min-width: 0; }
         .kv .v { color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 auto; }
         /* the canvas host: a real, in-flow box; the bitmap is mapped 1:1 to its client size (see Render.setup) */
         .cv { position: relative; flex: 1 1 0; min-height: 120px; overflow: hidden; }
@@ -274,6 +275,7 @@
                     <div class="kv"><span class="k">調變 Modulation</span><span class="v" id="m-mod">16-QAM</span></div>
                     <div class="kv"><span class="k">誤差向量 EVM</span><span class="v"><span id="m-evm">0</span> %</span></div>
                     <div class="kv" title="Unified model: EVM measured on 4000 simulated symbols (Core.symbolLevel), to be compared with the analytic EVM above"><span class="k">EVM 符元量測</span><span class="v"><span id="m-evm-meas">—</span> %</span></div>
+                    <div class="kv" title="Raw EVM (lecture): s_hat = w^H x compared with s, no gain normalisation"><span class="k">原始 EVM（不正規化）</span><span class="v"><span id="m-evm-raw">—</span> %</span></div>
                     <div class="kv"><span class="k">符元錯誤率 SER</span><span class="v" id="m-ser">0</span></div>
                     <div class="kv"><span class="k">訊干雜比 SINR</span><span class="v"><span id="m-sinr2">0</span> dB</span></div>
                 </div>
@@ -291,6 +293,7 @@
                     <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
                     <div class="kv" title="Largest angle change of any path (target paths and jammer) inside the training window; The model integrates the Doppler phase along the track; in parentheses: largest |integrated phase − first-order phase (f_d at t_app × t)| in rad, i.e. how much the first-order model of the previous version would have been off. Unified model only."><span class="k">窗內角度漂移 Δθ<sub>max</sub></span><span class="v"><span id="m-drift">—</span> °<span id="m-perr"></span></span></div>
                     <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
+                    <div class="kv" title="Steering angle source; with MUSIC: estimation error against theta_1 / theta_2"><span class="k">導向角度 / MUSIC 誤差</span><span class="v" id="m-angsrc">—</span></div>
                     <div class="kv" title="Pointing error as a fraction of the 3 dB main-lobe width: |δθ| / θ_3dB (weights are designed for a(θ̂₁+δθ); MMSE-P is not affected)"><span class="k">指向偏差 δθ/θ<sub>3dB</sub></span><span class="v"><span id="m-point">—</span></span></div>
                     <div class="kv" title="Genie upper bound: w_opt = R_in⁻¹h with the TRUE interference+noise covariance and this trial's true channel vector (unified model); legacy: λ_max(R_in⁻¹R_t) of the expected covariances. Read-out only."><span class="k">SINR<sub>opt</sub> (genie)</span><span class="v"><span id="m-opt">—</span> dB<span id="m-optgap" class="note"></span></span></div>
                 </div>
@@ -384,9 +387,9 @@
         const MV = () => Sys.trainMode === 'signalFree' ? 'MVDR' : 'MPDR';
         const ALGO = {
             FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)', csv: 'FOURIER' },
-            MMSE:      { short: 'MMSE-M',   long: 'MMSE-M (Wiener, model-based r_xd)', csv: 'MMSE' },
+            MMSE:      { get short() { return Sys.covSource === 'theory' ? 'MMSE-M(理論)' : 'MMSE-M'; }, get long() { return Sys.covSource === 'theory' ? 'MMSE-M（理論協方差，講義版）' : 'MMSE-M（樣本協方差）'; }, csv: 'MMSE' },
             MMSEP:     { short: 'MMSE-P',   long: 'MMSE-P (Wiener, pilot-trained r_xd)', csv: 'n/a' },
-            SMI:       { get short() { return 'SMI-' + MV(); }, get long() { return `SMI-${MV()} (Capon Beamformer)`; }, csv: 'SMI-MVDR' },
+            SMI:       { get short() { return 'SMI-' + MV() + (Sys.covSource === 'theory' ? '(理論 R)' : ''); }, get long() { return `SMI-${MV()} (Capon Beamformer)` + (Sys.covSource === 'theory' ? '（理論 R）' : ''); }, csv: 'SMI-MVDR' },
             DL:        { get short() { return 'DL-' + MV(); },  get long() { return `DL-${MV()} (Tikhonov Regularization)`; }, csv: 'DL-MVDR' },
             BEAMSPACE: { get short() { return 'BS-' + MV(); },  get long() { return `BEAMSPACE-${MV()} (Dimensionality Reduction)`; }, csv: 'BS-MVDR' },
         };
@@ -412,6 +415,7 @@
                 if (p && p.id === 'btn-lang') return;                                  // the language button always names the other language
                 const hasEm = p && p.children && Array.prototype.some.call(p.children, c => c.tagName === 'EM');
                 const t = hasEm ? n.nodeValue.replace(CJK_RUNS, '').replace(/\s+/g, ' ') : this.tr(n.nodeValue);     // English comes from the <em> sibling
+                if (t === n.nodeValue) return;                  // nothing (more) to translate: do not write, or the observer would fire again and again
                 if (!this.done.has(n)) this.done.set(n, n.nodeValue);
                 n.nodeValue = t;
             },
@@ -424,7 +428,7 @@
             title(el) {
                 if (el.dataset.tip) return;
                 const t = el.getAttribute('title'); if (t === null) return;
-                if (this.cur === 'en' && CJK.test(t)) { if (!el.dataset.titleZh) el.dataset.titleZh = t; el.setAttribute('title', this.tr(t)); }
+                if (this.cur === 'en' && CJK.test(t)) { const e = this.tr(t); if (e === t) return; if (!el.dataset.titleZh) el.dataset.titleZh = t; el.setAttribute('title', e); }
             },
             restore(root) {
                 const tw = document.createTreeWalker(root, 4); let n; const nodes = [];
@@ -574,6 +578,8 @@
                 $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
                 $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
                 $('m-point').innerText = S.pointErrDeg === 0 ? '0' : `${(S.pointErrDeg).toFixed(1)}° / ${this.f(S.bw3)}° = ${(100 * Math.abs(S.pointErrDeg) / Math.max(S.bw3, 1e-9)).toFixed(0)} %${S.algo === 'MMSEP' ? '（MMSE-P 不受影響）' : ''}`;
+                $('m-evm-raw').innerText = Number.isFinite(S.evmRaw) ? this.f(Math.min(S.evmRaw * 100, 999)) : '—';
+                $('m-angsrc').innerText = S.angleSource === 'music' && Number.isFinite(S.angleUsedDeg) ? `MUSIC ${S.angleUsedDeg.toFixed(1)}° (Δθ₁ ${S.musicErrT.toFixed(1)}°, Δθ₂ ${S.musicErrJ.toFixed(1)}°)` : (S.angleSource === 'music' ? 'MUSIC —' : '名義');
                 $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
                 $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
                 $('m-drift').innerText = dash(S.angDrift) === null ? '—' : S.angDrift.toPrecision(3);
@@ -982,7 +988,7 @@
                 add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
                 add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
                 const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
-                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
+                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'cov_source', S.covSource); add('param', 'angle_source', S.angleSource); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
                 add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
                 add('param', 'd_min', S.d_min, 'm');
                 add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
@@ -1004,7 +1010,7 @@
                 add('result', 'condition_number_R_hat', f(S.kappaRaw)); add('result', 'condition_number_inverted_matrix', f(S.kappa));
                 add('result', 'output_gain_wHa', f(S.outGain)); add('result', 'N_ICI_over_S', f(S.nIciDb), 'dB'); add('result', 'f_m', f(S.fm), 'Hz'); add('result', 'f_d', f(S.fd), 'Hz');
                 add('result', 'status', S.status);
-                add('result', 'max_angle_drift_deg', na(S.angDrift), 'deg'); add('result', 'SINR_opt_dB', na(S.sinrOptDb), 'dB');
+                add('result', 'evm_raw', na(S.evmRaw * 100), '%'); add('result', 'music_err_theta1_deg', na(S.musicErrT), 'deg'); add('result', 'music_err_theta2_deg', na(S.musicErrJ), 'deg'); add('result', 'max_angle_drift_deg', na(S.angDrift), 'deg'); add('result', 'SINR_opt_dB', na(S.sinrOptDb), 'dB');
                 S.eig.forEach((x, i) => add('R_hat_eigenvalue', `lambda_${i + 1}`, f(x)));
                 S.diagR.forEach((x, i) => add('R_hat_diagonal', `R_${i + 1}${i + 1}`, f(x)));
                 const r = Bench.result;
@@ -1423,8 +1429,12 @@
         const trainNote = document.createElement('div'); trainNote.className = 'note'; trainNote.style.cssText = 'font:0.58rem var(--mono);color:var(--yellow);margin-top:2px';
         trainNote.textContent = '理想化假設：干擾加雜訊協方差可獨立取得';
         selTrain.parentElement.appendChild(trainNote);
+        const selCov = addSelect('rx', 'sel-cov', '協方差來源', 'Covariance source (SMI, MMSE-M)', [['sample', '樣本協方差（現行）'], ['theory', '理論協方差（講義版，僅供對照）']], v => { Sys.covSource = v; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; });
+        selCov.value = Sys.covSource;
+        const selAng = addSelect('rx', 'sel-angsrc', '導向角度來源', 'Steering angle source (SMI, DL, BEAMSPACE, MMSE-M)', [['true', '名義角度 θ̂₁+δθ（現行）'], ['music', 'MUSIC 估計角（2 個源）']], v => { Sys.angleSource = v; Sys.dirty = true; Diagnosis.last = ''; });
+        selAng.value = Sys.angleSource;
         function refreshNames() {                                                                // algorithm names follow the training mode
-            ['SMI', 'DL', 'BEAMSPACE'].forEach(k => {
+            ['SMI', 'MMSE', 'DL', 'BEAMSPACE'].forEach(k => {
                 const o = selAlgo.querySelector(`option[value="${k}"]`); if (o) o.textContent = ALGO[k].long;
                 const lg = document.getElementById('lg-' + k); if (lg) lg.innerText = Bench.label(k, Bench.result);
             });
@@ -1484,7 +1494,9 @@
            Apply = set the parameters (sliders and menus follow), Run = apply + compute: a sweep (E1, the existing benchmark), a table (E2, E3) or a curve (E4, E5). */
         function applyParams(p) {
             Object.keys(ctlSet).forEach(k => { if (p[k] !== undefined) ctlSet[k](p[k]); });
+            if (p.kDb > 20) { Sys.kDb = p.kDb; const nk = document.getElementById('num-kDb'); if (nk) nk.value = p.kDb; }       // K = infinity (E0): beyond the slider range
             Sys.jamWave = p.jamWave; selJam.value = p.jamWave; Sys.smiSingular = p.smiSingular;
+            Sys.covSource = p.covSource; selCov.value = p.covSource; Sys.angleSource = p.angleSource; selAng.value = p.angleSource;
             Sys.mod = p.mod; selMod.value = p.mod; Sys.taper = p.taper;
             setModel(p.model); setTrain(p.trainMode); setFc(p.fc / 1e9); setScs(p.scs / 1e3); setAlgo(p.algo); setTaper(p.taper);
             Sys.resetCache(); Render.constHist = []; Diagnosis.last = ''; Sys.dirty = true; Sys.doa = null;
@@ -1524,8 +1536,8 @@
                 const e = Experiments.byId(this.sel), tab = document.getElementById('exp-table'), U = I18N.UI[Lang.cur];
                 if (e.action === 'bench') { Bench.start(); tab.textContent = U.benchHint; return; }
                 if (e.action === 'table') {
-                    const rows = Experiments.runTable(Core, this.sel, this.variant, 60);
-                    tab.innerHTML = `<div>${U.tableHead}</div>` + rows.map(r => `<div>${ALGO[r.algo].short.padEnd(10, ' ').replace(/ /g, '&nbsp;')} ${r.sinr.toFixed(1)} dB  (rank ${r.rank}/${Sys.N})</div>`).join('');
+                    const nT = this.sel === 'E0' ? 6 : 60, rows = Experiments.runTable(Core, this.sel, this.variant, nT);   // E0: L = 1000 snapshots per realisation, a few realisations are enough
+                    tab.innerHTML = `<div>${U.tableHead.replace('{n}', nT)}</div>` + rows.map(r => `<div>${(r.label || ALGO[r.algo].short).padEnd(r.label ? 38 : 10, ' ').replace(/ /g, '&nbsp;')} ${r.sinr.toFixed(1)} dB  (SINR_opt ${r.opt.toFixed(1)}, raw EVM ${(100 * r.evmRaw).toFixed(2)} %, rank ${r.rank}/${Sys.N})</div>`).join('');
                     return;
                 }
                 this.busy = true; tab.textContent = U.running;
@@ -1553,9 +1565,10 @@
             if (Lang.cur === 'zh') return;
             for (const m of muts) {
                 if (m.type === 'characterData') Lang.node(m.target);
+                else if (m.type === 'attributes') Lang.title(m.target);
                 else m.addedNodes.forEach(n => { if (n.nodeType === 3) Lang.node(n); else if (n.nodeType === 1) Lang.walk(n); });
             }
-        }).observe(document.body, { childList: true, subtree: true, characterData: true });
+        }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['title'] });
         Lang.set(Lang.initial());
 
         // render safety: paint one complete frame synchronously (even if the page ever starts PAUSED), then redraw on every layout change

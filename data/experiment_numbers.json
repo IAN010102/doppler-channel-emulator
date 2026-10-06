@@ -1,4 +1,42 @@
 {
+ "E0": {
+  "MMSE-M (theory R)": {
+   "sinr": 38.97,
+   "opt": 38.97,
+   "evmRaw_pct": 1.13,
+   "bias": 0.000127
+  },
+  "MMSE-M (sample R)": {
+   "sinr": 21.88,
+   "opt": 38.97,
+   "evmRaw_pct": 8.29,
+   "bias": 0.006781
+  },
+  "SMI withSignal (theory R) = MVDR B": {
+   "sinr": 38.97,
+   "opt": 38.97,
+   "evmRaw_pct": 1.13,
+   "bias": 0
+  },
+  "SMI withSignal (sample R)": {
+   "sinr": 21.88,
+   "opt": 38.97,
+   "evmRaw_pct": 8.2,
+   "bias": 0
+  },
+  "SMI signalFree (theory R) = MVDR A": {
+   "sinr": 38.97,
+   "opt": 38.97,
+   "evmRaw_pct": 1.13,
+   "bias": 0
+  },
+  "SMI signalFree (sample R)": {
+   "sinr": 38.94,
+   "opt": 38.97,
+   "evmRaw_pct": 1.13,
+   "bias": 0
+  }
+ },
  "E1_28": {
   "byV": {
    "0": {

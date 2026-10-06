@@ -20,6 +20,9 @@ function evmRms(over, trials, seed0) { let e2 = 0, ici = 0; for (let t = 0; t < 
 
 function measure(trials = 300) {
     const out = {};
+    // E0: the lecture baseline (at most 200 realisations of L = 1000 snapshots each)
+    out.E0 = {};
+    for (const r of X.byId('E0').rows) { const s = { sinr: 0, opt: 0, raw: 0, bias: 0 }, n = Math.min(trials, 200); for (let t = 0; t < n; t++) { const sy = setup(Object.assign({}, X.byId('E0').variants[''], r.over), 700 + t); sy.snaps = []; sy.computeMath(); s.sinr += sy.sinrDb; s.opt += sy.sinrOptDb; s.raw += sy.evmRaw; s.bias += Math.hypot(sy.gRawR - 1, sy.gRawI); } out.E0[r.label] = { sinr: r2(s.sinr / n), opt: r2(s.opt / n), evmRaw_pct: r2(100 * s.raw / n), bias: Math.round(1e6 * s.bias / n) / 1e6 }; }
     // E1: EVM (rms, as in the sweep) of SMI vs speed and the ICI floor, for both (fc, df) pairs; the speed at which the SMI EVM crosses the 16-QAM SER = 1e-3 threshold (13.14 %)
     const thr = 0.1314;
     for (const key of ['28', '5']) {

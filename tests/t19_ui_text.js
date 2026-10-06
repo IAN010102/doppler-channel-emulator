@@ -60,13 +60,14 @@ module.exports = {
 
         // ---------------------------------------------------------------- T19b
         const D = X.BASE, EXPECT = {
+            'E0/': { N: 8, aoaT: -20, aoaJ: 30, snr: 30, sir: 0, L: 1000, kDb: 400, v: 0, pointErrDeg: 0, mod: 'QPSK', trainMode: 'withSignal', covSource: 'theory', algo: 'MMSE' },
             'E1/28': { fc: 28e9, scs: 120e3, v: 300 }, 'E1/5': { fc: 5e9, scs: 15e3, v: 300 }, 'E2/': { L: 4 }, 'E3/': { trainMode: 'withSignal', pointErrDeg: 3 },
             'E4/': { trainMode: 'signalFree', pointErrDeg: 3 }, 'E5/': { v: 300, latMs: 10, d_min: 30, aoaT: 0, aoaJ: -30 }
         };
         for (const [key, exp] of Object.entries(EXPECT)) {
             const [id, variant] = key.split('/'), s = Core.createSys(); X.applyTo(s, id, variant);
             const want = Object.assign({}, { N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0, kDb: 20, latMs: 0, calDeg: 0, taper: 'NONE', mod: 'QAM16', pointErrDeg: 0, d_min: 30, fc: 5e9, scs: 15e3,
-                model: 'unified', trainMode: 'signalFree', jamWave: 'gaussian', smiSingular: 'pinv', gammaRelDb: 10, algo: 'SMI' }, exp);
+                model: 'unified', trainMode: 'signalFree', jamWave: 'gaussian', smiSingular: 'pinv', gammaRelDb: 10, algo: 'SMI', covSource: 'sample', angleSource: 'true' }, exp);
             const bad = Object.keys(want).filter(k => s[k] !== want[k]).map(k => `${k}: ${s[k]} (expected ${want[k]})`);
             checks.push(U.check(`T19b ${id}${variant ? ' (' + variant + ')' : ''}: parameters after applying`, bad.length ? bad.join('; ') : `${Object.keys(want).length} values as expected`, 'all equal to the table', bad.length === 0));
         }
@@ -98,7 +99,13 @@ module.exports = {
         for (const [k, v] of A) { if (v === null || B[k] === null) { if (v !== B[k]) { worst = Infinity; worstKey = k; } continue; } const d = Math.abs(v - B[k]); if (d > worst) { worst = d; worstKey = k; } }
         console.log(`T19d  re-measured ${A.length} numbers: largest difference to experiment_numbers.js = ${U.e(worst)} (${worstKey})`);
         checks.push(U.check('T19d numbers quoted in the texts are reproduced by a new measurement', U.e(worst), '<= 0.01', worst <= 0.01, worstKey));
+        const E0 = m.E0, th = E0['MMSE-M (theory R)'], tB = E0['SMI withSignal (theory R) = MVDR B'], tA = E0['SMI signalFree (theory R) = MVDR A'], sW = E0['SMI withSignal (sample R)'], sM = E0['MMSE-M (sample R)'], sF = E0['SMI signalFree (sample R)'];
         const claims = [
+            ['E0: MMSE-M, MVDR B and MVDR A with the theoretical covariance are within 0.1 dB of SINR_opt', [th, tB, tA].every(r => Math.abs(r.sinr - r.opt) < 0.1)],
+            ['E0: with the sample covariance and the target in the training data (MMSE-M, SMI) the SINR is more than 10 dB below the theory', th.sinr - sM.sinr > 10 && th.sinr - sW.sinr > 10],
+            ['E0: SMI trained without the target (sample covariance) stays within 0.5 dB of the theory', th.sinr - sF.sinr < 0.5],
+            ['E0: the output scaling bias is 0 for MVDR and > 0 but < 1e-3 for MMSE with the theoretical covariance', tB.bias < 1e-9 && tA.bias < 1e-9 && th.bias > 0 && th.bias < 1e-3],
+            ['E0: the raw EVM with the theoretical covariance is below 2 %', th.evmRaw_pct < 2 && tB.evmRaw_pct < 2],
             ['E1: 28 GHz/120 kHz stays below the 16-QAM threshold (13.14 %) up to 300 km/h', m.E1_28.crossing_speed_kmh === null],
             ['E1: 5 GHz/15 kHz crosses 13.14 % at some speed <= 300 km/h', m.E1_5.crossing_speed_kmh !== null],
             ['E1: EVM rises with speed and stays within 1.5 points of the ICI limit at 300 km/h (both pairs)', [m.E1_28, m.E1_5].every(r => r.byV[0].evm_pct < r.byV[100].evm_pct && r.byV[100].evm_pct < r.byV[200].evm_pct && r.byV[200].evm_pct < r.byV[300].evm_pct && r.byV[300].evm_pct - r.byV[300].ici_pct < 1.5)],

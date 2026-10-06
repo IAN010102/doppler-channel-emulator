@@ -26,6 +26,8 @@
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
         pointErrDeg: 0,       // pointing error delta_theta (deg): the weights use a(theta_hat_1 + delta_theta); SINR/EVM are always evaluated on the true channel
+        covSource: 'sample',  // SMI and MMSE-M: 'sample' (R_hat of the snapshots) | 'theory' (expected covariance accumulated from the path model; lecture version, comparison only)
+        angleSource: 'true',  // SMI, DL, BEAMSPACE, MMSE-M: 'true' (nominal angle theta_hat_1 + delta_theta) | 'music' (the MUSIC estimate of the full-data covariance, 2 sources)
         jamWave: 'gaussian',  // jammer symbols: 'gaussian' (OFDM interference is close to Gaussian in the time domain; default) | 'qpsk' (previous behaviour)
         smiSingular: 'pinv',  // SMI when R_hat is rank deficient (L < N): 'pinv' (Moore-Penrose, only the eigenspace above epsRank*lambda_max) | 'clamp' (legacy: pivot clamped to 1e-6)
         epsRank: 1e-10,       // relative eigenvalue threshold of the rank decision / pseudo-inverse (fraction of lambda_max)
@@ -352,22 +354,24 @@
         //     s_hat = (g s + w^H j + w^H n + ICI) / g
         // w^H n ~ CN(0, Nn); w^H j = sqrt(I) * (unit-power interferer symbol: Gaussian (jamWave default) or QPSK with a random phase); ICI ~ CN(0, S * nu), nu = N_ICI/S (Gaussian approximation of the
         // OFDM leakage; S = |g|^2). EVM_meas = sqrt( sum |s_hat - s|^2 / sum |s|^2 ). Returns { evm, ser (nearest-point decisions), pts: first `keep` outputs [re, im, error flag] }.
-        function symbolLevel({ S, I, Nn, nu, mod, jam = 'gaussian', Ns = 4000, keep = 0 }) {
+        function symbolLevel({ S, I, Nn, nu, mod, jam = 'gaussian', Ns = 4000, keep = 0, gRaw = null }) {
             const mi = modInfo(mod), gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
             const inv = 1 / Math.sqrt(S), sdN = Math.sqrt(Nn / 2) * inv, sdC = Math.sqrt(S * nu / 2) * inv, aI = Math.sqrt(I / 2) * inv;
             const ph = 2 * Math.PI * rng(), cph = Math.cos(ph), sph = Math.sin(ph), pts = [];
-            let e2 = 0, s2 = 0, errs = 0;
+            let e2 = 0, s2 = 0, errs = 0, r2 = 0;
+            const gm = Math.sqrt(S), haveRaw = gRaw && Number.isFinite(gRaw[0]) && Number.isFinite(gRaw[1]);
             for (let k = 0; k < Ns; k++) {
                 const ii = Math.floor(rng() * mi.ax), qq = Math.floor(rng() * mi.ax), sr = mi.levels[ii], si = mi.levels[qq];
                 const jr = jam === 'qpsk' ? (rng() < 0.5 ? -aI : aI) : gauss() * aI, ji = jam === 'qpsk' ? (rng() < 0.5 ? -aI : aI) : gauss() * aI;   // interferer: QPSK or CN(0, I)
                 const er = gauss() * sdN + gauss() * sdC + jr * cph - ji * sph, ei = gauss() * sdN + gauss() * sdC + jr * sph + ji * cph;
                 const xr = sr + er, xi = si + ei;
                 e2 += er * er + ei * ei; s2 += sr * sr + si * si;
+                if (haveRaw) { const qr = (gRaw[0] - 1) * sr - gRaw[1] * si + gm * er, qi = (gRaw[0] - 1) * si + gRaw[1] * sr + gm * ei; r2 += qr * qr + qi * qi; }   // raw output (no gain normalisation): (g' - 1) s + (w^H j + w^H n + ICI)
                 const di = Math.min(mi.ax - 1, Math.max(0, Math.round((xr / mi.a + (mi.ax - 1)) / 2))), dq = Math.min(mi.ax - 1, Math.max(0, Math.round((xi / mi.a + (mi.ax - 1)) / 2)));
                 const bad = (di !== ii || dq !== qq) ? 1 : 0; errs += bad;
                 if (k < keep) pts.push([xr, xi, bad]);
             }
-            return { evm: Math.sqrt(e2 / s2), ser: errs / Ns, pts };
+            return { evm: Math.sqrt(e2 / s2), evmRaw: haveRaw ? Math.sqrt(r2 / s2) : NaN, ser: errs / Ns, pts };
         }
 
         function createSys() {
@@ -388,7 +392,7 @@
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
             gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
-            pointErrDeg: CONFIG.pointErrDeg, jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
+            covSource: CONFIG.covSource, angleSource: CONFIG.angleSource, pointErrDeg: CONFIG.pointErrDeg, jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -397,7 +401,7 @@
             R_hat: [], weights: [], pattern: [], tVec: [], applied: {},
             kappa: 1, status: 'OK', fallback: false, invOk: true, delta: 0, lambdaQ: 0, noisePow: 0,
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
-            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, evmPilot: NaN, rhoPilot: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
+            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, evmRaw: NaN, gRawR: NaN, gRawI: NaN, musicErrT: NaN, musicErrJ: NaN, angleUsedDeg: NaN, evmPilot: NaN, rhoPilot: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
             doa: null,
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
@@ -429,8 +433,42 @@
                     err: { caponT: near(sp.capon, th1), caponJ: near(sp.capon, th2), musicT: near(sp.music, th1), musicJ: near(sp.music, th2) } };
                 return this.doa;
             },
+            // Expected covariance accumulated DIRECTLY from the channel model (no random symbols or noise draws): R = (1/L) sum_n [ P_s h(t_n) h(t_n)^H (if withTarget)
+            //  + P_j g(t_n) g(t_n)^H ] + sigma^2 I,  h = Gamma sum_i beta_i a(theta_i(t_n)) e^{j phi_i(t_n)},  g = Gamma a(theta_2(t_n)) e^{j phi_2(t_n)}  (unified model)
+            // legacy model: the expected covariance of its own model (trueCov of the target and of the jammer, at the old angles) + sigma^2 I.
+            theoryCov(withTarget, ctx) {
+                const N = this.N, L = this.L, d = this.d_lambda, TWO_PI = 2 * Math.PI, R = Array.from({ length: N }, () => Array.from({ length: N }, () => new Cplx(0, 0)));
+                if (ctx.paths) {
+                    const { paths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp } = ctx, vms = this.v / 3.6, dmin = this.d_min, lam = paths.lam;
+                    const hr = new Float64Array(N), hi = new Float64Array(N), tr_ = new Float64Array(N * N), ti_ = new Float64Array(N * N);
+                    for (let n = 0; n < L; n++) {
+                        const t = n * Tsnap, dt = t - tApp; hr.fill(0); hi.fill(0);
+                        for (let i = 0; i < paths.P; i++) {
+                            const th = trackAngle(paths.th0[i], vms, dmin, dt), k = -TWO_PI * d * Math.sin(th), ph = trackPhase(paths.th0[i], vms, dmin, lam, -tApp, dt);
+                            const cr = paths.br[i] * Math.cos(ph) - paths.bi[i] * Math.sin(ph), ci = paths.br[i] * Math.sin(ph) + paths.bi[i] * Math.cos(ph);
+                            for (let e = 0; e < N; e++) { const c = Math.cos(k * e), s = Math.sin(k * e); hr[e] += cr * c - ci * s; hi[e] += cr * s + ci * c; }
+                        }
+                        const hG = new Float64Array(2 * N), gG = new Float64Array(2 * N), thj = trackAngle(thJ, vms, dmin, dt), kj = -TWO_PI * d * Math.sin(thj), phj = trackPhase(thJ, vms, dmin, lam, -tApp, dt);
+                        for (let e = 0; e < N; e++) {
+                            hG[2 * e] = gam[e].r * hr[e] - gam[e].i * hi[e]; hG[2 * e + 1] = gam[e].r * hi[e] + gam[e].i * hr[e];
+                            const cs = Math.cos(kj * e + phj), sn = Math.sin(kj * e + phj);
+                            gG[2 * e] = gam[e].r * cs - gam[e].i * sn; gG[2 * e + 1] = gam[e].r * sn + gam[e].i * cs;
+                        }
+                        for (let m = 0; m < N; m++) for (let q = 0; q < N; q++) {                 // v v^H: (m, q) = v_m conj(v_q)
+                            let re = jamPow * (gG[2 * m] * gG[2 * q] + gG[2 * m + 1] * gG[2 * q + 1]), im = jamPow * (gG[2 * m + 1] * gG[2 * q] - gG[2 * m] * gG[2 * q + 1]);
+                            if (withTarget) { re += sigPow * (hG[2 * m] * hG[2 * q] + hG[2 * m + 1] * hG[2 * q + 1]); im += sigPow * (hG[2 * m + 1] * hG[2 * q] - hG[2 * m] * hG[2 * q + 1]); }
+                            tr_[m * N + q] += re; ti_[m * N + q] += im;
+                        }
+                    }
+                    for (let m = 0; m < N; m++) for (let q = 0; q < N; q++) R[m][q] = new Cplx(tr_[m * N + q] / L + (m === q ? ctx.noisePow : 0), ti_[m * N + q] / L);
+                } else {
+                    const { thTo, thJo, gam, sigPow, jamPow, noisePow, cL2, cD2 } = ctx, Rt = this.trueCov(thTo, sigPow, gam, cL2, cD2), Rj = this.trueCov(thJo, jamPow, gam, cL2, cD2);
+                    for (let m = 0; m < N; m++) for (let q = 0; q < N; q++) R[m][q] = new Cplx((withTarget ? Rt[m][q].r : 0) + Rj[m][q].r + (m === q ? noisePow : 0), (withTarget ? Rt[m][q].i : 0) + Rj[m][q].i);
+                }
+                return R;
+            },
             // symbol-level measurement of the unified model (see symbolLevel); uses the last computeMath result
-            symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, jam: this.jamWave, Ns, keep }); },
+            symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, jam: this.jamWave, Ns, keep, gRaw: [this.gRawR, this.gRawI] }); },
             taperWeights() {
                 if (this.taper === 'HAMMING') return hammingWindow(this.N);
                 if (this.taper === 'CHEBYSHEV') return chebWindow(this.N, this.sll);
@@ -759,6 +797,12 @@
                     new Cplx(Rr[m * N + n] / Lw, Ri[m * N + n] / Lw)));
                 this.noisePow = noisePow;
                 const algo = this.algo;
+                // covSource 'theory' (SMI, MMSE-M only; comparison with the lecture): the expected covariance of the model replaces the sample covariance. The snapshots above are still drawn (same random numbers).
+                // withTarget: MMSE-M always (Wiener data), SMI only for trainMode = withSignal.
+                if (this.covSource === 'theory' && (algo === 'SMI' || algo === 'MMSE')) {
+                    const withT = algo === 'MMSE' || this.trainMode === 'withSignal';
+                    this.R_hat = this.theoryCov(withT, uniPaths ? { paths: uniPaths, thJ, gam, sigPow, jamPow, noisePow, Tsnap, tApp } : { thTo, thJo, gam, sigPow, jamPow, noisePow, cL2: cL * cL, cD2: cD * cD });
+                }
 
                 // ---- raw sample covariance R_hat (before any regularisation): eigenvalues, diagonal, condition number
                 this.R_raw = this.R_hat;
@@ -782,7 +826,25 @@
                 const sumT = t.reduce((a, b) => a + b, 0);
                 // pointing error: the weights are designed for a(theta_hat_1 + delta_theta) (FOURIER, SMI, DL, BEAMSPACE incl. the beam choice, MMSE-M); MMSE-P does not use a nominal
                 // steering vector (its r_xd comes from the data), so it is not affected. SINR / EVM below use the true channel.
-                const thAs = thTo + this.pointErrDeg * D2R, aAs = this.steer(thAs);
+                let thAs = thTo + this.pointErrDeg * D2R;
+                // angleSource 'music' (SMI, DL, BEAMSPACE, MMSE-M): the steering vector uses the MUSIC estimate (2 sources) of the covariance of the FULL data (target included, even if the weights train
+                // without it); the MUSIC peak nearest to the nominal angle (theta_hat_1 + delta_theta) is taken as the target. The errors against the true angles are read-outs.
+                this.musicErrT = NaN; this.musicErrJ = NaN; this.angleUsedDeg = NaN;
+                if (this.angleSource === 'music' && (algo === 'SMI' || algo === 'DL' || algo === 'BEAMSPACE' || algo === 'MMSE')) {
+                    const Rf = Array.from({ length: N }, () => Array.from({ length: N }, () => new Cplx(0, 0))), Lm = this.snaps.length, sfree = this.trainMode === 'signalFree';
+                    for (const { rr, ri, tr, ti } of this.snaps) for (let m = 0; m < N; m++) for (let q = 0; q < N; q++) {
+                        const xmr = sfree ? rr[m] + tr[m] : rr[m], xmi = sfree ? ri[m] + ti[m] : ri[m], xqr = sfree ? rr[q] + tr[q] : rr[q], xqi = sfree ? ri[q] + ti[q] : ri[q];
+                        Rf[m][q] = new Cplx(Rf[m][q].r + xmr * xqr + xmi * xqi, Rf[m][q].i + xmi * xqr - xmr * xqi);
+                    }
+                    for (let m = 0; m < N; m++) for (let q = 0; q < N; q++) Rf[m][q] = new Cplx(Rf[m][q].r / Lm, Rf[m][q].i / Lm);
+                    const grid = Array.from({ length: 361 }, (_, i) => (-90 + 0.5 * i) * D2R), sp = doaSpectra(Rf, this.d_lambda, grid, 2, this.epsRank), pk = spectrumPeaks(sp.music, grid);
+                    const near = a => { let b = null; for (const p of pk) if (b === null || Math.abs(p.deg - a / D2R) < Math.abs(b.deg - a / D2R)) b = p; return b; };
+                    const est = near(thAs), pt = near(thTo), pj = near(thJo);
+                    if (est) { thAs = est.deg * D2R; this.angleUsedDeg = est.deg; }
+                    if (pt) this.musicErrT = pt.deg - thTo / D2R;
+                    if (pj) this.musicErrJ = pj.deg - thJo / D2R;
+                }
+                const aAs = this.steer(thAs);
                 const wq = aAs.map((c, n) => new Cplx(c.r * t[n] / sumT, c.i * t[n] / sumT));
 
                 // ---- beamformer
@@ -899,6 +961,14 @@
                 } else { this.bD = NaN; this.rho = NaN; this.agingB = NaN; this.angDrift = NaN; this.dopPhaseErr = NaN; }
                 this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
                 this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
+                // raw EVM (lecture, no gain normalisation): s_hat = w^H x compared with s directly: s_hat - s = (g' - 1) s + w^H j + w^H n + ICI, g' = w^H h with the common phase of the LoS removed
+                // (the lecture channel has no random carrier phase; a receiver tracks it). EVM_raw^2 = |g' - 1|^2 + I + Nn + |g'|^2 N_ICI/S  (P_s = 1). MVDR (w^H a = 1, h ~ a) is unbiased, the Wiener filter is not.
+                this.evmRaw = NaN; this.gRawR = NaN; this.gRawI = NaN;
+                if (uni) {
+                    const ph = Math.atan2(uniPaths.bi[0], uniPaths.br[0]) + trackPhase(uniPaths.th0[0], uniPaths.vms, this.d_min, uniPaths.lam, -tApp, 0), cp = Math.cos(ph), sp_ = Math.sin(ph);
+                    this.gRawR = this.gR * cp + this.gI * sp_; this.gRawI = this.gI * cp - this.gR * sp_;
+                    this.evmRaw = Math.sqrt(Math.pow(this.gRawR - 1, 2) + this.gRawI * this.gRawI + this.I + this.Nn + (this.gRawR * this.gRawR + this.gRawI * this.gRawI) * this.nuICI);
+                }
                 // MMSE-P read-out: if the output were normalised with the pilot-based channel estimate h_hat = r_hat_xd / P_s (g_hat = w^H h_hat) instead of the true
                 // g = w^H h, the output is scaled by rho = g / g_hat: EVM^2 = |rho - 1|^2 + |rho|^2 (1/SINR + N_ICI/S)   (unified only; `evm` itself keeps perfect scaling)
                 this.evmPilot = NaN; this.rhoPilot = NaN;
