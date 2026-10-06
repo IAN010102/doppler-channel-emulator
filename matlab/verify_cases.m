@@ -19,13 +19,18 @@ function nFail = verify_cases()
 %   SINR：絕對誤差 < 1e-9 dB。SINR 與 w 的縮放無關（分子、分母同乘一個常數的平方），
 %         所以即使兩邊權重差一個常數倍，SINR 仍應相同。
 %   SINR_opt：絕對誤差 < 1e-9 dB。
-% 若有案例失敗：不要放寬容許誤差。輸出會列出該案例的條件數 κ(R̂)，並以 κ·2.2e-16 估計
-% 「單純因為浮點數捨入，兩邊反矩陣就會差多少」。若誤差大小與這個估計同一個數量級，
+% 若有案例失敗：不要放寬容許誤差，FAIL 一律照實顯示。輸出會列出該案例所用矩陣「保留部分」的條件數 κ_kept
+% （只計入高於 epsRank·λmax 的特徵值；秩不足的矩陣全矩陣 κ 是 1e17 之類的捨入雜訊，沒有意義），
+% 並以 κ_kept·2.2e-16 估計「單純因為浮點數捨入，兩邊反矩陣就會差多少」。若誤差與這個估計同一個數量級，
 % 原因是病態矩陣（例如 L = N 時 κ 可達 1e8），不是公式寫錯。案例都保留在 JSON 裡供檢查。
+% L < N 的案例（R̂ 秩不足，MMSE-M／MMSE-P／SMI 以偽逆求解）在表中標示 note = rank-deficient (L<N)，
+% 最後的總結把它們與一般案例分開計數：偽逆解對捨入誤差很敏感（網頁端 400 個隨機 L=4 實現中，
+% 約 14% 只要改變 R̂ 的加總順序，權重就變動超過 1e-9），1e-9 的判準對這類案例過緊。判準數值沒有改。
+% 詳見 docs/diagnostics/README.md（L<N 的調查）。
 %
 % 需要：MATLAB R2016b 以上（jsondecode），不需要任何工具箱。
 %
-% 輸出：每個案例每個演算法一行 PASS / FAIL 與最大誤差，最後是總通過數。
+% 輸出：每個案例每個演算法一行 PASS / FAIL、最大誤差、保留部分的條件數與備註，最後是兩行總結（一般案例／秩不足案例）。
 
 here = fileparts(mfilename('fullpath')); root = fileparts(here);
 J = jsondecode(fileread(fullfile(root, 'data', 'matlab_cases.json')));
@@ -33,16 +38,20 @@ cases = J.cases; cz = @(z) z.re + 1i * z.im;
 algos = {'FOURIER', 'MMSE_M', 'MMSE_P', 'SMI', 'DL', 'BEAMSPACE'};   % jsondecode turns 'MMSE-M' into 'MMSE_M'
 tolW = 1e-9; tolS = 1e-9;
 nTot = 0; nPass = 0; nFail = 0;
-fprintf('%-42s %-10s %-6s %-12s %-12s\n', 'case', 'algorithm', 'result', 'max w err', 'SINR err dB');
+nG = 0; nGp = 0; nR = 0; nRp = 0; failR = {};   % general cases / rank-deficient cases (L < N): total, passed
+fprintf('%-42s %-10s %-6s %-12s %-12s %-10s %s\n', 'case', 'algorithm', 'result', 'max w err', 'SINR err dB', 'kappa_kept', 'note');
 for k = 1:numel(cases)
     c = cases(k); P = c.params; N = P.N; L = P.L;
     X = cz(c.X); Xsf = cz(c.X_sf); s = cz(c.s); h = cz(c.h); aJ = cz(c.a_J); a = cz(c.a_assumed);
     if strcmp(P.trainMode, 'signalFree'), Xtr = Xsf; else, Xtr = X; end
     Rtr = (Xtr * Xtr') / L;            % R̂ of the data SMI / DL / BEAMSPACE train on (signalFree: without the target)
     Rw  = (X * X') / L;                % R̂ of the Wiener data (always with the target)
-    kappa = cond((Rtr + Rtr') / 2);
+    rankDef = L < N; note = ''; if rankDef, note = 'rank-deficient (L<N)'; end
     for q = 1:numel(algos)
         name = algos{q}; web = c.algorithms.(name); wWeb = cz(web.w);
+        Rk = Rtr; if strcmp(name, 'MMSE_M') || strcmp(name, 'MMSE_P'), Rk = Rw; end     % the matrix this algorithm inverts
+        if strcmp(name, 'DL'), Rk = Rtr + P.gamma_abs * eye(N); end
+        if strcmp(name, 'FOURIER'), kk = NaN; else, kk = kappa_kept(Rk, P.epsRank); end
         switch name
             case 'FOURIER',  w = a / N;
             case 'MMSE_M',   w = pinv_or_solve(Rw, a, P);
@@ -61,9 +70,15 @@ for k = 1:numel(cases)
         eO = abs(10 * log10(hr / P.sigma2) - web.sinr_opt_dB);
         ok = eW < tolW && eS < tolS && eO < tolS;
         nTot = nTot + 1; if ok, nPass = nPass + 1; else, nFail = nFail + 1; end
-        fprintf('%-42s %-10s %-6s %-12.2e %-12.2e\n', c.id, strrep(name, '_', '-'), tern(ok, 'PASS', 'FAIL'), eW, max(eS, eO));
+        if rankDef
+            nR = nR + 1; if ok, nRp = nRp + 1; else, failR{end + 1} = sprintf('%s %s: w err %.2e, SINR err %.2e dB, kappa_kept %.2e', c.id, strrep(name, '_', '-'), eW, max(eS, eO), kk); end %#ok<AGROW>
+        else
+            nG = nG + 1; if ok, nGp = nGp + 1; end
+        end
+        fprintf('%-42s %-10s %-6s %-12.2e %-12.2e %-10.2e %s\n', c.id, strrep(name, '_', '-'), tern(ok, 'PASS', 'FAIL'), eW, max(eS, eO), kk, note);
         if ~ok
-            fprintf('    -> kappa(R_hat) = %.2e, rounding-only estimate kappa*2.2e-16 = %.2e (if the error is of this size, it is conditioning, not a formula error)\n', kappa, kappa * 2.2e-16);
+            fprintf('    -> kappa_kept (retained part only, eigenvalues above epsRank*lambda_max) = %.2e, rounding-only estimate kappa_kept*2.2e-16 = %.2e (if the error is of this size, it is conditioning, not a formula error)\n', kk, kk * 2.2e-16);
+            if rankDef, fprintf('    -> rank-deficient case (L<N, pseudo-inverse): the 1e-9 criterion is tight for such cases; the case is listed separately in the summary, the criterion is not changed\n'); end
         end
     end
 end
@@ -90,10 +105,14 @@ if ~isempty(ie)
              'E0 w_MMSE = Es·(a1ᴴR_r⁻¹a1)·w_B', rel(wM, Es * (a1' * xB) * wB), tolW};
     for q = 1:size(tests, 1)
         ok = tests{q, 2} < tests{q, 3}; nTot = nTot + 1; if ok, nPass = nPass + 1; else, nFail = nFail + 1; end
+        nG = nG + 1; if ok, nGp = nGp + 1; end
         fprintf('%-42s %-10s %-6s %-12.2e\n', tests{q, 1}, '(lecture)', tern(ok, 'PASS', 'FAIL'), tests{q, 2});
     end
 end
 fprintf('\n總共 %d 項，通過 %d，未通過 %d。\n', nTot, nPass, nFail);
+fprintf('一般案例：通過 %d / %d\n', nGp, nG);
+fprintf('秩不足案例（L<N，判準 1e-9 對此類案例過緊）：通過 %d / %d\n', nRp, nR);
+for q = 1:numel(failR), fprintf('    未通過：%s\n', failR{q}); end
 if nFail == 0, fprintf('全部通過：網頁端的線性代數與公式實作和 MATLAB 一致（通道產生器不在此驗證）。\n'); end
 end
 
@@ -105,6 +124,11 @@ if strcmp(P.smiSingular, 'pinv') && sum(keep) < size(R, 1)
 else
     x = R \ b;
 end
+end
+
+function k = kappa_kept(R, epsRank)
+% condition number of the retained part of a Hermitian matrix: largest eigenvalue / smallest eigenvalue above epsRank * largest eigenvalue
+d = sort(real(eig((R + R') / 2)), 'descend'); d = d(d > epsRank * d(1)); k = d(1) / d(end);
 end
 
 function s = tern(c, a, b)

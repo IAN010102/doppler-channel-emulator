@@ -1,0 +1,10 @@
+json w vs the converged Jacobi solution: rel err 3.35e-12  SINR diff 1.53e-12
+tol 1e-30 sweeps 8  rel err vs json 0.00e+0  vs converged 3.35e-12  SINR diff to converged 1.53e-12
+tol 1e-34 sweeps 8  rel err vs json 0.00e+0  vs converged 3.35e-12  SINR diff to converged 1.53e-12
+tol 1e-40 sweeps 400  rel err vs json 3.35e-12  vs converged 0.00e+0  SINR diff to converged 0.00e+0
+tol 1e-60 sweeps 400  rel err vs json 3.35e-12  vs converged 0.00e+0  SINR diff to converged 0.00e+0
+tol 1e-300 sweeps 400  rel err vs json 3.35e-12  vs converged 0.00e+0  SINR diff to converged 0.00e+0
+residual |X^H w - conj(s)| / |s|:  web json 1.88e-11 | converged Jacobi pinv 1.88e-11 | QR (Gram-Schmidt x2) 2.42e-16
+web vs QR rel err (w^H a = 1): 5.72e-10  ; converged-Jacobi vs QR: 5.73e-10  ; ||w|| web 0.4457  QR 0.4457
+R_hat summation order (forward vs backward) changes entries by 1.15e-16 relative
+pinv solution from the backward-summed R_hat vs forward-summed: rel err 7.40e-10  SINR diff -1.54e-9

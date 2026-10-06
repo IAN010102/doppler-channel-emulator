@@ -492,6 +492,7 @@ E6 使用 fc = 5 GHz、Δf = 15 kHz、d_min = 10 m、τ = 10 ms、θ₁ = 20°�
 - **權重估計時刻**：權重用 t_app−τ 的角度，漂移從未被補償；`pointingMode = 'mobility'` 與 δθ=0 逐位相同（不是新物理）；`manual` 時總偏差為 δθ_eff − δθ。
 - **E6 的峰值位置很平**：withSignal 的 SMI 在 100–150 km/h 都落在 6.7–7.2 dB；文字寫的 175 km/h（7.14 dB）是固定種子下的最大值，S3 用不同種子最高點在 125 km/h。
 - **E6 的適用範圍**：S1 網格（fc/Δf ∈ {5 GHz/15 kHz, 28 GHz/120 kHz}、d_min ∈ {10, 30, 100, 500} m、τ ∈ {1, 2, 10} ms、v ∈ {25…300} km/h、SMI／DL）240 格中老化損失都小於 ICI 損失，最接近的是 28 GHz/120 kHz、10 m、10 ms、300 km/h、SMI（老化 5.53 dB、ICI 9.91 dB）；MMSE-P 與 withSignal 不在該網格內。
+- **L<N 時 MMSE-P 的 MATLAB 對照（`verify_cases.m`，案例 `static_L4_signalFree_d3`）**：L<N 時 MMSE-P 以偽逆求解，網頁與 MATLAB 的權重差異來源為捨入敏感度（400 個隨機 L=4 實現中 14% 單靠 R̂ 加總順序改變即超過 1e-9）；該案例的 FAIL 為已知、已調查、不影響任何結論。兩邊的偽逆閾值相同（1e-10·λmax），保留部分的條件數約 1e4。`verify_cases.m` 現在把 L<N 的案例標為 `rank-deficient (L<N)` 並在總結中分開計數，判準數值（1e-9）未改，FAIL 仍顯示為 FAIL。調查腳本與結果在 `docs/diagnostics/l4_*`，MATLAB 端未在本環境執行。
 - **其他**：L=N 附近 R̂ 病態（MMSE-P、SMI 都有低谷，是估計量性質而非求逆實作，B1）；MUSIC 取最接近名義角的峰，網格 0.5° 量化；E0 使用 K = 400 dB（超出滑桿範圍 20 dB）；原始 EVM 的 LoS 公共相位已扣除（講義通道沒有隨機載波相位）；講義公式編號未知，只對照變數名稱與慣例（θ_lab = θ_sim）；預設模型與訓練模式只在 Commit 17 切換。
 - **關於先前追加的 S1–S4**：你這則訊息說不要執行，但這些調查在上一輪（你追加 S1–S4 時）已經跑完並 commit；本輪沒有再跑任何新調查，只引用既有結果。
 
