@@ -1,0 +1,48 @@
+{
+ "generated": "2026-10-06T08:22:37.374Z",
+ "runs": {
+  "zh": {
+   "steps": [
+    "html lang = zh-Hant",
+    "controls: model, training data, modulation, fc, numerology, seed, pointing error, algorithms, DOA panel",
+    "experiment E0 applied and run",
+    "experiment E1 (28) applied and run",
+    "experiment E1 (5) applied and run",
+    "experiment E2 applied and run",
+    "experiment E3 applied and run",
+    "experiment E4 applied and run",
+    "experiment E5 applied and run",
+    "velocity sweep finished",
+    "csv exported: schema version 2 and all required keys present"
+   ],
+   "blank": [],
+   "csv": {
+    "bytes": 7904,
+    "missing": []
+   },
+   "errors": []
+  },
+  "en": {
+   "steps": [
+    "html lang = en",
+    "controls: model, training data, modulation, fc, numerology, seed, pointing error, algorithms, DOA panel",
+    "experiment E0 applied and run",
+    "experiment E1 (28) applied and run",
+    "experiment E1 (5) applied and run",
+    "experiment E2 applied and run",
+    "experiment E3 applied and run",
+    "experiment E4 applied and run",
+    "experiment E5 applied and run",
+    "velocity sweep finished",
+    "csv exported: schema version 2 and all required keys present"
+   ],
+   "blank": [],
+   "csv": {
+    "bytes": 7904,
+    "missing": []
+   },
+   "errors": []
+  }
+ },
+ "issues": []
+}
