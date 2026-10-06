@@ -500,8 +500,10 @@ E6 使用 fc = 5 GHz、Δf = 15 kHz、d_min = 10 m、τ = 10 ms、θ₁ = 20°�
 
 設定縮寫：N = 8、d = 0.5λ、SNR 20 dB、SIR −10 dB、θ₂ = 40°（除非另註）、unified 單一實現模型、Gaussian 干擾。
 
+核對說明：本項每個數字已由 `tests/check_report_numbers.js` 對照其來源核對，結果在 `docs/diagnostics/report_number_check.txt`。其中 T17b2、T17c、T17d 的數字（第 1、2、10 句，以及第 2 句的範圍與差值）來自**已存檔的完整套件輸出** `docs/diagnostics/suite_output_2026-10-06_198of198.txt`（2026-10-06，198/198 那次），這次沒有重新執行 T17；T11b 與 T18c 的數字來自新鮮重跑（`docs/diagnostics/fresh_T11_output.txt`、`fresh_T18_output.txt`）。
+
 1. 在 fc = 5 GHz、Δf = 15 kHz、d_min = 30 m、L = 100、K = 20 dB、v = 0、τ = 0、θ₁ = 0°（θ₂ = 40°、SNR 20 dB、SIR −10 dB、N = 8）時，不含訊號訓練的 SMI 與 MMSE-P 的 SINR 都約 28.6 dB，距遺傳界 SINR_opt 約 0.3 dB。（MMSE-P：T11b，2000 次實現；SMI：E4 的 0° 點 28.59 dB 與 T17c，1000 次實現；T14 為固定種子的回歸比對，不是這些平均值的來源；v = 0 時 d_min 不影響結果。）
-2. 同一設定下（fc = 5 GHz、Δf = 15 kHz、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、L = 100、K = 20 dB；d_min 在 v = 0 時不影響）若訓練資料含目標（MPDR，withSignal）、δθ = 0，SMI 的 SINR 降到 −5.5 dB（自我抵消）；在 withSignal 下指向偏差 3° 時 SMI 與 DL 比 0° 低 10 dB 以上，MMSE-P 不受指向偏差影響。（T17d、E3、E4，各 1000 次實現；signalFree 時 3° 只降約 0.6 dB（SMI 28.6→28.0，T17d），不屬於本句。）
+2. 同一設定下（fc = 5 GHz、Δf = 15 kHz、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、L = 100、K = 20 dB；d_min 在 v = 0 時不影響）若訓練資料含目標（MPDR，withSignal）、δθ = 0，SMI 的 SINR 降到約 −5.5 至 −5.7 dB（自我抵消）；在 withSignal 下指向偏差 3° 時 SMI 與 DL 比 0° 低 10 dB 以上，MMSE-P 不受指向偏差影響。（T17d −5.5、E3 −5.56、E4 −5.72（T17d 的輸出只有一位小數），三者均為 1000 次實現、種子不同；各平均值的標準誤差約 0.10–0.11 dB，兩兩最大差 0.22 dB，約為差的標準誤差（0.15 dB）的 1.5 倍，彼此在統計上相容（`docs/diagnostics/withsignal_se_check.txt`）；signalFree 時 3° 只降約 0.6 dB（SMI 28.6→28.0，T17d），不屬於本句。）
 3. 以講義的理論協方差（N=8、θ₁=−20°、θ₂=30°、SNR 30 dB、SIR 0 dB、K=∞（400 dB）、v = 0、τ = 0、QPSK；fc = 5 GHz、Δf = 15 kHz、d_min = 30 m 為預設值，在 v = 0 時不影響），MMSE-M、MVDR 方法 A、B 的 SINR 都等於 SINR_opt（38.97 dB）；改用 L=1000 的樣本協方差且訓練含訊號時降為 21.88 dB，不含訊號的 SMI 仍有 38.94 dB。（T21，預設 300 次實現；E0 數字為 200 次實現的平均；L = 1000。）
 4. 快照數 L=4 < N=8 時秩只有 4，DL（27.81 dB）與 BEAMSPACE（26.36 dB）高於 SMI（22.46 dB）。（E2，1000 次實現；fc = 5 GHz、Δf = 15 kHz、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、K = 20 dB、SNR 20 dB、SIR −10 dB、signalFree；DL 為 γ_rel = +10 dB；d_min 在 v = 0 時不影響。）
 5. 在 v = 300 km/h、θ₁ = 0°、θ₂ = 40°、d_min = 30 m、τ = 0、L = 100、K = 20 dB（SNR 20 dB、SIR −10 dB、signalFree）下，28 GHz/120 kHz 的 SMI EVM 為 12.31 %、5 GHz/15 kHz 為 17.12 %；後者在約 230 km/h 越過 16-QAM 的 13.14 % 門檻，前者在 0–300 km/h 內沒有越過。（E1，SMI 的 EVM 取各實現均方根，每點 300 次實現、速度步長 10 km/h；越過速度的解析度為 10 km/h。）

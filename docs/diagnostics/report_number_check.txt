@@ -1,4 +1,4 @@
-check_report_numbers: item 10 of docs/FINAL_REPORT.md; suite output: C:/Users/User/AppData/Local/Temp/all.txt (2026-10-06T15:53:30.459Z)
+check_report_numbers: item 10 of docs/FINAL_REPORT.md; archived suite output: docs\diagnostics\suite_output_2026-10-06_198of198.txt (complete run of 2026-10-06, 198/198; used for T17 only)
 tolerance: half a unit of the last digit written in the report; exact for integers; "bool" = a statement of the report that must hold for the source data
 
 s   | value                                        | report         | source                   | result    | source / note
@@ -19,9 +19,9 @@ s   | value                                        | report         | source    
 1   | SNR dB                                       | 20             | 20.00                    | match     | tests/t11_mmse.js BASE.snr
 1   | SIR dB                                       | -10            | -10.00                   | match     | tests/t11_mmse.js BASE.sir
 1   | N                                            | 8              | 8.00                     | match     | tests/t11_mmse.js BASE.N
-1   | MMSE-P SINR dB (T11b)                        | 28.6           | 28.60                    | match     | terminal output of the suite (--suite): "T11b unified MMSE-P (signalFree)"
+1   | MMSE-P SINR dB (T11b)                        | 28.6           | 28.60                    | match     | fresh run of T11 (docs/diagnostics/fresh_T11_output.txt): "T11b unified MMSE-P (signalFree)"
 1   | SMI SINR dB (E4, 0 deg)                      | 28.59          | 28.59                    | match     | data/experiment_numbers.json E4.signalFree["0"]
-1   | gap to SINR_opt dB (T11b)                    | 0.3            | 0.32                     | match     | terminal output of the suite (--suite): gap of "T11b unified MMSE-P (signalFree)"
+1   | gap to SINR_opt dB (T11b)                    | 0.3            | 0.32                     | match     | fresh run of T11 (docs/diagnostics/fresh_T11_output.txt): gap of "T11b unified MMSE-P (signalFree)"
 1   | realisations T11b                            | 2000           | 2000.00                  | match     | tests/t11_mmse.js default trials
 1   | realisations E4/T17c                         | 1000           | 1000.00                  | match     | tests/experiment_measure.js (E4 block, 1000 trials)
 1   | E4 delta_theta point deg                     | 0              | found in data/experiment | match     | data/experiment_numbers.json E4.signalFree has the key "0"
@@ -35,17 +35,24 @@ s   | value                                        | report         | source    
 2   | L                                            | 100            | 100.00                   | match     | experiments.js params(E3).L
 2   | K dB                                         | 20             | 20.00                    | match     | experiments.js params(E3).kDb
 2   | delta_theta deg                              | 0              | found in tests/experimen | match     | tests/experiment_measure.js E3 block: d0 = pointErrDeg 0
-2   | SMI withSignal SINR dB (T17d, 0 deg)         | -5.5           | -5.50                    | match     | terminal output of the suite (--suite): "T17d withSignal L=100"
-2   | SMI withSignal SINR dB (E3, 0 deg)           | -5.5           | -5.56                    | MISMATCH  | difference -0.0600 | data/experiment_numbers.json E3.SMI.d0 (-5.56)
+2   | SMI withSignal SINR dB, upper end of the ran | -5.5           | -5.50                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt) (T17d) and E3.SMI.d0, E4.withSignal["0"]
+2   | SMI withSignal SINR dB, lower end of the ran | -5.7           | -5.72                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt) (T17d) and E3.SMI.d0, E4.withSignal["0"]
+2   | SMI withSignal SINR dB (T17d)                | -5.5           | -5.50                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17d withSignal L=100"
+2   | SMI withSignal SINR dB (E3)                  | -5.56          | -5.56                    | match     | data/experiment_numbers.json E3.SMI.d0
+2   | SMI withSignal SINR dB (E4)                  | -5.72          | -5.72                    | match     | data/experiment_numbers.json E4.withSignal["0"]
+2   | realisations of the three runs               | 1000           | 1000.00                  | match     | tests/t17_pointing.js default trials (T17d); E3 and E4: tests/experiment_measure.js (1000)
+2   | SE of the means, smallest dB                 | 0.10           | 0.10                     | match     | docs/diagnostics/withsignal_se_check.txt
+2   | SE of the means, largest dB                  | 0.11           | 0.11                     | match     | docs/diagnostics/withsignal_se_check.txt
+2   | largest difference of the three values dB    | 0.22           | 0.22                     | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt) (T17d) and E3, E4
+2   | standard error of the difference dB (E4 agai | 0.15           | 0.15                     | match     | docs/diagnostics/withsignal_se_check.txt: sqrt(SE_E4^2 + SE_T17d^2)
+2   | largest difference / SE of the difference    | 1.5            | 1.48                     | match     | largest difference (T17d, E3, E4) divided by sqrt(SE_E4^2 + SE_T17d^2)
 2   | pointing error deg                           | 3              | 3.00                     | match     | experiments.js params(E3).pointErrDeg
 2   | drop SMI withSignal dB (3 deg)               | 10             | 14.19 (>= 10)            | match     | E3.SMI.d0 - E3.SMI.d3
 2   | drop DL withSignal dB (3 deg)                | 10             | 14.25 (>= 10)            | match     | E3.DL.d0 - E3.DL.d3
 2   | MMSE-P change dB                             | (text)         | true                     | match     | E3.MMSEP: |d0 - d3| < 0.05 dB
-2   | realisations                                 | 1000           | 1000.00                  | match     | tests/t17_pointing.js default trials (E3/E4 are 1000 in experiment_measure.js)
 2   | signalFree drop dB (3 deg)                   | 0.6            | 0.63                     | match     | E4.signalFree[0] - E4.signalFree[3]
-2   | SMI signalFree 0 deg (T17d)                  | 28.6           | 28.60                    | match     | terminal output of the suite (--suite): "T17d signalFree L=100"
-2   | SMI signalFree 3 deg (T17d)                  | 28.0           | 28.00                    | match     | terminal output of the suite (--suite): "T17d signalFree L=100"
-2   | E4 SMI withSignal SINR dB (0 deg)            | -5.5           | -5.72                    | MISMATCH  | difference -0.2200 | data/experiment_numbers.json E4.withSignal["0"] (-5.72)
+2   | SMI signalFree 0 deg (T17d)                  | 28.6           | 28.60                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17d signalFree L=100"
+2   | SMI signalFree 3 deg (T17d)                  | 28.0           | 28.00                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17d signalFree L=100"
 2   | delta_theta reference deg                    | 0              | found in data/experiment | match     | data/experiment_numbers.json E3.*.d0
 2   | signalFree delta_theta deg                   | 3              | found in data/experiment | match     | data/experiment_numbers.json E4.signalFree["3"]
 2   | v = 0: d_min does not matter                 | 0              | found in core.js trackAn | match     | core.js trackAngle: "if (s === 0 || vms === 0) return th" (no angle change at v = 0, so d_min has no effect)
@@ -221,9 +228,9 @@ s   | value                                        | report         | source    
 10  | L                                            | 20000          | 20000.00                 | match     | tests/t17_pointing.js T17b: L: 20000
 10  | delta_theta deg (first)                      | 0              | found in tests/t17_point | match     | tests/t17_pointing.js T17b: dth in [0, 1, 3, 5]
 10  | delta_theta deg (second)                     | 1              | found in tests/t17_point | match     | tests/t17_pointing.js T17b: dth in [0, 1, 3, 5]
-10  | RMB loss dB                                  | -0.0015        | -0.0015                  | match     | terminal output of the suite (--suite): "T17b2 expected finite-L loss"
-10  | z at delta 0                                 | -2.07          | -2.07                    | match     | terminal output of the suite (--suite): "T17b2 signalFree, delta = 0 deg"
-10  | z at delta 1                                 | -1.78          | -1.78                    | match     | terminal output of the suite (--suite): "T17b2 signalFree, delta = 1 deg"
+10  | RMB loss dB                                  | -0.0015        | -0.0015                  | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17b2 expected finite-L loss"
+10  | z at delta 0                                 | -2.07          | -2.07                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17b2 signalFree, delta = 0 deg"
+10  | z at delta 1                                 | -1.78          | -1.78                    | match     | archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt): "T17b2 signalFree, delta = 1 deg"
 10  | realisations                                 | 100            | 100.00                   | match     | tests/t17_pointing.js T17b loop: t < 100
 10  | N                                            | 8              | 8.00                     | match     | tests/t17_pointing.js BASE.N
 10  | K dB                                         | 20             | 20.00                    | match     | tests/t17_pointing.js BASE.kDb
@@ -238,8 +245,8 @@ s   | value                                        | report         | source    
 10  | d_min m                                      | 30             | 30.00                    | match     | core.js CONFIG.d_min
 10  | delta_theta threshold deg                    | 3              | found in tests/t17_point | match     | tests/t17_pointing.js T17b: the cells with dth >= 3 keep the old criterion
 10  | v = 0: d_min does not matter                 | 0              | found in core.js trackAn | match     | core.js trackAngle: "if (s === 0 || vms === 0) return th" (no angle change at v = 0, so d_min has no effect)
-11  | MUSIC/Capon target error at L >= 12 (max |x  | 0.2            | largest 0.24             | match     | terminal output of the suite (--suite): "T18c L=12 ... 100", MUSIC T and Capon T; value = the largest of the 8 numbers
-11  | MUSIC/Capon target error at separation >= 20 | 0.2            | largest 0.22             | match     | terminal output of the suite (--suite): "T18c separation 20, 40 deg"
+11  | MUSIC/Capon target error at L >= 12 (max |x  | 0.2            | largest 0.24             | match     | fresh run of T18 (docs/diagnostics/fresh_T18_output.txt), "vs L" table, rows L = 12 ... 100, MUSIC T and Capon T; value = the largest of the 8 numbers
+11  | MUSIC/Capon target error at separation >= 20 | 0.2            | largest 0.22             | match     | fresh run of T18, "vs separation" table, rows 20 and 40 deg
 11  | L lower bound                                | 12             | found in tests/t18_doa.j | match     | tests/t18_doa.js T18c L list [4, 8, 12, 24, 48, 100]
 11  | theta1 deg (L sweep)                         | 0              | found in tests/t18_doa.j | match     | tests/t18_doa.js T18c "vs L (theta1 = 0, theta2 = 40)"
 11  | theta2 deg (L sweep)                         | 40             | found in tests/t18_doa.j | match     | tests/t18_doa.js T18c
@@ -259,5 +266,4 @@ s   | value                                        | report         | source    
 11  | d_min m                                      | 30             | 30.00                    | match     | core.js CONFIG.d_min
 11  | v = 0: d_min does not matter                 | 0              | found in core.js trackAn | match     | core.js trackAngle: "if (s === 0 || vms === 0) return th" (no angle change at v = 0, so d_min has no effect)
 
-total 256: match 254, mismatch 2, manual 0
-items checked against the saved terminal output of the suite (not re-executed here): 10; to recompute them: T11 (node tests/run_all.js, about 47 s), T17 (about 21 min), T18 (about 15 s); without --suite they are listed as manual
+total 263: match 263, mismatch 0, manual 0

@@ -14,7 +14,10 @@ const fs = require('fs'), path = require('path'), os = require('os');
 const ROOT = path.join(__dirname, '..');
 const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 const argv = process.argv.slice(2), opt = n => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
-const suiteText = opt('--suite') ? fs.readFileSync(opt('--suite'), 'utf8').replace(/\r\n/g, '\n') : null;
+const ARCHIVE = path.join(ROOT, 'docs', 'diagnostics', 'suite_output_2026-10-06_198of198.txt');   // the saved output of the complete run (198/198) of 2026-10-06; used for T17 only (T11 and T18 have fresh outputs)
+const suitePath = opt('--suite') || (argv.includes('--no-archive') ? null : ARCHIVE);
+const suiteText = suitePath ? fs.readFileSync(suitePath, 'utf8').replace(/\r\n/g, '\n') : null;
+const freshT11 = rd('docs/diagnostics/fresh_T11_output.txt'), freshT18 = rd('docs/diagnostics/fresh_T18_output.txt');   // outputs of `node` runs of T11 and T18 alone (see report_number_check.txt)
 const Core = require('../core.js'), X = require('../experiments.js');
 const J = JSON.parse(rd('data/experiment_numbers.json'));
 
@@ -47,12 +50,16 @@ function b4val(k, th, v, col) {   // col: 'mmsep' | 'genie' | 'periodogram' ; th
     return { mmsep: t[3], genie: t[6] }[col];
 }
 const suite = (re, g = 1) => { if (suiteText === null) return undefined; const m = re.exec(suiteText); return m ? num(m[g]) : null; };
+const fresh11 = (re, g = 1) => { const m = re.exec(freshT11); return m ? num(m[g]) : null; };
+// the console tables of T18c: "vs L (theta1 = 0, theta2 = 40):" rows "L  MUSIC T (+-)  MUSIC J  Capon T  Capon J" and "vs separation (theta1 = 0, L = 100):" rows "theta2  ..."
+function t18rows(section) { const L = freshT18.split('\n'), i = L.findIndex(l => l.startsWith(section)); const out = []; for (let j = i + 2; j < L.length && /^\d+\s/.test(L[j]); j++) { const t = L[j].replace(/±/g, ' ').trim().split(/\s+/).map(Number); out.push({ key: t[0], musicT: t[1], capT: t[5] }); } return out; }
+const SUITEDESC = 'archived terminal output of the complete run of 2026-10-06 (docs/diagnostics/suite_output_2026-10-06_198of198.txt)';
 
 // ------------------------------------------------------------------ claims
 const claims = [];
 /** claim(sentence, label, regex of the report text (first capture group = the number as written), getter, source text, options) */
 function claim(s, label, re, get, src, o = {}) { claims.push({ s, label, re, get, src, o }); }
-const SUITE = 'terminal output of the suite (--suite)', RERUN = (t, min) => `rerun ${t} (about ${min})`;
+const SUITE = SUITEDESC, RERUN = (t, min) => `rerun ${t} (about ${min})`;
 const needSuite = (t, min) => ({ manualHint: RERUN(t, min) });
 
 // --- preamble (setting abbreviations)
@@ -74,9 +81,9 @@ claim(1, 'theta2 deg', /（θ₂ = (40)°、SNR/, () => TB.t11_mmse.aoaJ, 'tests
 claim(1, 'SNR dB', /SNR (20) dB、SIR/, () => TB.t11_mmse.snr, 'tests/t11_mmse.js BASE.snr');
 claim(1, 'SIR dB', /SIR (−10) dB、N/, () => TB.t11_mmse.sir, 'tests/t11_mmse.js BASE.sir');
 claim(1, 'N', /N = (8)）/, () => TB.t11_mmse.N, 'tests/t11_mmse.js BASE.N');
-claim(1, 'MMSE-P SINR dB (T11b)', /都約 (28\.6) dB/, () => suite(/T11b unified MMSE-P \(signalFree\): ([\d.]+) ±/), SUITE + ': "T11b unified MMSE-P (signalFree)"', needSuite('T11 (node tests/run_all.js, T11)', '47 s'));
+claim(1, 'MMSE-P SINR dB (T11b)', /都約 (28\.6) dB/, () => fresh11(/T11b unified MMSE-P \(signalFree\): ([\d.]+) ±/), 'fresh run of T11 (docs/diagnostics/fresh_T11_output.txt): "T11b unified MMSE-P (signalFree)"');
 claim(1, 'SMI SINR dB (E4, 0 deg)', /SMI：E4 的 0° 點 (28\.59) dB/, () => J.E4.signalFree['0'], 'data/experiment_numbers.json E4.signalFree["0"]');
-claim(1, 'gap to SINR_opt dB (T11b)', /SINR_opt 約 (0\.3) dB/, () => { const g = suite(/T11b unified MMSE-P \(signalFree\):.*gap (-?[\d.]+) dB/); return g === undefined || g === null ? g : Math.abs(g); }, SUITE + ': gap of "T11b unified MMSE-P (signalFree)"', needSuite('T11', '47 s'));
+claim(1, 'gap to SINR_opt dB (T11b)', /SINR_opt 約 (0\.3) dB/, () => { const g = fresh11(/T11b unified MMSE-P \(signalFree\):.*gap (-?[\d.]+) dB/); return g === null ? g : Math.abs(g); }, 'fresh run of T11 (docs/diagnostics/fresh_T11_output.txt): gap of "T11b unified MMSE-P (signalFree)"');
 claim(1, 'realisations T11b', /T11b，(2000) 次/, () => fromCode('t11', /trials = (\d+), seed = 7000/), 'tests/t11_mmse.js default trials');
 claim(1, 'realisations E4/T17c', /T17c，(1000) 次/, () => fromCode('measure', /E4: SMI vs delta_theta[\s\S]*?pointErrDeg: d\b[^\n]*?, (1000), 4000\)/), 'tests/experiment_measure.js (E4 block, 1000 trials)');
 // --- sentence 2
@@ -89,13 +96,23 @@ claim(2, 'theta2 deg', /θ₂ = (40)°、/, () => XP('E3', 'aoaJ'), 'experiments
 claim(2, 'L', /L = (100)、/, () => XP('E3', 'L'), 'experiments.js params(E3).L');
 claim(2, 'K dB', /K = (20) dB；/, () => XP('E3', 'kDb'), 'experiments.js params(E3).kDb');
 claim(2, 'delta_theta deg', /δθ = (0)，SMI/, () => null, 'tests/experiment_measure.js E3 block: d0 = pointErrDeg 0', { fileHas: ['measure', /d0: sinr\(\{ algo: a, trainMode: 'withSignal', pointErrDeg: 0 \}/] });
-claim(2, 'SMI withSignal SINR dB (T17d, 0 deg)', /降到 (−5\.5) dB/, () => suite(/T17d withSignal L=100   SMI: (-?[\d.]+) \(0°\)/), SUITE + ': "T17d withSignal L=100"', needSuite('T17 (node tests/run_all.js, T17)', '21 min'));
-claim(2, 'SMI withSignal SINR dB (E3, 0 deg)', /降到 (−5\.5) dB/, () => J.E3.SMI.d0, 'data/experiment_numbers.json E3.SMI.d0 (-5.56)', { second: true });
+const t17d0 = () => suite(/T17d withSignal L=100   SMI: (-?[\d.]+) \(0°\)/);
+claim(2, 'SMI withSignal SINR dB, upper end of the range (largest of the three runs)', /降到約 (−5\.5) 至/, () => { const t = t17d0(); return t === undefined || t === null ? t : Math.max(t, J.E3.SMI.d0, J.E4.withSignal['0']); }, SUITE + ' (T17d) and E3.SMI.d0, E4.withSignal["0"]', needSuite('T17', 'about 21 min'));
+claim(2, 'SMI withSignal SINR dB, lower end of the range (smallest of the three runs)', /至 (−5\.7) dB（自我抵消）/, () => { const t = t17d0(); return t === undefined || t === null ? t : Math.min(t, J.E3.SMI.d0, J.E4.withSignal['0']); }, SUITE + ' (T17d) and E3.SMI.d0, E4.withSignal["0"]', needSuite('T17', 'about 21 min'));
+claim(2, 'SMI withSignal SINR dB (T17d)', /T17d (−5\.5)、E3/, t17d0, SUITE + ': "T17d withSignal L=100"', needSuite('T17', 'about 21 min'));
+claim(2, 'SMI withSignal SINR dB (E3)', /E3 (−5\.56)、E4/, () => J.E3.SMI.d0, 'data/experiment_numbers.json E3.SMI.d0');
+claim(2, 'SMI withSignal SINR dB (E4)', /E4 (−5\.72)（T17d/, () => J.E4.withSignal['0'], 'data/experiment_numbers.json E4.withSignal["0"]');
+claim(2, 'realisations of the three runs', /三者均為 (1000) 次實現/, () => fromCode('t17', /trials = (\d+), seed = 1717/), 'tests/t17_pointing.js default trials (T17d); E3 and E4: tests/experiment_measure.js (1000)');
+const se3 = (() => { const t = rd('docs/diagnostics/withsignal_se_check.txt'), g = k => { const m = new RegExp(k + '.*?: -?[\\d.]+ ± ([\\d.]+)').exec(t); return m ? num(m[1]) : null; }; return [g('E3 setting'), g('E4 setting'), g('T17d setting')]; })();
+claim(2, 'SE of the means, smallest dB', /標準誤差約 (0\.10)–0\.11 dB/, () => Math.min(...se3), 'docs/diagnostics/withsignal_se_check.txt');
+claim(2, 'SE of the means, largest dB', /標準誤差約 0\.10–(0\.11) dB/, () => Math.max(...se3), 'docs/diagnostics/withsignal_se_check.txt');
+claim(2, 'largest difference of the three values dB', /兩兩最大差 (0\.22) dB/, () => { const t = t17d0(); return t === undefined || t === null ? t : Math.max(t, J.E3.SMI.d0, J.E4.withSignal['0']) - Math.min(t, J.E3.SMI.d0, J.E4.withSignal['0']); }, SUITE + ' (T17d) and E3, E4', needSuite('T17', 'about 21 min'));
+claim(2, 'standard error of the difference dB (E4 against T17d)', /差的標準誤差（(0\.15) dB）/, () => Math.sqrt(se3[1] * se3[1] + se3[2] * se3[2]), 'docs/diagnostics/withsignal_se_check.txt: sqrt(SE_E4^2 + SE_T17d^2)');
+claim(2, 'largest difference / SE of the difference', /的 (1\.5) 倍，彼此/, () => { const t = t17d0(); if (t === undefined || t === null) return t; return (Math.max(t, J.E3.SMI.d0, J.E4.withSignal['0']) - Math.min(t, J.E3.SMI.d0, J.E4.withSignal['0'])) / Math.sqrt(se3[1] * se3[1] + se3[2] * se3[2]); }, 'largest difference (T17d, E3, E4) divided by sqrt(SE_E4^2 + SE_T17d^2)', needSuite('T17', 'about 21 min'));
 claim(2, 'pointing error deg', /指向偏差 (3)° 時 SMI/, () => XP('E3', 'pointErrDeg'), 'experiments.js params(E3).pointErrDeg');
 claim(2, 'drop SMI withSignal dB (3 deg)', /比 0° 低 (10) dB 以上/, () => J.E3.SMI.d0 - J.E3.SMI.d3, 'E3.SMI.d0 - E3.SMI.d3', { atLeast: true });
 claim(2, 'drop DL withSignal dB (3 deg)', /比 0° 低 (10) dB 以上/, () => J.E3.DL.d0 - J.E3.DL.d3, 'E3.DL.d0 - E3.DL.d3', { atLeast: true, second: true });
 claim(2, 'MMSE-P change dB', /MMSE-P 不受指向偏差影響/, () => Math.abs(J.E3.MMSEP.d0 - J.E3.MMSEP.d3) < 0.05, 'E3.MMSEP: |d0 - d3| < 0.05 dB', { bool: true });
-claim(2, 'realisations', /各 (1000) 次實現/, () => fromCode('t17', /trials = (\d+), seed = 1717/), 'tests/t17_pointing.js default trials (E3/E4 are 1000 in experiment_measure.js)');
 claim(2, 'signalFree drop dB (3 deg)', /只降約 (0\.6) dB/, () => J.E4.signalFree['0'] - J.E4.signalFree['3'], 'E4.signalFree[0] - E4.signalFree[3]');
 claim(2, 'SMI signalFree 0 deg (T17d)', /SMI (28\.6)→28\.0/, () => suite(/T17d signalFree L=100   SMI: (-?[\d.]+) \(0°\)/), SUITE + ': "T17d signalFree L=100"', needSuite('T17', '21 min'));
 claim(2, 'SMI signalFree 3 deg (T17d)', /28\.6→(28\.0)，T17d/, () => suite(/T17d signalFree L=100   SMI: -?[\d.]+ \(0°\) \/ (-?[\d.]+) \(3°\)/), SUITE + ': "T17d signalFree L=100"', needSuite('T17', '21 min'));
@@ -293,10 +310,8 @@ claim(10, 'df kHz', /Δf = (15) kHz/, () => CFG('scs') / 1e3, 'core.js CONFIG.sc
 claim(10, 'd_min m', /d_min = (30) m/, () => CFG('d_min'), 'core.js CONFIG.d_min');
 claim(10, 'delta_theta threshold deg', /δθ ≥ (3)° 公式/, () => 3, 'tests/t17_pointing.js T17b: the cells with dth >= 3 keep the old criterion', { fileHasText: [code.t17, /useTheory = tm === 'signalFree' && dth <= 1/] });
 // --- sentence 11
-const t18re = /T18c L=(\d+)\s+MUSIC T ([\d.]+) ± [\d.]+, J [\d.]+ ± [\d.]+; Capon T ([\d.]+)/g, t18sep = /T18c separation (\d+) deg\s+MUSIC T ([\d.]+) ± [\d.]+, J [\d.]+ ± [\d.]+; Capon T ([\d.]+)/g;
-const t18vals = (re, keyFilter) => { if (suiteText === null) return undefined; const out = []; let m; re.lastIndex = 0; const seen = new Set(); while ((m = re.exec(suiteText))) { if (keyFilter(+m[1]) && !seen.has(m[1])) { seen.add(m[1]); out.push(+m[2], +m[3]); } } return out; };
-claim(11, 'MUSIC/Capon target error at L >= 12 (max |x - 0.2|)', /約 (0\.2)°（受/, () => { const v = t18vals(t18re, L => L >= 12); return v === undefined ? undefined : Math.max(...v); }, SUITE + ': "T18c L=12 ... 100", MUSIC T and Capon T; value = the largest of the 8 numbers', { within: 0.05, ...needSuite('T18 (node tests/run_all.js, T18)', '15 s'), rangeLabel: 'all within 0.2 +- 0.05' });
-claim(11, 'MUSIC/Capon target error at separation >= 20 (max)', /約 (0\.2)°（受/, () => { const v = t18vals(t18sep, s => s >= 20); return v === undefined ? undefined : Math.max(...v); }, SUITE + ': "T18c separation 20, 40 deg"', { within: 0.05, ...needSuite('T18', '15 s'), second: true });
+claim(11, 'MUSIC/Capon target error at L >= 12 (max |x - 0.2|)', /約 (0\.2)°（受/, () => { const v = t18rows('vs L').filter(r => r.key >= 12); return Math.max(...v.map(r => r.musicT), ...v.map(r => r.capT)); }, 'fresh run of T18 (docs/diagnostics/fresh_T18_output.txt), "vs L" table, rows L = 12 ... 100, MUSIC T and Capon T; value = the largest of the 8 numbers', { within: 0.05, rangeLabel: 'all within 0.2 +- 0.05' });
+claim(11, 'MUSIC/Capon target error at separation >= 20 (max)', /約 (0\.2)°（受/, () => { const v = t18rows('vs separation').filter(r => r.key >= 20); return Math.max(...v.map(r => r.musicT), ...v.map(r => r.capT)); }, 'fresh run of T18, "vs separation" table, rows 20 and 40 deg', { within: 0.05, second: true });
 claim(11, 'L lower bound', /在 L ≥ (12)（θ₁/, () => 12, 'tests/t18_doa.js T18c L list [4, 8, 12, 24, 48, 100]', { fileHasText: [code.t18, /for \(const L of \[4, 8, 12, 24, 48, 100\]\)/] });
 claim(11, 'theta1 deg (L sweep)', /（θ₁ = (0)°、θ₂ = 40°）與/, () => 0, 'tests/t18_doa.js T18c "vs L (theta1 = 0, theta2 = 40)"', { fileHasText: [code.t18, /vs L \(theta1 = 0, theta2 = 40\)/] });
 claim(11, 'theta2 deg (L sweep)', /θ₂ = (40)°）與/, () => 40, 'tests/t18_doa.js T18c', { fileHasText: [code.t18, /aoaT: 0, aoaJ: 40, L, snr: 20, kDb: 20/] });
@@ -318,7 +333,6 @@ claim(11, 'd_min m', /d_min = (30) m/, () => CFG('d_min'), 'core.js CONFIG.d_min
 
 // --- additional claims for the numbers that appear inside words / labels
 claim(1, 'E4 delta_theta point deg', /E4 的 (0)° 點/, () => null, 'data/experiment_numbers.json E4.signalFree has the key "0"', { fileHas: ['measure', /for \(const d of \[(?:0|0, 1), 3, 5\]\)|\[0, 1, 3, 5\]/] });
-claim(2, 'E4 SMI withSignal SINR dB (0 deg)', /降到 (\u22125\.5) dB/, () => J.E4.withSignal['0'], 'data/experiment_numbers.json E4.withSignal["0"] (-5.72)');
 claim(2, 'delta_theta reference deg', /SMI 與 DL 比 (0)° 低/, () => null, 'data/experiment_numbers.json E3.*.d0', { fileHas: ['measure', /d0: sinr\(\{ algo: a, trainMode: 'withSignal', pointErrDeg: 0 \}/] });
 claim(2, 'signalFree delta_theta deg', /signalFree 時 (3)° 只降約/, () => null, 'data/experiment_numbers.json E4.signalFree["3"]', { fileHas: ['measure', /for \(const d of \[0, 1, 3, 5\]\)/] });
 claim(5, 'QAM order', /越過 (16)-QAM/, () => parseInt(/QAM(\d+)/.exec(XP('E1', 'mod'))[1], 10), 'experiments.js params(E1).mod = QAM16');
@@ -355,7 +369,7 @@ for (const c of claims) {
         const rv = num(m[1]), d = dec(m[1]);
         if (c.o.atLeast) { row.act = (+act).toFixed(2) + ' (>= ' + m[1] + ')'; row.res = act >= rv ? 'match' : 'mismatch'; }
         else if (c.o.within) { row.act = 'largest ' + (+act).toFixed(2); row.res = Math.abs(act - rv) <= c.o.within + 1e-9 ? 'match' : 'mismatch'; row.note = c.o.rangeLabel || ''; }
-        else { const tol = 0.5 * Math.pow(10, -d) + 1e-9; row.act = Math.abs(act) < 1e-9 ? '0' : (+act).toFixed(Math.max(d, 2)); row.res = Math.abs(act - rv) <= tol ? 'match' : 'mismatch'; if (row.res === 'mismatch') row.note = 'difference ' + (act - rv).toFixed(4); }
+        else { const tol = (c.o.tolAbs !== undefined ? c.o.tolAbs : 0.5 * Math.pow(10, -d)) + 1e-9; row.act = Math.abs(act) < 1e-9 ? '0' : (+act).toFixed(Math.max(d, 2)); row.res = Math.abs(act - rv) <= tol ? 'match' : 'mismatch'; if (row.res === 'mismatch') row.note = 'difference ' + (act - rv).toFixed(4); }
     }
     rows.push(row);
 }
@@ -376,7 +390,7 @@ rows.sort((p, q) => p.s - q.s);
 
 // ------------------------------------------------------------------ output
 const out = [];
-out.push(`check_report_numbers: item 10 of docs/FINAL_REPORT.md; suite output: ${opt('--suite') ? opt('--suite') + ' (' + fs.statSync(opt('--suite')).mtime.toISOString() + ')' : 'not given (numbers that exist only in the test output are listed as manual)'}`);
+out.push(`check_report_numbers: item 10 of docs/FINAL_REPORT.md; archived suite output: ${suitePath ? path.relative(ROOT, suitePath) + ' (complete run of 2026-10-06, 198/198; used for T17 only)' : 'not used (--no-archive): numbers that exist only there are listed as manual'}`);
 out.push('tolerance: half a unit of the last digit written in the report; exact for integers; "bool" = a statement of the report that must hold for the source data');
 out.push('');
 const W = [3, 44, 14, 24, 9];
@@ -388,6 +402,6 @@ out.push(`total ${rows.length}: match ${cnt('match')}, mismatch ${cnt('mismatch'
 const man = rows.filter(r => r.res === 'manual' && r.label !== 'not mapped'), hints = [...new Set(man.map(r => r.note))];
 if (man.length) { out.push('manual because of the missing suite output: ' + man.length + ' (rerun hints: ' + hints.join('; ') + ')'); }
 const sRows = rows.filter(r => r.src.startsWith('terminal output of the suite'));
-if (sRows.length) { out.push('items checked against the saved terminal output of the suite (not re-executed here): ' + sRows.length + '; to recompute them: T11 (node tests/run_all.js, about 47 s), T17 (about 21 min), T18 (about 15 s); without --suite they are listed as manual'); }
+if (sRows.length) { out.push('items that rest on the ARCHIVED terminal output of the complete run of 2026-10-06 (198/198), file docs/diagnostics/suite_output_2026-10-06_198of198.txt, NOT re-executed: ' + sRows.length + ' (T17b2, T17c, T17d); to recompute them: rerun T17 (node tests/run_all.js, about 21 min); with --no-archive they are listed as manual. T11b and T18c are read from fresh runs: docs/diagnostics/fresh_T11_output.txt, fresh_T18_output.txt.'); }
 console.log(out.join('\n'));
 if (opt('--out')) fs.writeFileSync(opt('--out'), out.join('\n') + '\n');
