@@ -494,22 +494,22 @@ E6 使用 fc = 5 GHz、Δf = 15 kHz、d_min = 10 m、τ = 10 ms、θ₁ = 20°�
 - **E6 的適用範圍**：S1 網格（fc/Δf ∈ {5 GHz/15 kHz, 28 GHz/120 kHz}、d_min ∈ {10, 30, 100, 500} m、τ ∈ {1, 2, 10} ms、v ∈ {25…300} km/h、SMI／DL）240 格中老化損失都小於 ICI 損失，最接近的是 28 GHz/120 kHz、10 m、10 ms、300 km/h、SMI（老化 5.53 dB、ICI 9.91 dB）；MMSE-P 與 withSignal 不在該網格內。
 - **L<N 時 MMSE-P 的 MATLAB 對照（`verify_cases.m`，案例 `static_L4_signalFree_d3`）**：L<N 時 MMSE-P 以偽逆求解，網頁與 MATLAB 的權重差異來源為捨入敏感度（400 個隨機 L=4 實現中 14% 單靠 R̂ 加總順序改變即超過 1e-9）；該案例的 FAIL 為已知、已調查、不影響任何結論。兩邊的偽逆閾值相同（1e-10·λmax），保留部分的條件數約 1e4。`verify_cases.m` 現在把 L<N 的案例標為 `rank-deficient (L<N)` 並在總結中分開計數，判準數值（1e-9）未改，FAIL 仍顯示為 FAIL。調查腳本與結果在 `docs/diagnostics/l4_*`，MATLAB 端未在本環境執行。
 - **其他**：L=N 附近 R̂ 病態（MMSE-P、SMI 都有低谷，是估計量性質而非求逆實作，B1）；MUSIC 取最接近名義角的峰，網格 0.5° 量化；E0 使用 K = 400 dB（超出滑桿範圍 20 dB）；原始 EVM 的 LoS 公共相位已扣除（講義通道沒有隨機載波相位）；講義公式編號未知，只對照變數名稱與慣例（θ_lab = θ_sim）；預設模型與訓練模式只在 Commit 17 切換。
-- **關於先前追加的 S1–S4**：你這則訊息說不要執行，但這些調查在上一輪（你追加 S1–S4 時）已經跑完並 commit；本輪沒有再跑任何新調查，只引用既有結果。
+- **關於 S1–S4 敏感度調查**：S1–S4 調查已於本報告撰寫前完成並 commit（結果在 `docs/diagnostics/`），本報告僅引用既有結果，未再執行新的調查。
 
 ## 10. 可用於論文／報告的結論句（僅列有數據支持的；括號為適用範圍與依據）
 
 設定縮寫：N = 8、d = 0.5λ、SNR 20 dB、SIR −10 dB、θ₂ = 40°（除非另註）、unified 單一實現模型、Gaussian 干擾。
 
-1. 在 fc = 5 GHz、Δf = 15 kHz、d_min = 30 m、L = 100、K = 20 dB、v = 0、θ₁ = 0° 時，不含訊號訓練的 SMI 與 MMSE-P 的 SINR 都約 28.6 dB，距遺傳界 SINR_opt 約 0.3 dB。（T11b、T14）
-2. 同一設定下若訓練資料含目標（MPDR）、δθ = 0，SMI 的 SINR 降到 −5.5 dB（自我抵消）；指向偏差 3° 時 SMI 與 DL 比 0° 低 10 dB 以上，MMSE-P 不受指向偏差影響。（T17d、E3、E4；K=20 dB、L=100）
-3. 以講義的理論協方差（N=8、θ₁=−20°、θ₂=30°、SNR 30 dB、SIR 0 dB、K=∞），MMSE-M、MVDR 方法 A、B 的 SINR 都等於 SINR_opt（38.97 dB）；改用 L=1000 的樣本協方差且訓練含訊號時降為 21.88 dB，不含訊號的 SMI 仍有 38.94 dB。（T21、E0）
-4. 快照數 L=4 < N=8 時秩只有 4，DL（27.81 dB）與 BEAMSPACE（26.36 dB）高於 SMI（22.46 dB）。（E2；K=20 dB、signalFree）
-5. 在 v = 300 km/h、θ₁ = 0°、d_min = 30 m、K = 20 dB 下，28 GHz/120 kHz 的 SMI EVM 為 12.31 %、5 GHz/15 kHz 為 17.12 %；後者在約 230 km/h 越過 16-QAM 的 13.14 % 門檻，前者在 0–300 km/h 內沒有越過。（E1，SMI 的 EVM 取均方根）
-6. 更新延遲 τ 從 0 增到 10 ms（v=300 km/h、d_min=30 m、θ₂=−30°、K=20 dB、L=100）使 SMI 的 SINR 從 28.31 降到 25.48 dB、DL 降到 23.75 dB；離軌道 5 m 時 DL 從 26.19 降到 17.17 dB。（E5、T3a）
-7. 在 5 GHz/15 kHz、d_min ≤ 500 m、τ ≤ 10 ms、v ≤ 300 km/h 與 28 GHz/120 kHz 的對應網格內（SMI、DL，signalFree，K=20 dB、θ₁=20°、θ₂=−30°、L=100），空間域的老化損失都小於 ICI 損失；最接近的情況是 28 GHz/120 kHz、10 m、10 ms、300 km/h：老化 5.53 dB 對 ICI 9.91 dB。（S1：`docs/diagnostics/s1_sensitivity.csv`、E6；不含 MMSE-P 與 withSignal）
-8. 含訊號訓練的 SMI 的 SINR 在高速下先升後降，原因是擴散路徑間的都卜勒差：K→∞ 時不上升（v=0 為 11.4 dB，300 km/h 為 6.7 dB），K=20 dB 時從 −5.5 dB 升到 7.2 dB。（S3，E6 設定：d_min=10 m、τ=10 ms、5 GHz/15 kHz）
-9. 在 θ₁ = 0°、K = 20 dB、L = 100、signalFree 下，沒有頻偏補償的 MMSE-P 在 30 km/h 起崩潰（−20.0 dB），用真實 LoS 相位去旋轉（genie）可回到 28.5 dB。（B4：`docs/diagnostics/b4_afc.txt`；這是診斷不是演算法結果）
-10. 樣本 SMI（L = 20000，signalFree，δθ = 0° 與 1°）與母體解的差，與 Reed–Mallett–Brennan 期望損失 −0.0015 dB 相符（z = −2.07、−1.78）。（T17b、T17b2；δθ ≥ 3° 公式不嚴格適用）
-11. MUSIC 與 Capon 的目標角估計誤差在 L ≥ 12、源分離 ≥ 20° 時約 0.2°（受 0.5° 網格限制）。（T18c；K=20 dB 的雙源模型）
+1. 在 fc = 5 GHz、Δf = 15 kHz、d_min = 30 m、L = 100、K = 20 dB、v = 0、τ = 0、θ₁ = 0°（θ₂ = 40°、SNR 20 dB、SIR −10 dB、N = 8）時，不含訊號訓練的 SMI 與 MMSE-P 的 SINR 都約 28.6 dB，距遺傳界 SINR_opt 約 0.3 dB。（MMSE-P：T11b，2000 次實現；SMI：E4 的 0° 點 28.59 dB 與 T17c，1000 次實現；T14 為固定種子的回歸比對，不是這些平均值的來源；v = 0 時 d_min 不影響結果。）
+2. 同一設定下（fc = 5 GHz、Δf = 15 kHz、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、L = 100、K = 20 dB；d_min 在 v = 0 時不影響）若訓練資料含目標（MPDR，withSignal）、δθ = 0，SMI 的 SINR 降到 −5.5 dB（自我抵消）；在 withSignal 下指向偏差 3° 時 SMI 與 DL 比 0° 低 10 dB 以上，MMSE-P 不受指向偏差影響。（T17d、E3、E4，各 1000 次實現；signalFree 時 3° 只降約 0.6 dB（SMI 28.6→28.0，T17d），不屬於本句。）
+3. 以講義的理論協方差（N=8、θ₁=−20°、θ₂=30°、SNR 30 dB、SIR 0 dB、K=∞（400 dB）、v = 0、τ = 0、QPSK；fc = 5 GHz、Δf = 15 kHz、d_min = 30 m 為預設值，在 v = 0 時不影響），MMSE-M、MVDR 方法 A、B 的 SINR 都等於 SINR_opt（38.97 dB）；改用 L=1000 的樣本協方差且訓練含訊號時降為 21.88 dB，不含訊號的 SMI 仍有 38.94 dB。（T21，預設 300 次實現；E0 數字為 200 次實現的平均；L = 1000。）
+4. 快照數 L=4 < N=8 時秩只有 4，DL（27.81 dB）與 BEAMSPACE（26.36 dB）高於 SMI（22.46 dB）。（E2，1000 次實現；fc = 5 GHz、Δf = 15 kHz、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、K = 20 dB、SNR 20 dB、SIR −10 dB、signalFree；DL 為 γ_rel = +10 dB；d_min 在 v = 0 時不影響。）
+5. 在 v = 300 km/h、θ₁ = 0°、θ₂ = 40°、d_min = 30 m、τ = 0、L = 100、K = 20 dB（SNR 20 dB、SIR −10 dB、signalFree）下，28 GHz/120 kHz 的 SMI EVM 為 12.31 %、5 GHz/15 kHz 為 17.12 %；後者在約 230 km/h 越過 16-QAM 的 13.14 % 門檻，前者在 0–300 km/h 內沒有越過。（E1，SMI 的 EVM 取各實現均方根，每點 300 次實現、速度步長 10 km/h；越過速度的解析度為 10 km/h。）
+6. 更新延遲 τ 從 0 增到 10 ms（v=300 km/h、d_min=30 m、θ₁ = 0°、θ₂=−30°、K=20 dB、L=100、fc = 5 GHz、Δf = 15 kHz、SNR 20 dB、SIR −10 dB、signalFree）使 SMI 的 SINR 從 28.31 降到 25.48 dB、DL 降到 23.75 dB；離軌道 5 m 時 DL 從 26.19 降到 17.17 dB。（E5，各 1000 次實現；T3a 在 K→∞、θ₁ = 0°、θ₂ = −30°、d_min = 5 與 30 m 下只驗證「SINR 隨 τ 單調下降」的方向，不是這些數字的來源。）
+7. 在 5 GHz/15 kHz、d_min ≤ 500 m、τ ≤ 10 ms、v ≤ 300 km/h 與 28 GHz/120 kHz（Δf = 120 kHz）的對應網格內（d_min ∈ {10, 30, 100, 500} m、τ ∈ {1, 2, 10} ms、v ∈ {25, 50, 100, 200, 300} km/h；SMI、DL（γ_rel = +10 dB），signalFree，K=20 dB、θ₁=20°、θ₂=−30°、L=100、N=8、SNR 20 dB、SIR −10 dB），空間域的老化損失都小於 ICI 損失；最接近的情況是 28 GHz/120 kHz、10 m、10 ms、300 km/h：老化 5.53 dB 對 ICI 9.91 dB。（S1，240 格、每格 500 次實現：`docs/diagnostics/s1_sensitivity.csv`、E6；不含 MMSE-P 與 withSignal，網格以外不外推。）
+8. 含訊號訓練的 SMI 的 SINR 在高速下先升後降，原因是擴散路徑間的都卜勒差：K→∞ 時不上升（v=0 為 11.4 dB，300 km/h 為 6.7 dB），K=20 dB 時從 −5.5 dB 升到 7.2 dB（125 km/h）後降到 4.6 dB（300 km/h）。（適用範圍為 E6 設定：fc = 5 GHz、Δf = 15 kHz、d_min = 10 m、τ = 10 ms、θ₁ = 20°、θ₂ = −30°、L = 100、N = 8、SNR 20 dB、SIR −10 dB、withSignal 的 SMI；K→∞（400 dB）與 K = 20 dB 的對照取自 S3，每點 500 次實現（目標協方差特徵值佔比為 200 次），固定參數即上述 E6 設定、速度 0–300 km/h 步長 25 km/h；結論是「K→∞ 時不上升」，不含 MMSE-P 或其他 d_min、τ。對應 E6、T22c（τ = 0 對照）。）
+9. 在 θ₁ = 0°、K = 20 dB、v = 30–300 km/h、L = 100（fc = 5 GHz、Δf = 15 kHz、d_min = 30 m、τ = 0、θ₂ = 40°、SNR 20 dB、SIR −10 dB）下，沒有頻偏補償的 MMSE-P 在 30 km/h 起崩潰（−20.0 dB），用真實 LoS 相位去旋轉（genie）可回到 28.5 dB（300 km/h；30 km/h 為 28.6 dB）。θ₁ = 45° 時，用真實相位去旋轉在 300 km/h 只回到 14.76 dB（K = 20 dB），此結論不能推廣到其他角度。（B4，每格 500 次實現：`docs/diagnostics/b4_afc.txt`；MMSE-P 的 R̂ 含目標，signalFree 與 withSignal 相同；這是診斷不是演算法結果。）
+10. 樣本 SMI（L = 20000，signalFree，δθ = 0° 與 1°）與母體解的差，與 Reed–Mallett–Brennan 期望損失 −0.0015 dB 相符（z = −2.07、−1.78）。（T17b、T17b2，各格 100 次實現；N = 8、K = 20 dB、v = 0、τ = 0、θ₁ = 0°、θ₂ = 40°、SNR 20 dB、SIR −10 dB、QPSK；fc = 5 GHz、Δf = 15 kHz、d_min = 30 m 為預設值，v = 0 時不影響；δθ ≥ 3° 公式不嚴格適用。）
+11. MUSIC 與 Capon 的目標角估計誤差在 L ≥ 12（θ₁ = 0°、θ₂ = 40°）與源分離 ≥ 20°（θ₁ = 0°、L = 100）時約 0.2°（受 0.5° 網格限制）。（T18c，各格 500 次實現；N = 8、K = 20 dB、SNR 20 dB、SIR −10 dB、v = 0、τ = 0、withSignal、雙源模型；fc = 5 GHz、Δf = 15 kHz、d_min = 30 m 為預設值，v = 0 時不影響。）
 
 不列入論文結論的：T13a（鏈路算術檢查）、MATLAB 部分（未執行）、withSignal 與 MMSE-P 的高速行為（僅為診斷）。
