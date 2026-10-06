@@ -25,6 +25,7 @@
         M_SCAT: 8,            // scatterers per source per snapshot (legacy model)
         LAMBDA_Q: 30, REL_Q: 10.0,   // quiescent-preserving loading of the tapered (GSC) adaptive path
         REFRESH: 0.2,         // fraction of the snapshot window replaced per update (legacy model)
+        pointErrDeg: 0,       // pointing error delta_theta (deg): the weights use a(theta_hat_1 + delta_theta); SINR/EVM are always evaluated on the true channel
         jamWave: 'gaussian',  // jammer symbols: 'gaussian' (OFDM interference is close to Gaussian in the time domain; default) | 'qpsk' (previous behaviour)
         smiSingular: 'pinv',  // SMI when R_hat is rank deficient (L < N): 'pinv' (Moore-Penrose, only the eigenspace above epsRank*lambda_max) | 'clamp' (legacy: pivot clamped to 1e-6)
         epsRank: 1e-10,       // relative eigenvalue threshold of the rank decision / pseudo-inverse (fraction of lambda_max)
@@ -335,7 +336,7 @@
             calZ: [], calVer: 0, dirty: true, lastCompute: 0,
             snaps: [], snapKey: '',
             gammaRelDb: CONFIG.gammaRelDb,                       // unified model: DL loading gamma = 10^(gammaRelDb/10) sigma_n^2; legacy keeps gammaDL (absolute)
-            jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
+            pointErrDeg: CONFIG.pointErrDeg, jamWave: CONFIG.jamWave, smiSingular: CONFIG.smiSingular, epsRank: CONFIG.epsRank, rankR: CONFIG.N, kappaRank: 1,
             trainMode: CONFIG.trainMode,                         // does the training window contain the target? (SMI, DL, BEAMSPACE; see PARAMS.md)
             model: CONFIG.model, M_UNIFIED: CONFIG.M_UNIFIED,   // 'legacy' | 'unified'
             real: null, freshRealization: false,                // unified model: one path realisation per trial
@@ -716,7 +717,10 @@
                 // ---- quiescent weight  w_q = (t . a) / sum(t)   (so that w_q^H a = 1)
                 const t = this.taperWeights(); this.tVec = t;
                 const sumT = t.reduce((a, b) => a + b, 0);
-                const wq = nomT.map((c, n) => new Cplx(c.r * t[n] / sumT, c.i * t[n] / sumT));
+                // pointing error: the weights are designed for a(theta_hat_1 + delta_theta) (FOURIER, SMI, DL, BEAMSPACE incl. the beam choice, MMSE-M); MMSE-P does not use a nominal
+                // steering vector (its r_xd comes from the data), so it is not affected. SINR / EVM below use the true channel.
+                const thAs = thTo + this.pointErrDeg * D2R, aAs = this.steer(thAs);
+                const wq = aAs.map((c, n) => new Cplx(c.r * t[n] / sumT, c.i * t[n] / sumT));
 
                 // ---- beamformer
                 this.fallback = false; this.collapsed = false; this.pinvUsed = false; this.lambdaQ = 0; this.invOk = true;
@@ -727,7 +731,7 @@
                 } else if (algo === 'MMSE') {
                     // MMSE / Wiener:  w = R^-1 r_xd,  r_xd = E[r d*] = P_s a(theta_t)  (known pilot d, perfectly correlated with the target).
                     // Inverted like SMI (no safeguard): an exactly singular R_hat (L < N) collapses the beamformer.
-                    const rxd = nomT.map(c => new Cplx(c.r * sigPow, c.i * sigPow));
+                    const rxd = aAs.map(c => new Cplx(c.r * sigPow, c.i * sigPow));
                     const w = this.wienerSolve(this.R_hat, rxd);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
                     this.collapsed = this.kappaRaw === Infinity && !this.pinvUsed;
@@ -740,13 +744,13 @@
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
                     this.collapsed = this.kappaRaw === Infinity && !this.pinvUsed;
                 } else if (algo === 'BEAMSPACE') {
-                    const w = this.beamspace(nomT, thTo);
+                    const w = this.beamspace(aAs, thAs);
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
                     this.collapsed = this.bsSingular;
                 } else if (gscTaper) {
                     // tapered MVDR in generalized-sidelobe-canceller form (quiescent pattern = taper):
                     //   w = w_q - B w_a,  w_a = (B^H R B + lambda I)^-1 B^H R w_q      (R = R_hat, or R_DL for DL-MVDR)
-                    const B = this.blockingMatrix(nomT), K = B.length;
+                    const B = this.blockingMatrix(aAs), K = B.length;
                     const RB = B.map(b => matMulVec(this.R_hat, b));
                     const Rwq = matMulVec(this.R_hat, wq);
                     this.lambdaQ = Math.max(this.LAMBDA_Q * noisePow, this.REL_Q * vecDot(wq, Rwq).r);
@@ -768,11 +772,11 @@
                     let w;
                     if (algo === 'SMI' && this.smiSingular === 'pinv' && this.rankR < N) {
                         // rank-deficient R_hat (L < N): Moore-Penrose pseudo-inverse, w = R+ a / (a^H R+ a)  (w^H a = 1 holds by this normalisation)
-                        const pi = pinvHermitian(this.R_hat, this.epsRank).pinv, num = matMulVec(pi, nomT), den = vecDot(nomT, num);
+                        const pi = pinvHermitian(this.R_hat, this.epsRank).pinv, num = matMulVec(pi, aAs), den = vecDot(aAs, num);
                         w = den.mag2() > 1e-300 ? num.map(c => Cplx.div(c, den)) : null;
                         if (w && !w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i))) w = null;
                         this.pinvUsed = true;
-                    } else w = this.mvdrWeights(this.R_hat, nomT, algo === 'SMI');
+                    } else w = this.mvdrWeights(this.R_hat, aAs, algo === 'SMI');
                     if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
                     this.collapsed = (algo === 'SMI' && this.kappaRaw === Infinity && !this.pinvUsed);
                 }
@@ -783,7 +787,7 @@
                 else if (this.kappa > 1e6) this.status = 'ILL-COND';
                 else this.status = 'OK';
 
-                this.outGain = vecDot(this.weights, nomT).r;     // w^H a: 1 for the distortionless designs, < 1 for the Wiener (MMSE) filter
+                this.outGain = vecDot(this.weights, aAs).r;     // w^H a: 1 for the distortionless designs, < 1 for the Wiener (MMSE) filter
 
                 // ---- SINR from TRUE covariances at the CURRENT angles (after latency)
                 const w = this.weights;

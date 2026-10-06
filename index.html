@@ -275,6 +275,7 @@
                     <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
                     <div class="kv" title="Largest angle change of any path (target paths and jammer) inside the training window; The model integrates the Doppler phase along the track; in parentheses: largest |integrated phase − first-order phase (f_d at t_app × t)| in rad, i.e. how much the first-order model of the previous version would have been off. Unified model only."><span class="k">窗內角度漂移 Δθ<sub>max</sub></span><span class="v"><span id="m-drift">—</span> °<span id="m-perr"></span></span></div>
                     <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
+                    <div class="kv" title="Pointing error as a fraction of the 3 dB main-lobe width: |δθ| / θ_3dB (weights are designed for a(θ̂₁+δθ); MMSE-P is not affected)"><span class="k">指向偏差 δθ/θ<sub>3dB</sub></span><span class="v"><span id="m-point">—</span></span></div>
                     <div class="kv" title="Genie upper bound: w_opt = R_in⁻¹h with the TRUE interference+noise covariance and this trial's true channel vector (unified model); legacy: λ_max(R_in⁻¹R_t) of the expected covariances. Read-out only."><span class="k">SINR<sub>opt</sub> (genie)</span><span class="v"><span id="m-opt">—</span> dB<span id="m-optgap" class="note"></span></span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
@@ -453,6 +454,7 @@
                 const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
                 $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
                 $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
+                $('m-point').innerText = S.pointErrDeg === 0 ? '0' : `${(S.pointErrDeg).toFixed(1)}° / ${this.f(S.bw3)}° = ${(100 * Math.abs(S.pointErrDeg) / Math.max(S.bw3, 1e-9)).toFixed(0)} %${S.algo === 'MMSEP' ? '（MMSE-P 不受影響）' : ''}`;
                 $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
                 $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
                 $('m-drift').innerText = dash(S.angDrift) === null ? '—' : S.angDrift.toPrecision(3);
@@ -861,7 +863,7 @@
                 add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
                 add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
                 const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
-                add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
+                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
                 add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
                 add('param', 'd_min', S.d_min, 'm');
                 add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
@@ -1147,6 +1149,7 @@
             { group: 'rx', key: 'N',      zh: '天線數 N',        en: 'Antennas',            min: 2,   max: 16,  step: 1,   unit: '' },
             { group: 'rx', key: 'L',      zh: '快照數 L',        en: 'Snapshots',           min: 2,   max: 200, step: 1,   unit: '' },
             { group: 'rx', key: 'latMs',  zh: '更新延遲 τ',      en: 'Beamformer latency',  min: 0,   max: 10,  step: 0.5, unit: 'ms', real: true },
+            { group: 'rx', key: 'pointErrDeg', zh: '指向偏差 δθ', en: 'Pointing error', min: -10, max: 10, step: 0.5, unit: '°' },
             { group: 'rx', key: 'sll',    zh: '旁瓣位準 SLL',    en: 'Chebyshev SLL',       min: 20,  max: 60,  step: 1,   unit: 'dB' },
             { group: 'rx', key: 'gammaDL', zh: '加載因子 γ', en: 'Loading factor (DL, legacy: absolute)', min: 1e-4, max: 1, log: true, unit: '' },
             { group: 'rx', key: 'gammaRelDb', zh: '加載比 γ_rel', en: 'Loading γ = γ_rel·σₙ² (DL, unified)', min: -10, max: 30, step: 1, unit: 'dB' },
