@@ -1,0 +1,19 @@
+T11a legacy MMSE-M: 12.03 ± 0.04 dB (reference 12.03 ± 0.04), |diff| = 0.004, tolerance 0.168
+T11a unified MMSE-M: -5.63 ± 0.08 dB (reference -5.63 ± 0.08), |diff| = 0.002, tolerance 0.331
+T11b unified MMSE-P (withSignal): 28.60 ± 0.01 dB, SINR_opt 28.92 dB, gap -0.32 dB
+T11b unified MMSE-P (signalFree): 28.60 ± 0.01 dB, SINR_opt 28.92 dB, gap -0.32 dB
+
+T11c  MMSE-P, unified, K = 20 dB, v = 0, withSignal: mean SINR vs L
+L             SINR dB  SINR_opt      gap   step vs previous (mean d / SE d)
+4        25.45 ± 0.13     28.92    -3.48                                   
+8        17.72 ± 0.12     28.92   -11.20 -7.723 / 0.167  (not tested: L <= N + 1 involved)
+12       24.89 ± 0.04     28.92    -4.03 7.164 / 0.119  (not tested: L <= N + 1 involved)
+24       27.40 ± 0.02     28.92    -1.53                      2.508 / 0.034
+48       28.23 ± 0.01     28.92    -0.69                      0.831 / 0.012
+100      28.60 ± 0.01     28.92    -0.32                      0.374 / 0.005
+
+T11c  observation around L = N (MMSE-P, same setting): mean SINR, median condition number of R_hat (Infinity = rank deficient), median ||w||
+  L = 7: 21.86 ± 0.07 dB, median kappa Infinity, median ||w|| 0.704
+  L = 8: 17.72 ± 0.12 dB, median kappa 5.52e+5, median ||w|| 1.080
+  L = 9: 21.54 ± 0.07 dB, median kappa 1.98e+5, median ||w|| 0.751
+RESULT T11: 5/5 checks passed

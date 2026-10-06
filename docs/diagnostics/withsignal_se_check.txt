@@ -1,0 +1,5 @@
+E3 setting (QAM16, seeds 3000+): -5.56 ± 0.11 (sd 3.48)
+E4 setting (QAM16, seeds 4000+): -5.72 ± 0.11 (sd 3.33)
+T17d setting (QPSK, seeds 1717+6000+): -5.52 ± 0.10 (sd 3.14)
+QAM16 with the T17d seeds: -5.51 ± 0.10 (sd 3.17)
+QPSK with the E3 seeds: -5.57 ± 0.11 (sd 3.42)

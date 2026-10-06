@@ -1,0 +1,954 @@
+
+====================================================================================================
+T0a core.js reproduces the pre-refactor page bit for bit (seeded)
+====================================================================================================
+
+TOTAL values compared: 37152, bit-identical: 37152, max |diff| = 0.00e+0
+PASS  (max |diff| < 1e-12)
+
+====================================================================================================
+T0b UI smoke test (stubbed DOM)
+====================================================================================================
+PASS  benchmark sweep starts
+
+all UI smoke checks passed
+
+====================================================================================================
+T1  regression: unified vs legacy at v = 0, tau = 0 (T1a check; T1b informational decomposition)
+====================================================================================================
+T1a  K -> inf (kDb = 400), v = 0, tau = 0, withSignal, 2000 trials per cell
+algorithm         legacy dB      unified dB   diff dB  SE_diff       z result
+FOURIER         6.81 ± 0.00     6.81 ± 0.00    -0.000    0.000    -0.2 PASS
+MMSE           11.44 ± 0.04    11.43 ± 0.04    -0.014    0.053    -0.3 PASS
+MMSEP          28.63 ± 0.00    28.63 ± 0.00    -0.004    0.004    -1.0 PASS
+SMI            11.53 ± 0.04    11.47 ± 0.04    -0.054    0.054    -1.0 PASS
+DL             16.13 ± 0.04    16.11 ± 0.04    -0.015    0.059    -0.3 PASS
+BEAMSPACE      17.64 ± 0.07    17.56 ± 0.07    -0.078    0.098    -0.8 PASS
+
+T1b  (informational) K = 20 dB, v = 0, tau = 0, 2000 trials per cell; mean SINR dB ± SE
+algorithm        legacy ws     unified ws      legacy sf     unified sf   gap_ws   gap_sf  ws - sf     SE  L: sf-ws  U: sf-ws   opt L   opt U  Lws-opt  Uws-opt  Lsf-opt  Usf-opt
+FOURIER        6.80 ± 0.00    6.77 ± 0.01    6.80 ± 0.00    6.77 ± 0.01    -0.03    -0.03     0.00   0.01      0.00      0.00   28.38   28.93   -21.57   -22.15   -21.57   -22.15
+MMSE          11.79 ± 0.04   -5.41 ± 0.08   11.79 ± 0.04   -5.41 ± 0.08   -17.20   -17.20     0.00   0.12      0.00      0.00   28.38   28.91   -16.59   -34.32   -16.59   -34.32
+MMSEP         26.72 ± 0.01   28.60 ± 0.01   26.72 ± 0.01   28.60 ± 0.01     1.88     1.88    -0.00   0.02     -0.00      0.00   28.38   28.92    -1.65    -0.32    -1.65    -0.32
+SMI           11.84 ± 0.04   -5.37 ± 0.08   27.96 ± 0.00   28.58 ± 0.01   -17.22     0.62   -17.83   0.09     16.12     33.95   28.38   28.91   -16.53   -34.29    -0.41    -0.33
+DL            14.01 ± 0.04    0.88 ± 0.07   28.11 ± 0.00   28.80 ± 0.01   -13.13     0.69   -13.83   0.08     14.09     27.92   28.38   28.93   -14.36   -28.05    -0.27    -0.13
+BEAMSPACE     17.28 ± 0.06    6.90 ± 0.11   25.84 ± 0.00   28.79 ± 0.01   -10.37     2.96   -13.33   0.13      8.56     21.89   28.38   28.92   -11.10   -22.02    -2.54    -0.13
+     gap_* = unified - legacy; ws = withSignal (MPDR), sf = signalFree (MVDR); "ws - sf" = part of the gap explained by training data that contain the signal
+
+====================================================================================================
+T2  single-path invariance (K -> inf, no drift): v must not change R_hat / SINR_inst
+====================================================================================================
+T2b  noise-free, jammer-free: max |dR_hat| = 1.11e-16,  max relative |dSINR_inst| (FOURIER) = 0.00e+0
+T2c  4000 trials each, v = 0 vs 300:  mean SINR 9.23 vs 9.26 dB (z = 0.98),  max |z| over 276 R_hat values (re/im of 144 entries) = 1.5150
+T2c  Bonferroni: m = 276 comparisons, alpha = 0.01, z_crit = 4.1304 (fixed-3 reference: family-wise false-alarm rate 53 %),  max |z| = 1.5150
+T2d  single path: max | N_ICI/S - (1 - sinc^2(eps)) | = 0.00e+0
+
+====================================================================================================
+T3  aging: jammer-only drift (signalFree) monotone; Doppler-only invariance; MPDR tau sweep (info); FOURIER control
+====================================================================================================
+T3a  signalFree, K -> inf, theta1 = 0 (no drift), theta2 = -30, v = 300, 2000 paired trials; mean SINR_inst [dB] vs tau [ms]
+d_min   algorithm         0       1       2       4       6       8      10    worst step (mean d / SE_d)
+          - SINR_opt    -0.86   -0.96   -1.09   -1.42   -1.88   -2.48   -3.22    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+5       SMI           28.17   28.07   27.94   27.61   27.15   26.56   25.81     0->1 ms: -0.1029 dB / 0.0022 PASS
+          - SINR_opt    -2.80   -3.92   -5.02   -7.07   -8.88  -10.46  -11.85    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+5       DL            26.23   25.12   24.01   21.96   20.15   18.57   17.18     0->1 ms: -1.1153 dB / 0.0031 PASS
+          - SINR_opt    -1.31   -1.60   -1.96   -2.88   -3.99   -5.23   -6.51    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+5       BEAMSPACE     27.72   27.43   27.07   26.15   25.04   23.81   22.52     0->1 ms: -0.2881 dB / 0.0038 PASS
+          - SINR_opt    -0.69   -0.88   -1.11   -1.65   -2.26   -2.90   -3.55    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+30      SMI           28.34   28.15   27.92   27.38   26.77   26.13   25.48     0->1 ms: -0.1946 dB / 0.0022 PASS
+          - SINR_opt    -0.69   -1.05   -1.47   -2.40   -3.38   -4.34   -5.26    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+30      DL            28.34   27.98   27.56   26.63   25.65   24.69   23.77     0->1 ms: -0.3674 dB / 0.0010 PASS
+          - SINR_opt    -0.62   -0.91   -1.25   -2.03   -2.85   -3.68   -4.49    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+30      BEAMSPACE     28.41   28.12   27.78   27.00   26.18   25.35   24.54     8->10 ms: -0.8105 dB / 0.0060 PASS
+          - SINR_opt    -0.31   -0.32   -0.32   -0.32   -0.33   -0.34   -0.35    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+500     SMI           28.72   28.71   28.71   28.71   28.70   28.69   28.68     0->1 ms: -0.0018 dB / 0.0001 (info: monotone)
+          - SINR_opt    -0.05   -0.05   -0.05   -0.06   -0.07   -0.07   -0.09    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+500     DL            28.98   28.98   28.98   28.97   28.97   28.96   28.95     0->1 ms: -0.0018 dB / 0.0001 (info: monotone)
+          - SINR_opt    -0.08   -0.09   -0.09   -0.09   -0.10   -0.11   -0.12    (mean SINR minus mean SINR_opt [dB]; SINR_opt at tau = 0: 29.03 dB)
+500     BEAMSPACE     28.95   28.95   28.94   28.94   28.93   28.92   28.91     1->2 ms: -0.0022 dB / 0.0002 (info: monotone)
+T3b  SMI        signalFree, tau = 0, no drift: v = 0 -> 28.681 dB, v = 300 -> 28.663 dB, paired diff -0.0182 ± 0.0170 dB  PASS
+T3b  DL         signalFree, tau = 0, no drift: v = 0 -> 28.946 dB, v = 300 -> 28.929 dB, paired diff -0.0170 ± 0.0170 dB  PASS
+T3b  BEAMSPACE  signalFree, tau = 0, no drift: v = 0 -> 26.217 dB, v = 300 -> 26.190 dB, paired diff -0.0272 ± 0.0186 dB  PASS
+
+T3c  (informational) diffuse-only (K -> 0), v = 300, theta1 = 60, no drift, 2000 paired trials; mean SINR_inst [dB] vs tau [ms]
+SMI        withSignal      7.52    8.31    8.83    9.07    8.43    8.35    8.26    NON-MONOTONE (3 rising steps, max +0.78 dB)
+                              #    ####   #####  ######    ####    ####     ###
+SMI        signalFree     24.91   24.94   24.85   24.82   25.03   25.23   24.81    NON-MONOTONE (2 rising steps, max +0.21 dB)
+                            ###     ###      ##      ##    ####   #####      ##
+DL         withSignal     15.13   15.60   16.00   16.20   15.86   15.67   15.53    NON-MONOTONE (3 rising steps, max +0.47 dB)
+                              #     ###   #####  ######    ####    ####     ###
+DL         signalFree     25.17   25.19   25.09   25.07   25.26   25.48   25.05    NON-MONOTONE (2 rising steps, max +0.23 dB)
+                            ###     ###      ##      ##     ###   #####      ##
+BEAMSPACE  withSignal     12.53   12.87   13.10   13.31   13.16   13.02   12.80    NON-MONOTONE (3 rising steps, max +0.34 dB)
+                             ##     ###    ####   #####   #####    ####     ###
+BEAMSPACE  signalFree     23.17   23.12   23.18   23.42   23.44   23.61   23.17    NON-MONOTONE (2 rising steps, max +0.24 dB)
+                             ##      ##      ##    ####    ####   #####      ##
+     (tau = 0 / 0.25 / 0.5 / 1 / 2 / 4 / 8 ms.)  Expected for withSignal: the MPDR self-nulling is strongest when the channel at t_app equals the training channel and relaxes as it decorrelates.
+T3d  FOURIER, T3a scenario, d_min = 5: max |SINR_inst(tau) - SINR_inst(0)| = 3.55e-15 dB
+
+====================================================================================================
+T4  H1: diffuse-path ICI, sampled (M = 4096) vs numerical integral; legacy isotropic formula
+====================================================================================================
+sigma_theta = 10.0 deg (Gaussian), M = 4096 sampled paths, f_c = 5 GHz, df = 15 kHz
+theta1  v km/h    eps_m    integral     sampled   rel.err   rel.SE err/SE  legacy dB  exact dB  legacy-exact result
+0       100       0.031     3.04e-3     3.04e-3     0.03%    0.07%   0.41      -28.1     -25.2       -2.9 dB PASS
+0       300       0.093     2.71e-2     2.71e-2     0.03%    0.07%   0.41      -18.5     -15.7       -2.9 dB PASS
+0       500       0.154     7.38e-2     7.37e-2     0.03%    0.06%   0.41      -14.2     -11.3       -2.8 dB PASS
+30      100       0.031     2.30e-3     2.30e-3     0.03%    0.31%   0.09      -28.1     -26.4       -1.7 dB PASS
+30      300       0.093     2.06e-2     2.06e-2     0.03%    0.31%   0.09      -18.5     -16.9       -1.7 dB PASS
+30      500       0.154     5.62e-2     5.62e-2     0.03%    0.30%   0.10      -14.2     -12.5       -1.7 dB PASS
+60      100       0.031     8.29e-4     8.25e-4     0.53%    0.87%   0.61      -28.1     -30.8       +2.8 dB PASS
+60      300       0.093     7.44e-3     7.40e-3     0.53%    0.86%   0.61      -18.5     -21.3       +2.7 dB PASS
+60      500       0.154     2.05e-2     2.04e-2     0.53%    0.86%   0.62      -14.2     -16.9       +2.7 dB PASS
+90      100       0.031     9.26e-5     9.17e-5     0.95%    2.11%   0.45      -28.1     -40.3      +12.3 dB PASS
+90      300       0.093     8.33e-4     8.25e-4     0.95%    2.11%   0.45      -18.5     -30.8      +12.3 dB PASS
+90      500       0.154     2.31e-3     2.29e-3     0.94%    2.11%   0.45      -14.2     -26.4      +12.2 dB PASS
+info: theta1 = 90 deg, v = 300, M = 262144: sampled/integral - 1 = 0.04 %
+
+====================================================================================================
+T5  time-domain OFDM chain: leakage vs 1 - |D|^2 (single path) and the non-coherent two-path approximation
+====================================================================================================
+N_FFT = 64, CP = 4 samples (cpRatio 0.07 x 64 = 4.48, rounded), no noise
+
+T5a  single path, 4000 random OFDM symbols x 64 subcarriers per eps
+eps       measured     1-|D|^2   rel.err    1-sinc^2  sinc vs |D| result
+0.02       1.31e-3     1.31e-3     0.00%     1.32e-3      0.0244% PASS
+0.05       8.20e-3     8.20e-3     0.08%     8.20e-3      0.0243% PASS
+0.1        3.24e-2     3.25e-2     0.18%     3.25e-2      0.0239% PASS
+0.15       7.19e-2     7.18e-2     0.08%     7.19e-2      0.0233% PASS
+0.2        1.25e-1     1.25e-1     0.24%     1.25e-1      0.0225% PASS
+0.3        2.63e-1     2.63e-1     0.02%     2.63e-1      0.0202% PASS
+
+T5b  finite-N (N = 64) vs sinc^2 used by the UI: relative difference of the leakage 1 - (.)
+     eps=0.05: 0.0243%   eps=0.1: 0.0239%   eps=0.15: 0.0233%   eps=0.2: 0.0225%   eps=0.25: 0.0215%   eps=0.3: 0.0202%
+
+T5c  two paths: P = 1/0.4, eps = 0.15/-0.1, 4000 random phase pairs x 4 symbols
+     measured 5.95e-2,  sum q_i (1-|D_i|^2) = 6.06e-2  (rel. err 1.83 %, sampling SE ~ 1.85 %),  UI form with sinc^2 = 6.06e-2  PASS
+
+====================================================================================================
+T6  gamma_rel sweep of DL (informational): K = 20 dB, v = 0
+====================================================================================================
+
+T6  DL, withSignal, L = 100, 1000 paired trials   (SNR = 20 dB: sigma_n^2 = 0.01, gamma = 10^(gamma_rel/10) * 0.01)
+gamma_rel dB  gamma       SINR dB      SE  curve
+-10           1.0e-3        -4.50    0.11  
+-8            1.6e-3        -4.01    0.11  #
+-6            2.5e-3        -3.29    0.11  ##
+-4            4.0e-3        -2.27    0.10  ###
+-2            6.3e-3        -0.89    0.10  ######
+0             1.0e-2         0.90    0.10  ########
+2             1.6e-2         3.10    0.10  ############
+4             2.5e-2         5.67    0.10  ################
+6             4.0e-2         8.48    0.09  ####################
+8             6.3e-2        11.38    0.09  #########################
+10            1.0e-1        14.14    0.08  #############################
+12            1.6e-1        16.53    0.08  #################################
+14            2.5e-1        18.37    0.08  ####################################
+16            4.0e-1        19.62    0.09  ######################################
+18            6.3e-1        20.37    0.10  #######################################
+20            1.0e+0        20.78    0.11  #######################################
+22            1.6e+0        21.00    0.12  ########################################
+24            2.5e+0        21.13    0.12  ########################################
+26            4.0e+0        21.18    0.12  ########################################  <= best
+28            6.3e+0        21.12    0.12  ########################################
+30            1.0e+1        20.81    0.12  #######################################
+     best gamma_rel = 26 dB (SINR 21.18 ± 0.12 dB); at 0 dB 0.90, at +10 dB 14.14, at -10 dB -4.50, at +30 dB 20.81; shape: rises, peaks, then falls
+
+T6  DL, signalFree, L = 100, 1000 paired trials   (SNR = 20 dB: sigma_n^2 = 0.01, gamma = 10^(gamma_rel/10) * 0.01)
+gamma_rel dB  gamma       SINR dB      SE  curve
+-10           1.0e-3        28.62    0.01  ######################################
+-8            1.6e-3        28.64    0.01  ######################################
+-6            2.5e-3        28.67    0.01  #######################################
+-4            4.0e-3        28.71    0.01  #######################################
+-2            6.3e-3        28.74    0.01  #######################################
+0             1.0e-2        28.78    0.01  #######################################
+2             1.6e-2        28.80    0.01  ########################################
+4             2.5e-2        28.82    0.01  ########################################
+6             4.0e-2        28.83    0.01  ########################################
+8             6.3e-2        28.84    0.01  ########################################
+10            1.0e-1        28.84    0.01  ########################################  <= best
+12            1.6e-1        28.84    0.01  ########################################
+14            2.5e-1        28.83    0.01  ########################################
+16            4.0e-1        28.82    0.01  ########################################
+18            6.3e-1        28.79    0.01  ########################################
+20            1.0e+0        28.73    0.01  #######################################
+22            1.6e+0        28.57    0.01  ######################################
+24            2.5e+0        28.20    0.02  ###################################
+26            4.0e+0        27.44    0.02  #############################
+28            6.3e+0        26.05    0.02  #################
+30            1.0e+1        23.96    0.02  
+     best gamma_rel = 10 dB (SINR 28.84 ± 0.01 dB); at 0 dB 28.78, at +10 dB 28.84, at -10 dB 28.62, at +30 dB 23.96; shape: rises, peaks, then falls
+
+T6  DL, withSignal, L = 12, 1000 paired trials   (SNR = 20 dB: sigma_n^2 = 0.01, gamma = 10^(gamma_rel/10) * 0.01)
+gamma_rel dB  gamma       SINR dB      SE  curve
+-10           1.0e-3        -6.35    0.14  
+-8            1.6e-3        -5.45    0.14  ##
+-6            2.5e-3        -4.31    0.13  ####
+-4            4.0e-3        -2.93    0.12  #######
+-2            6.3e-3        -1.30    0.11  ##########
+0             1.0e-2         0.56    0.10  ##############
+2             1.6e-2         2.59    0.09  ##################
+4             2.5e-2         4.71    0.08  ######################
+6             4.0e-2         6.77    0.08  ##########################
+8             6.3e-2         8.60    0.09  ##############################
+10            1.0e-1        10.07    0.10  #################################
+12            1.6e-1        11.12    0.11  ###################################
+14            2.5e-1        11.79    0.13  ####################################
+16            4.0e-1        12.18    0.14  #####################################
+18            6.3e-1        12.40    0.14  ######################################
+20            1.0e+0        12.54    0.15  ######################################
+22            1.6e+0        12.65    0.15  ######################################
+24            2.5e+0        12.78    0.15  ######################################
+26            4.0e+0        12.95    0.15  #######################################
+28            6.3e+0        13.20    0.15  #######################################
+30            1.0e+1        13.54    0.15  ########################################  <= best
+     best gamma_rel = 30 dB (SINR 13.54 ± 0.15 dB); at 0 dB 0.56, at +10 dB 10.07, at -10 dB -6.35, at +30 dB 13.54; shape: increasing up to the end of the range (saturating?)
+
+T6  DL, signalFree, L = 12, 1000 paired trials   (SNR = 20 dB: sigma_n^2 = 0.01, gamma = 10^(gamma_rel/10) * 0.01)
+gamma_rel dB  gamma       SINR dB      SE  curve
+-10           1.0e-3        26.52    0.03  ########################
+-8            1.6e-3        26.87    0.03  ##########################
+-6            2.5e-3        27.23    0.02  #############################
+-4            4.0e-3        27.57    0.02  ################################
+-2            6.3e-3        27.86    0.02  ###################################
+0             1.0e-2        28.10    0.02  #####################################
+2             1.6e-2        28.27    0.02  ######################################
+4             2.5e-2        28.39    0.02  #######################################
+6             4.0e-2        28.46    0.02  #######################################
+8             6.3e-2        28.50    0.02  ########################################
+10            1.0e-1        28.51    0.02  ########################################
+12            1.6e-1        28.52    0.02  ########################################  <= best
+14            2.5e-1        28.52    0.02  ########################################
+16            4.0e-1        28.51    0.02  ########################################
+18            6.3e-1        28.48    0.02  ########################################
+20            1.0e+0        28.41    0.02  #######################################
+22            1.6e+0        28.24    0.02  ######################################
+24            2.5e+0        27.86    0.03  ###################################
+26            4.0e+0        27.08    0.04  ############################
+28            6.3e+0        25.70    0.05  #################
+30            1.0e+1        23.65    0.06  
+     best gamma_rel = 12 dB (SINR 28.52 ± 0.02 dB); at 0 dB 28.10, at +10 dB 28.51, at -10 dB 26.52, at +30 dB 23.65; shape: rises, peaks, then falls
+
+====================================================================================================
+T7  straight-track geometry: trackAngle / trackRate vs explicit coordinates, sign consistency, drift read-outs
+====================================================================================================
+T7a  max |trackAngle - coordinate angle| = 2.22e-16 rad;   T7b  max relative error of trackRate = 5.99e-11
+T7c  theta = +30 -> 30.3011, theta = -30 -> -30.3011 after 10 ms;  f_d falls in both cases; theta = 0 stays at 0
+T7d  window drift read-outs: d_min = inf -> 0.00e+0 deg / 7.11e-15 rad;  d_min = 30 m -> 1.005 deg / 0.513 rad
+
+====================================================================================================
+T8  integrated Doppler phase: closed form vs numerical integral, explicit coordinates, d_min -> infinity
+====================================================================================================
+T8a  40 random (theta, v, d_min, ta, tb), 1e5-point Simpson: max |closed form - numerical integral| = 1.26e-12 rad
+T8b  explicit coordinates: max |phase - 2 pi (R(ta) - R(tb))/lambda| = 1.77e-10 rad; phase grows while approaching: true; f_d > 0 and = f_m cos(theta) for |theta| < 90: true
+T8c  max relative |phase / (2 pi f_d t) - 1| vs d_min: 1e+6 m: 1.60e-6,  1e+8 m: 1.60e-8,  1e+9 m: 1.60e-9,  1e+12 m: 1.60e-12,  1e+30 m: 2.22e-16
+
+====================================================================================================
+T9  fc and numerology: eps, ICI floor, T_snap, aging ratio scaling; 28 GHz / 120 kHz hand values
+====================================================================================================
+T9a  max relative |eps_impl - v fc cos(theta)/(c df)| over 2 models x 3 fc x 3 df x 2 v x 3 theta = 2.16e-16
+T9b  fc and df doubled: max |change| of eps0, eps_m, ICI floor = 0.00e+0
+T9c  df x2: rho ratio 0.500000000000 (expect 0.5), tau*B_D ratio 1.000000000000 (expect 1);  fc x2: rho ratio 2.000000000000 (expect 2), tau*B_D ratio 2.000000000000 (expect 2)
+T9d  28 GHz, 120 kHz, 300 km/h:  f_m = 7777.78 Hz (hand 7777.78),  eps_m = 0.0648148 (hand 0.0648148),  ICI floor (K -> inf, theta = 0) = 1.37444e-2 = -18.62 dB (hand 0.0137442 = -18.62 dB)
+     K = 20 dB, theta = 45 deg: eps0 = 0.045831, ICI floor = 6.8912e-3 (-21.62 dB) -> EVM floor 8.30 %;  LoS-only at 45 deg: 1 - sinc^2(eps0) = 6.8912e-3
+
+====================================================================================================
+T10  seed reproducibility of the sweep and of the CSV; per-point re-run; CSV schema v2
+====================================================================================================
+T10a [legacy] CSV length 7922, identical apart from the timestamp row: true, timestamp rows: 1
+T10c [legacy] point 12 (v = 120 km/h) SMI re-run alone: evm 0.077811312381937 vs 0.077811312381937, sinr 28.03800885022353 vs 28.03800885022353
+T10d [legacy] schema v2: true, missing keys: [], sweep_info has train=: true, point_seed column: true
+T10a [unified] CSV length 7973, identical apart from the timestamp row: true, timestamp rows: 1
+T10c [unified] point 12 (v = 120 km/h) SMI re-run alone: evm 0.07738781464080353 vs 0.07738781464080353, sinr 28.311155783094918 vs 28.311155783094918
+T10d [unified] schema v2: true, missing keys: [], sweep_info has train=: true, point_seed column: true
+
+====================================================================================================
+T11  MMSE-M unchanged; MMSE-P within 1 dB of SINR_opt (K = 20 dB, v = 0); MMSE-P rises with L
+====================================================================================================
+T11a legacy MMSE-M: 12.03 ± 0.04 dB (reference 12.03 ± 0.04), |diff| = 0.004, tolerance 0.168
+T11a unified MMSE-M: -5.63 ± 0.08 dB (reference -5.63 ± 0.08), |diff| = 0.002, tolerance 0.331
+T11b unified MMSE-P (withSignal): 28.60 ± 0.01 dB, SINR_opt 28.92 dB, gap -0.32 dB
+T11b unified MMSE-P (signalFree): 28.60 ± 0.01 dB, SINR_opt 28.92 dB, gap -0.32 dB
+
+T11c  MMSE-P, unified, K = 20 dB, v = 0, withSignal: mean SINR vs L
+L             SINR dB  SINR_opt      gap   step vs previous (mean d / SE d)
+4        25.45 ± 0.13     28.92    -3.48                                   
+8        17.72 ± 0.12     28.92   -11.20 -7.723 / 0.167  (not tested: L <= N + 1 involved)
+12       24.89 ± 0.04     28.92    -4.03 7.164 / 0.119  (not tested: L <= N + 1 involved)
+24       27.40 ± 0.02     28.92    -1.53                      2.508 / 0.034
+48       28.23 ± 0.01     28.92    -0.69                      0.831 / 0.012
+100      28.60 ± 0.01     28.92    -0.32                      0.374 / 0.005
+
+T11c  observation around L = N (MMSE-P, same setting): mean SINR, median condition number of R_hat (Infinity = rank deficient), median ||w||
+  L = 7: 21.86 ± 0.07 dB, median kappa Infinity, median ||w|| 0.704
+  L = 8: 17.72 ± 0.12 dB, median kappa 5.52e+5, median ||w|| 1.080
+  L = 9: 21.54 ± 0.07 dB, median kappa 1.98e+5, median ||w|| 0.751
+
+====================================================================================================
+T12  SMI in the small-snapshot region: pinv vs direct inverse, constraint, SINR vs L (info), DL independent of smiSingular
+====================================================================================================
+T12a L = 24: max relative |w_pinv - w_inv| / |w_inv| = 1.55e-12;  default SMI weights vs direct inverse: 0.00e+0
+T12a L = 48: max relative |w_pinv - w_inv| / |w_inv| = 1.19e-12;  default SMI weights vs direct inverse: 0.00e+0
+T12a L = 100: max relative |w_pinv - w_inv| / |w_inv| = 2.32e-12;  default SMI weights vs direct inverse: 0.00e+0
+T12b L = 2: max |w^H a - 1| over 50 fixed seeds = 4.44e-16  (status: RANK-DEFICIENT (pinv); fallbacks: 0)
+T12b L = 4: max |w^H a - 1| over 50 fixed seeds = 1.12e-15  (status: RANK-DEFICIENT (pinv); fallbacks: 0)
+T12b L = 6: max |w^H a - 1| over 50 fixed seeds = 1.83e-15  (status: RANK-DEFICIENT (pinv); fallbacks: 0)
+T12d  DL weights are identical for both smiSingular settings (see the checks).
+
+T12c  signalFree, unified, K = 20 dB, v = 0, 2000 trials; mean SINR dB ± SE vs L   (SINR_opt ≈ 28.9 dB)
+algo                  L=2          L=3          L=4          L=5          L=6          L=7          L=8          L=9         L=10         L=11         L=12         L=13         L=14         L=15         L=16
+SMI          16.10 ± 0.13 20.40 ± 0.08 22.25 ± 0.06 23.09 ± 0.05 23.37 ± 0.05 22.87 ± 0.06 21.49 ± 0.07 23.19 ± 0.05 24.22 ± 0.04 24.87 ± 0.04 25.38 ± 0.03 25.77 ± 0.03 26.07 ± 0.03 26.31 ± 0.02 26.53 ± 0.02
+            steps > 3 dB between neighbouring L: 2->3: +4.30 dB;
+DL           26.78 ± 0.05 27.45 ± 0.03 27.77 ± 0.03 28.02 ± 0.02 28.16 ± 0.02 28.27 ± 0.02 28.35 ± 0.02 28.40 ± 0.01 28.44 ± 0.01 28.48 ± 0.01 28.51 ± 0.01 28.54 ± 0.01 28.57 ± 0.01 28.59 ± 0.01 28.61 ± 0.01
+            no step > 3 dB between neighbouring L
+BEAMSPACE    22.33 ± 0.11 25.26 ± 0.06 26.37 ± 0.04 26.95 ± 0.03 27.30 ± 0.03 27.55 ± 0.02 27.74 ± 0.02 27.88 ± 0.02 27.98 ± 0.02 28.05 ± 0.02 28.11 ± 0.02 28.18 ± 0.01 28.23 ± 0.01 28.27 ± 0.01 28.32 ± 0.01
+            no step > 3 dB between neighbouring L
+MMSEP        24.03 ± 0.12 26.03 ± 0.05 25.88 ± 0.04 25.20 ± 0.04 23.95 ± 0.05 21.97 ± 0.07 17.54 ± 0.12 21.40 ± 0.07 23.22 ± 0.05 24.21 ± 0.04 24.90 ± 0.04 25.42 ± 0.03 25.80 ± 0.03 26.09 ± 0.03 26.35 ± 0.02
+            steps > 3 dB between neighbouring L: 7->8: -4.43 dB; 8->9: +3.86 dB;
+
+T12c  withSignal, unified, K = 20 dB, v = 0, 2000 trials; mean SINR dB ± SE vs L   (SINR_opt ≈ 28.9 dB)
+algo                  L=2          L=3          L=4          L=5          L=6          L=7          L=8          L=9         L=10         L=11         L=12         L=13         L=14         L=15         L=16
+SMI           3.72 ± 0.13  3.73 ± 0.10  1.25 ± 0.09 -2.04 ± 0.10 -5.10 ± 0.11 -7.98 ± 0.12-10.23 ± 0.12 -9.67 ± 0.13 -9.11 ± 0.12 -8.68 ± 0.11 -8.45 ± 0.12 -8.25 ± 0.11 -8.02 ± 0.11 -7.84 ± 0.11 -7.67 ± 0.11
+            steps > 3 dB between neighbouring L: 4->5: -3.29 dB; 5->6: -3.06 dB;
+DL            3.22 ± 0.12  5.28 ± 0.10  6.45 ± 0.09  7.26 ± 0.09  8.01 ± 0.08  8.47 ± 0.08  8.88 ± 0.08  9.24 ± 0.08  9.62 ± 0.07  9.89 ± 0.07 10.20 ± 0.07 10.40 ± 0.07 10.64 ± 0.07 10.76 ± 0.07 10.91 ± 0.07
+            no step > 3 dB between neighbouring L
+BEAMSPACE    -5.00 ± 0.13 -1.87 ± 0.12 -0.12 ± 0.11  1.07 ± 0.10  1.83 ± 0.10  2.46 ± 0.10  2.90 ± 0.10  3.35 ± 0.10  3.73 ± 0.10  3.99 ± 0.10  4.22 ± 0.10  4.43 ± 0.10  4.59 ± 0.10  4.74 ± 0.10  4.88 ± 0.10
+            steps > 3 dB between neighbouring L: 2->3: +3.13 dB;
+MMSEP        24.03 ± 0.12 26.03 ± 0.05 25.88 ± 0.04 25.20 ± 0.04 23.95 ± 0.05 21.97 ± 0.07 17.54 ± 0.12 21.40 ± 0.07 23.22 ± 0.05 24.21 ± 0.04 24.90 ± 0.04 25.42 ± 0.03 25.80 ± 0.03 26.09 ± 0.03 26.35 ± 0.02
+            steps > 3 dB between neighbouring L: 7->8: -4.43 dB; 8->9: +3.86 dB;
+
+====================================================================================================
+T13  symbol-level EVM vs the analytic sqrt(1/SINR + N_ICI/S); no-impairment limit; SER closed form (info)
+====================================================================================================
+T13a  SMI, 16-QAM, K = 20 dB, 10 blocks x 300 realisations x 4000 symbols per setting
+setting                   EVM analytic %  EVM measured % pooled rel. diff  pooled SE combined Z result
+signalFree, v = 0                  3.732           3.732        0.0035 %   0.0167 %       0.18 PASS   block z: -0.02 1.10 -0.58 0.01 -0.13 -0.15 -0.90 0.15 -0.31 1.39  (sd 0.70)
+signalFree, v = 300               17.119          17.123        0.0221 %   0.0163 %       1.31 PASS   block z: 3.72 0.21 -1.03 1.10 0.06 0.51 -1.45 0.19 -0.09 0.91  (sd 1.40)
+withSignal, v = 0                204.095         204.101        0.0020 %   0.0168 %       0.09 PASS   block z: -0.05 1.10 -0.58 0.01 -0.31 -0.13 -0.95 0.15 -0.31 1.34  (sd 0.70)
+withSignal, v = 300               90.239          90.242        0.0012 %   0.0167 %       0.06 PASS   block z: 0.17 0.56 -0.39 0.41 0.10 -0.15 -1.10 0.36 -0.66 0.89  (sd 0.60)
+T13b  no interferer, no noise, v = 0, single path: max EVM_meas over QPSK / 16-QAM / 64-QAM = 3.81e-21
+
+T13c  Monte-Carlo SER vs closed form (Gaussian interferer / Gaussian noise: 2e6 symbols per point; QPSK interferer: 4e5, informational)
+mod      error type             EVM %        SER MC  SER closed  rel. diff flag
+QAM16    Gaussian interferer    5.00        0.00e+0     0.00e+0      NaN % n.s. (expected < 100 errors)
+QAM16    Gaussian interferer    7.50        0.00e+0     3.78e-9   -100.0 % n.s. (expected < 100 errors)
+QAM16    Gaussian interferer    10.00       8.50e-6     1.17e-5    -27.4 % n.s. (expected < 100 errors)
+QAM16    Gaussian interferer    12.50       5.46e-4     5.22e-4      4.5 % check PASS
+QAM16    Gaussian interferer    15.01       4.27e-3     4.31e-3     -0.9 % check PASS
+QAM16    Gaussian (noise)       5.00        0.00e+0     0.00e+0      NaN % n.s. (expected < 100 errors)
+QAM16    Gaussian (noise)       7.50        0.00e+0     3.71e-9   -100.0 % n.s. (expected < 100 errors)
+QAM16    Gaussian (noise)       10.00       1.30e-5     1.16e-5     12.1 % n.s. (expected < 100 errors)
+QAM16    Gaussian (noise)       12.50       5.13e-4     5.19e-4     -1.3 % 
+QAM16    Gaussian (noise)       15.00       4.27e-3     4.29e-3     -0.5 % 
+QAM16    QPSK interferer        5.00        0.00e+0     0.00e+0      NaN % n.s. (expected < 100 errors)
+QAM16    QPSK interferer        7.50        0.00e+0     3.75e-9   -100.0 % n.s. (expected < 100 errors)
+QAM16    QPSK interferer        10.00       0.00e+0     1.17e-5   -100.0 % n.s. (expected < 100 errors)
+QAM16    QPSK interferer        12.50       0.00e+0     5.21e-4   -100.0 % DEVIATION > 20 %
+QAM16    QPSK interferer        15.00       0.00e+0     4.31e-3   -100.0 % DEVIATION > 20 %
+QAM64    Gaussian interferer    5.00        1.80e-5     2.25e-5    -19.9 % n.s. (expected < 100 errors)
+QAM64    Gaussian interferer    7.50        6.32e-3     6.34e-3     -0.4 % check PASS
+QAM64    Gaussian interferer    10.00       5.03e-2     5.04e-2     -0.1 % check PASS
+QAM64    Gaussian interferer    12.50       1.36e-1     1.37e-1     -0.2 % check PASS
+QAM64    Gaussian interferer    15.00       2.38e-1     2.39e-1     -0.2 % check PASS
+QAM64    Gaussian (noise)       5.00        2.25e-5     2.23e-5      1.0 % n.s. (expected < 100 errors)
+QAM64    Gaussian (noise)       7.50        6.28e-3     6.32e-3     -0.6 % 
+QAM64    Gaussian (noise)       10.00       5.00e-2     5.02e-2     -0.4 % 
+QAM64    Gaussian (noise)       12.50       1.36e-1     1.36e-1     -0.1 % 
+QAM64    Gaussian (noise)       15.00       2.39e-1     2.39e-1      0.0 % 
+QAM64    QPSK interferer        5.00        0.00e+0     2.24e-5   -100.0 % n.s. (expected < 100 errors)
+QAM64    QPSK interferer        7.50        0.00e+0     6.34e-3   -100.0 % DEVIATION > 20 %
+QAM64    QPSK interferer        10.00       0.00e+0     5.03e-2   -100.0 % DEVIATION > 20 %
+QAM64    QPSK interferer        12.50       0.00e+0     1.37e-1   -100.0 % DEVIATION > 20 %
+QAM64    QPSK interferer        15.00       0.00e+0     2.39e-1   -100.0 % DEVIATION > 20 %
+
+====================================================================================================
+T14  golden snapshot of the default settings (unified, signalFree): SINR / EVM / SINR_opt / SER
+====================================================================================================
+defaults: {"model":"unified","trainMode":"signalFree","smiSingular":"pinv","gammaRelDb":10,"d_min":30,"fc":5000000000,"scs":15000}
+max relative deviation over all 12 cases: 0.00e+0
+
+====================================================================================================
+T16  relative pivot threshold vs the old absolute one; MMSE with the pseudo-inverse for L < N; SINR vs L (info)
+====================================================================================================
+T16a  SMI, unified, K = 20 dB, SNR 20 dB: R_hat inverted with the old (absolute) and the new (relative) pivot threshold
+L      old threshold acted  ...and new acts too   not acted: identical   not acted: differing
+8          5/2000 (0.25 %)                    0                   1995                      0
+9          0/2000 (0.00 %)                    0                   2000                      0
+12         0/2000 (0.00 %)                    0                   2000                      0
+24         0/2000 (0.00 %)                    0                   2000                      0
+100        0/2000 (0.00 %)                    0                   2000                      0
+T16b MMSE-P L = 2: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 4.64e-14
+T16b MMSE-P L = 4: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 2.66e-12
+T16b MMSE-P L = 6: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 1.28e-11
+T16b MMSE-M L = 2: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 7.64e-1
+T16b MMSE-M L = 4: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 1.22e-1
+T16b MMSE-M L = 6: max relative residual |R_hat w - r_xd| / |r_xd| over 50 fixed seeds = 9.21e-2
+
+T16c  unified, K = 20 dB, v = 0, 1000 trials; mean SINR dB ± SE vs L
+algo                     L=2          L=3          L=4          L=5          L=6          L=7          L=8          L=9         L=10         L=11         L=12         L=13         L=14         L=15         L=16
+MMSE-P          24.05 ± 0.16 25.98 ± 0.08 25.91 ± 0.06 25.13 ± 0.06 23.90 ± 0.08 21.87 ± 0.10 17.37 ± 0.17 21.45 ± 0.10 23.09 ± 0.07 24.15 ± 0.06 24.80 ± 0.05 25.34 ± 0.05 25.76 ± 0.04 26.00 ± 0.04 26.24 ± 0.04
+               step L = 8 -> 9: 4.08 ± 0.16 dB
+MMSE-M           3.17 ± 0.18  3.30 ± 0.12  0.76 ± 0.12 -2.47 ± 0.14 -5.54 ± 0.16 -8.23 ± 0.17-10.40 ± 0.17 -9.83 ± 0.16 -9.51 ± 0.17 -9.16 ± 0.17 -8.97 ± 0.16 -8.61 ± 0.16 -8.43 ± 0.15 -8.24 ± 0.15 -8.06 ± 0.15
+               step L = 8 -> 9: 0.57 ± 0.14 dB
+SMI signalFree  16.19 ± 0.19 20.38 ± 0.12 22.27 ± 0.09 23.12 ± 0.07 23.24 ± 0.07 22.75 ± 0.08 21.41 ± 0.10 23.15 ± 0.07 24.14 ± 0.06 24.81 ± 0.05 25.31 ± 0.05 25.71 ± 0.04 26.03 ± 0.04 26.25 ± 0.04 26.45 ± 0.03
+               step L = 8 -> 9: 1.74 ± 0.08 dB
+
+====================================================================================================
+T17  pointing error: delta_theta = 0 unchanged; sample SMI converges to the population solution; monotone loss; sweeps (info)
+====================================================================================================
+T17a  delta_theta = 0 explicit: max |difference| to the golden snapshot over 12 cases = 0.00e+0
+
+T17b  population solution from the path model vs sample SMI (L = 20000), K = 20 dB, v = 0, 100 realisations per cell; paired SINR difference (sample - population) [dB]
+trainMode   delta deg      population   sample L=20000   mean diff       SE result
+signalFree  0            28.87 ± 0.04     28.87 ± 0.04     -0.0022   0.0003 PASS (compared with the theory -0.00152 dB)
+signalFree  1            28.80 ± 0.04     28.80 ± 0.04     -0.0026   0.0006 PASS (compared with the theory -0.00152 dB)
+signalFree  3            28.23 ± 0.04     28.23 ± 0.04     -0.0026   0.0016 PASS 
+signalFree  5            27.06 ± 0.05     27.06 ± 0.05     -0.0015   0.0031 PASS 
+withSignal  0            -5.20 ± 0.33     -5.21 ± 0.33     -0.0106   0.0097 PASS 
+withSignal  1           -11.82 ± 0.23    -11.84 ± 0.23     -0.0140   0.0177 PASS 
+withSignal  3           -21.02 ± 0.10    -21.07 ± 0.11     -0.0468   0.0482 PASS 
+withSignal  5           -26.10 ± 0.08    -26.19 ± 0.11     -0.0943   0.0862 PASS 
+
+T17b2  (info) expected finite-L loss at L = 20000, N = 8: 10 log10((L+2-N)/(L+1)) = -0.00152 dB;  mean of dB values: -0.00152 dB
+trainMode   delta deg     measured       SE  theory (mean dB)  measured - theory       z applicable
+signalFree  0              -0.0022   0.0003           -0.0015            -0.0007   -2.07 yes
+signalFree  1              -0.0026   0.0006           -0.0015            -0.0011   -1.78 approximately (delta != 0)
+signalFree  3              -0.0026   0.0016           -0.0015            -0.0011   -0.68 approximately (delta != 0)
+signalFree  5              -0.0015   0.0031           -0.0015             0.0000    0.00 approximately (delta != 0)
+withSignal  0              -0.0106   0.0097           -0.0015            -0.0090   -0.94 no (target in the training data)
+withSignal  1              -0.0140   0.0177           -0.0015            -0.0125   -0.71 no (target in the training data)
+withSignal  3              -0.0468   0.0482           -0.0015            -0.0452   -0.94 no (target in the training data)
+withSignal  5              -0.0943   0.0862           -0.0015            -0.0927   -1.08 no (target in the training data)
+
+T17c  signalFree SMI, L = 100: mean SINR vs |delta_theta|: 0°: 28.59 ± 0.01 | 1°: 28.52 ± 0.01 | 2°: 28.30 ± 0.02 | 3°: 27.94 ± 0.02 | 5°: 26.77 ± 0.02 | 7°: 24.95 ± 0.03 | 10°: 20.56 ± 0.06
+
+T17d  signalFree, L = 100, 1000 trials; mean SINR dB ± SE vs delta_theta
+algo                 -5        -4.5          -4        -3.5          -3        -2.5          -2        -1.5          -1        -0.5           0         0.5           1         1.5           2         2.5           3         3.5           4         4.5           5
+SMI            26.8±0.0    27.2±0.0    27.5±0.0    27.7±0.0    28.0±0.0    28.2±0.0    28.3±0.0    28.4±0.0    28.5±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.5±0.0    28.4±0.0    28.3±0.0    28.2±0.0    28.0±0.0    27.7±0.0    27.4±0.0    27.1±0.0    26.8±0.0
+DL             27.1±0.0    27.5±0.0    27.8±0.0    28.0±0.0    28.2±0.0    28.4±0.0    28.6±0.0    28.7±0.0    28.8±0.0    28.8±0.0    28.9±0.0    28.8±0.0    28.8±0.0    28.7±0.0    28.6±0.0    28.4±0.0    28.2±0.0    28.0±0.0    27.7±0.0    27.4±0.0    27.1±0.0
+BEAMSPACE      28.6±0.0    28.6±0.0    28.7±0.0    28.7±0.0    28.7±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.8±0.0    28.7±0.0    28.7±0.0    28.7±0.0    28.6±0.0    28.5±0.0    28.5±0.0
+MMSE-M        -21.5±0.2   -21.2±0.2   -20.8±0.2   -20.3±0.2   -19.6±0.2   -18.6±0.2   -17.1±0.1   -14.9±0.1   -11.9±0.1    -8.0±0.1    -5.5±0.1    -8.0±0.1   -12.1±0.1   -15.2±0.1   -17.3±0.1   -18.7±0.2   -19.7±0.2   -20.3±0.2   -20.8±0.2   -21.2±0.2   -21.5±0.2
+MMSE-P         28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0
+
+T17d  withSignal, L = 100, 1000 trials; mean SINR dB ± SE vs delta_theta
+algo                 -5        -4.5          -4        -3.5          -3        -2.5          -2        -1.5          -1        -0.5           0         0.5           1         1.5           2         2.5           3         3.5           4         4.5           5
+SMI           -21.5±0.2   -21.2±0.2   -20.8±0.2   -20.3±0.2   -19.6±0.2   -18.6±0.2   -17.1±0.1   -14.9±0.1   -11.9±0.1    -8.0±0.1    -5.5±0.1    -8.0±0.1   -12.1±0.1   -15.2±0.1   -17.3±0.1   -18.7±0.2   -19.7±0.2   -20.3±0.2   -20.8±0.2   -21.2±0.2   -21.5±0.2
+DL             -5.1±0.0    -4.0±0.0    -2.8±0.0    -1.5±0.0    -0.1±0.0     1.5±0.0     3.4±0.0     5.7±0.1     8.6±0.1    12.0±0.1    13.9±0.1    12.0±0.1     8.6±0.1     5.6±0.1     3.3±0.0     1.3±0.0    -0.3±0.0    -1.8±0.0    -3.1±0.0    -4.2±0.0    -5.4±0.0
+BEAMSPACE     -15.8±0.1   -15.1±0.1   -14.2±0.1   -13.1±0.1   -11.8±0.1   -10.4±0.1    -8.5±0.1    -6.1±0.1    -2.7±0.1     2.6±0.1     6.9±0.2     2.4±0.1    -3.0±0.1    -6.7±0.1    -9.3±0.1   -11.3±0.1   -13.0±0.1   -14.4±0.1   -15.5±0.1   -16.5±0.1   -17.4±0.1
+MMSE-M        -21.5±0.2   -21.2±0.2   -20.8±0.2   -20.3±0.2   -19.6±0.2   -18.6±0.2   -17.1±0.1   -14.9±0.1   -11.9±0.1    -8.0±0.1    -5.5±0.1    -8.0±0.1   -12.1±0.1   -15.2±0.1   -17.3±0.1   -18.7±0.2   -19.7±0.2   -20.3±0.2   -20.8±0.2   -21.2±0.2   -21.5±0.2
+MMSE-P         28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0    28.6±0.0
+
+T17d  signalFree, L = 12, 1000 trials; mean SINR dB ± SE vs delta_theta
+algo                 -5        -4.5          -4        -3.5          -3        -2.5          -2        -1.5          -1        -0.5           0         0.5           1         1.5           2         2.5           3         3.5           4         4.5           5
+SMI            23.6±0.1    23.9±0.1    24.2±0.1    24.5±0.1    24.7±0.1    24.9±0.1    25.0±0.1    25.2±0.0    25.3±0.0    25.3±0.0    25.3±0.0    25.3±0.0    25.2±0.0    25.2±0.0    25.0±0.1    24.9±0.1    24.7±0.1    24.4±0.1    24.2±0.1    23.8±0.1    23.5±0.1
+DL             26.8±0.0    27.1±0.0    27.4±0.0    27.7±0.0    27.9±0.0    28.1±0.0    28.2±0.0    28.4±0.0    28.5±0.0    28.5±0.0    28.5±0.0    28.5±0.0    28.4±0.0    28.4±0.0    28.2±0.0    28.1±0.0    27.9±0.0    27.6±0.0    27.4±0.0    27.1±0.0    26.7±0.0
+BEAMSPACE      27.9±0.0    28.0±0.0    28.0±0.0    28.0±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.1±0.0    28.0±0.0    28.0±0.0    27.9±0.0    27.9±0.0    27.8±0.0
+MMSE-M        -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.4±0.2   -13.2±0.2   -13.0±0.2   -12.6±0.2   -11.8±0.2   -10.1±0.2    -8.7±0.2   -10.3±0.2   -12.1±0.2   -12.8±0.2   -13.2±0.2   -13.3±0.2   -13.4±0.2   -13.4±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2
+MMSE-P         24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1
+
+T17d  withSignal, L = 12, 1000 trials; mean SINR dB ± SE vs delta_theta
+algo                 -5        -4.5          -4        -3.5          -3        -2.5          -2        -1.5          -1        -0.5           0         0.5           1         1.5           2         2.5           3         3.5           4         4.5           5
+SMI           -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.4±0.2   -13.2±0.2   -13.0±0.2   -12.6±0.2   -11.8±0.2   -10.1±0.2    -8.7±0.2   -10.3±0.2   -12.1±0.2   -12.8±0.2   -13.2±0.2   -13.3±0.2   -13.4±0.2   -13.4±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2
+DL             -4.5±0.1    -3.5±0.1    -2.4±0.1    -1.2±0.1     0.1±0.1     1.5±0.1     3.1±0.1     5.0±0.1     7.1±0.1     9.1±0.1    10.0±0.1     9.1±0.1     7.0±0.1     4.9±0.1     3.0±0.1     1.3±0.1    -0.2±0.1    -1.5±0.1    -2.8±0.1    -3.9±0.1    -5.0±0.1
+BEAMSPACE     -12.0±0.2   -11.8±0.2   -11.5±0.2   -11.1±0.2   -10.5±0.2    -9.7±0.2    -8.5±0.2    -6.6±0.1    -3.6±0.1     0.8±0.1     4.0±0.1     0.9±0.1    -3.8±0.1    -7.2±0.1    -9.2±0.2   -10.6±0.2   -11.3±0.2   -11.9±0.2   -12.2±0.2   -12.4±0.2   -12.6±0.2
+MMSE-M        -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2   -13.4±0.2   -13.2±0.2   -13.0±0.2   -12.6±0.2   -11.8±0.2   -10.1±0.2    -8.7±0.2   -10.3±0.2   -12.1±0.2   -12.8±0.2   -13.2±0.2   -13.3±0.2   -13.4±0.2   -13.4±0.2   -13.5±0.2   -13.5±0.2   -13.5±0.2
+MMSE-P         24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1    24.8±0.1
+
+T17d  K = 40 dB (nearly pure LoS), SMI, L = 100: signalFree vs withSignal, and the gap
+delta deg      signalFree     withSignal      gap
+0            28.62 ± 0.00    9.42 ± 0.06    19.21
+0.5          28.60 ± 0.00   -5.43 ± 0.04    34.04
+1            28.55 ± 0.00  -11.40 ± 0.08    39.94
+1.5          28.46 ± 0.01  -14.94 ± 0.12    43.39
+2            28.33 ± 0.01  -17.24 ± 0.15    45.57
+3            27.97 ± 0.01  -19.72 ± 0.17    47.69
+4            27.45 ± 0.01  -20.83 ± 0.17    48.29
+5            26.79 ± 0.02  -21.45 ± 0.17    48.24
+
+T17e  withSignal, delta_theta = 3 deg, L = 100, DL: gamma_rel [dB] -> SINR [dB]: -10: -19.37 | -8: -19.05 | -6: -18.57 | -4: -17.78 | -2: -16.61 | 0: -14.96 | 2: -12.75 | 4: -10.09 | 6: -7.06 | 8: -3.76 | 10: -0.28 | 12: 3.30 | 14: 6.88 | 16: 10.31 | 18: 13.44 | 20: 16.06 | 22: 18.04 | 24: 19.39 | 26: 20.18 | 28: 20.51 | 30: 20.31   best gamma_rel = 28 dB
+
+====================================================================================================
+T18  DOA spectra: MUSIC peak position (noise-free), peak count, error vs L and separation (info)
+====================================================================================================
+T18a  (theta1, theta2) = (-20, 40): rank 2, MUSIC peaks -20.0, 40.0; errors 0.00 / 0.00 deg
+T18a  (theta1, theta2) = (10, -50): rank 2, MUSIC peaks -50.0, 10.0; errors 0.00 / 0.00 deg
+T18a  (theta1, theta2) = (-5, 25): rank 2, MUSIC peaks 25.0, -5.0; errors 0.00 / 0.00 deg
+T18b  (-20, 40), SNR 40 dB: peaks within 30 dB of the maximum: MUSIC 2, Capon 2
+T18b  (10, -50), SNR 40 dB: peaks within 30 dB of the maximum: MUSIC 2, Capon 2
+
+T18c  K = 20 dB, SNR 20 dB, withSignal, 500 trials; mean |error| [deg] of the peak nearest to the true angle (MUSIC target / MUSIC jammer / Capon target / Capon jammer)
+vs L (theta1 = 0, theta2 = 40):
+L               MUSIC T         MUSIC J         Capon T         Capon J
+4           0.23 ± 0.01     0.00 ± 0.00     0.37 ± 0.02     0.03 ± 0.01
+8           0.22 ± 0.01     0.00 ± 0.00     0.32 ± 0.02     0.01 ± 0.00
+12          0.22 ± 0.01     0.00 ± 0.00     0.24 ± 0.01     0.00 ± 0.00
+24          0.21 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+48          0.20 ± 0.01     0.00 ± 0.00     0.20 ± 0.01     0.00 ± 0.00
+100         0.22 ± 0.01     0.00 ± 0.00     0.20 ± 0.01     0.00 ± 0.00
+vs separation (theta1 = 0, L = 100):
+theta2            MUSIC T         MUSIC J         Capon T         Capon J
+5             1.29 ± 0.07     0.00 ± 0.00     1.85 ± 0.09     0.00 ± 0.00
+10            0.33 ± 0.01     0.00 ± 0.00     0.34 ± 0.01     0.00 ± 0.00
+20            0.21 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+40            0.22 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+
+====================================================================================================
+T19  i18n coverage and tooltips; experiment presets (parameters, runs, measured numbers and stated phenomena)
+====================================================================================================
+T19a  285 Chinese phrases in index.html, 288 entries; missing: none
+T19a  tooltips: 72; too long / empty: none; ids not found in the page: none
+T19a  UI keys differing between languages: none; empty UI strings: none; experiment text problems: none
+T19c  computations of the 5 presets: ran without exception, all values finite
+T19d  re-measured 142 numbers: largest difference to experiment_numbers.js = 0.00e+0 ()
+T19d  holds  E0: MMSE-M, MVDR B and MVDR A with the theoretical covariance are within 0.1 dB of SINR_opt
+T19d  holds  E0: with the sample covariance and the target in the training data (MMSE-M, SMI) the SINR is more than 10 dB below the theory
+T19d  holds  E0: SMI trained without the target (sample covariance) stays within 0.5 dB of the theory
+T19d  holds  E0: the output scaling bias is 0 for MVDR and > 0 but < 1e-3 for MMSE with the theoretical covariance
+T19d  holds  E0: the raw EVM with the theoretical covariance is below 2 %
+T19d  holds  E1: 28 GHz/120 kHz stays below the 16-QAM threshold (13.14 %) up to 300 km/h
+T19d  holds  E1: 5 GHz/15 kHz crosses 13.14 % at some speed <= 300 km/h
+T19d  holds  E1: EVM rises with speed and stays within 1.5 points of the ICI limit at 300 km/h (both pairs)
+T19d  holds  E2: rank of R_hat = 4 < N = 8
+T19d  holds  E2: DL and BEAMSPACE are above SMI at L = 4
+T19d  holds  E3: SMI and DL drop by more than 10 dB from 0 to 3 degrees, MMSE-P changes by < 0.05 dB
+T19d  holds  E3: SMI without the signal in the training data is far above SMI with it (0 degrees)
+T19d  holds  E4: signalFree falls slowly (0 > 3 > 5 degrees, total < 5 dB), withSignal falls steeply (0 > 1 > 3 degrees, > 10 dB)
+T19d  holds  E5: SINR falls with tau for SMI and DL (0 > 5 > 10 ms) at d_min = 30 m and 5 m
+T19d  holds  E6: delta_theta_eff grows with the speed and stays below 10 % of the 3 dB beamwidth
+T19d  holds  E6: SMI (signalFree) and DL (signalFree) fall from 0 to 300 km/h, MMSE-P drops by more than 20 dB
+T19d  holds  E6: SMI withSignal rises first (peak strictly between 0 and 300 km/h, > 5 dB above its 0 km/h value) and is lower at 300 km/h than at the peak
+T19d  holds  E6: the ICI floor is above the SMI (signalFree) aging loss from the first non-zero speed of the sweep (25 km/h)
+T19d  holds  E6: over the S1 grid (docs/diagnostics/s1_sensitivity.csv) the aging loss reaches the ICI loss in no cell
+T19d  holds  E6: with tau = 0, SMI signalFree at 300 km/h is within 0.5 dB of its 0 km/h value and SMI withSignal is > 5 dB above its 0 km/h value
+
+====================================================================================================
+T20  MATLAB data files: reproducible export, weights recomputed from the exported data, CSV columns and standard errors (MATLAB scripts not run here)
+====================================================================================================
+T20a  make_matlab_cases twice: 1378899 characters, identical: true
+T20b  23 cases x 6 algorithms = 138: max relative weight difference 0.00e+0, max SINR difference 1.92e-13 dB, max SINR_opt difference 0.00e+0 dB
+T20c  curve_evm_vs_velocity.csv: 372 rows, columns fc_GHz delta_f_kHz velocity_kmh algorithm evm_mean_pct evm_se_pct ici_floor_evm_pct ici_floor_se_pct n_trials; README lists the same columns: true; bad rows: 0; header comments complete: true
+T20c  curve_sinr_vs_L.csv: 470 rows, columns train_mode L algorithm sinr_mean_dB sinr_se_dB n_trials; README lists the same columns: true; bad rows: 0; header comments complete: true
+T20c  curve_sinr_vs_delta_theta.csv: 504 rows, columns train_mode L delta_theta_deg algorithm sinr_mean_dB sinr_se_dB n_trials; README lists the same columns: true; bad rows: 0; header comments complete: true
+T20c  curve_doa_spectrum.csv: 361 rows, columns angle_deg capon_single_dB music_single_dB capon_mean_dB capon_se_dB music_mean_dB music_se_dB n_trials; README lists the same columns: true; bad rows: 0; header comments complete: true
+T20e  missing files: none; header problems: none
+T20f  reference solutions on 10 cases: passed 5 / 5; largest errors 5.30e-16 / 0.00e+0 / 1.42e-14 / 1.42e-14 / 2.13e-14; skipped (ex3, L < N): 2
+T20f  mistake "ex1: sign of the phase flipped": exercise 1 rejected, other exercises unaffected
+T20f  mistake "ex1: forgot 2*pi": exercise 1 rejected, other exercises unaffected
+T20f  mistake "ex1: degrees not converted to radians": exercise 1 rejected, other exercises unaffected
+T20f  mistake "ex2: forgot the division by L": exercise 2 rejected, other exercises unaffected
+T20f  mistake "ex2: conjugate on the wrong side (R transposed)": exercise 2 rejected, other exercises unaffected
+T20f  mistake "ex3: not normalised (w = R^-1 a)": exercise 3 rejected, other exercises unaffected
+T20f  mistake "ex3: R instead of R^-1": exercise 3 rejected, other exercises unaffected
+T20f  mistake "ex4: 20*log10 instead of 10*log10": exercise 4 rejected, other exercises unaffected
+T20f  mistake "ex4: forgot the noise term": exercise 4 rejected, other exercises unaffected
+T20f  mistake "ex4: forgot ||w||^2 in the noise term": exercise 4 rejected, other exercises unaffected
+T20f  mistake "ex5: gamma without sigma^2": exercise 5 rejected, other exercises unaffected
+T20f  mistake "ex5: loading added to the whole matrix": exercise 5 rejected, other exercises unaffected
+
+====================================================================================================
+T21  lecture baseline: MMSE (theory R) = MVDR B direction, SINR at SINR_opt, raw EVM bias, MUSIC angle source (info)
+====================================================================================================
+T21a  E0: direction residual 1.98e-16, |w_MMSE - Es (a^H R^-1 a) w_B| / |w_MMSE| = 1.15e-13; a^H R^-1 a = 0.9999 (Es / (a^H R^-1 a) = 1.000127 is the factor in the other direction: w_B = w_MMSE / (Es a^H R^-1 a))
+T21b  E0, 50 realisations: SINR(MMSE-M theory) - SINR_opt: mean -1.14e-15, largest |difference| 7.11e-15 dB (SINR_opt = 38.97 dB)
+T21c  one user, no interferer, no noise: MVDR raw EVM = 1.67e-16, |g' - 1| = 1.67e-16
+T21c  MMSE (SNR 60 dB, one user): |g' - 1| = 1.25e-7;  |1 - Es a^H R^-1 a| = 1.25e-7;  sigma^2/(N + sigma^2) = 1.25e-7;  raw EVM = 0.0354 %
+
+T21d  angleSource = music (SMI, DL, BEAMSPACE, MMSE-M), 300 trials, K = 20 dB, theta1 = 0, theta2 = 40; mean SINR dB (nominal angle / MUSIC angle)
+  signalFree: SINR vs L
+  algo                      L=4               L=8              L=12              L=24              L=48             L=100
+  SMI               22.4 / 22.4       21.7 / 21.7       25.4 / 25.4       27.5 / 27.5       28.2 / 28.3       28.6 / 28.6
+  DL                27.9 / 27.9       28.4 / 28.4       28.6 / 28.6       28.7 / 28.7       28.8 / 28.8       28.9 / 28.9
+  BEAMSPACE         26.4 / 26.4       27.8 / 27.8       28.2 / 28.2       28.5 / 28.5       28.7 / 28.7       28.8 / 28.8
+  MMSE-M              0.8 / 1.3     -10.0 / -10.1       -8.7 / -8.4       -6.7 / -6.0       -6.1 / -5.1       -5.5 / -4.5
+  signalFree: SINR vs SNR (L = 100)
+  algo                    SNR 0            SNR 10            SNR 20            SNR 30            SNR 40
+  SMI                 8.6 / 8.6       18.6 / 18.6       28.6 / 28.6       38.6 / 38.6       48.6 / 48.6
+  DL                  8.7 / 8.7       18.8 / 18.8       28.8 / 28.8       38.8 / 38.8       48.8 / 48.8
+  BEAMSPACE           8.8 / 8.8       18.8 / 18.8       28.8 / 28.8       38.8 / 38.8       48.8 / 48.8
+  MMSE-M              5.7 / 6.0         3.2 / 4.0       -5.8 / -4.9     -15.4 / -14.7     -21.4 / -21.0
+  withSignal: SINR vs L
+  algo                      L=4               L=8              L=12              L=24              L=48             L=100
+  SMI                 0.8 / 1.3     -10.0 / -10.1       -8.7 / -8.4       -6.7 / -6.0       -6.1 / -5.1       -5.5 / -4.5
+  DL                  6.4 / 6.5         9.2 / 9.5       10.1 / 10.5       11.7 / 12.2       13.0 / 13.6       14.0 / 14.7
+  BEAMSPACE           0.1 / 0.2         3.1 / 3.2         4.1 / 4.2         5.6 / 5.6         6.6 / 6.5         7.3 / 7.2
+  MMSE-M              0.8 / 1.3     -10.0 / -10.1       -8.7 / -8.4       -6.7 / -6.0       -6.1 / -5.1       -5.5 / -4.5
+  withSignal: SINR vs SNR (L = 100)
+  algo                    SNR 0            SNR 10            SNR 20            SNR 30            SNR 40
+  SMI                 5.7 / 6.0         3.2 / 4.0       -5.8 / -4.9     -15.4 / -14.7     -21.4 / -21.0
+  DL                  8.4 / 8.4       15.7 / 15.9       13.8 / 14.5         5.3 / 6.3       -4.5 / -3.5
+  BEAMSPACE           8.1 / 8.1       12.9 / 13.0         7.1 / 7.3       -2.4 / -2.4     -12.5 / -12.5
+  MMSE-M              5.7 / 6.0         3.2 / 4.0       -5.8 / -4.9     -15.4 / -14.7     -21.4 / -21.0
+  L = 100: |error theta1| median 0.00°, 90 % 0.50°, 99 % 1.00°; |error theta2| median 0.00°, 99 % 0.00°; SINR loss (nominal - MUSIC) by error bin: 0-0.01°: n=353, mean loss 0.00 dB | 0.01-0.3°: n=0, mean loss - dB | 0.3-0.6°: n=237, mean loss -0.01 dB | 0.6-90°: n=10, mean loss -0.03 dB
+  L = 12: |error theta1| median 0.00°, 90 % 0.50°, 99 % 1.00°; |error theta2| median 0.00°, 99 % 0.00°; SINR loss (nominal - MUSIC) by error bin: 0-0.01°: n=344, mean loss 0.00 dB | 0.01-0.3°: n=0, mean loss - dB | 0.3-0.6°: n=249, mean loss 0.01 dB | 0.6-90°: n=7, mean loss 0.14 dB
+
+====================================================================================================
+T22  pointing mode 'mobility': delta_theta_eff = 0 at v = 0 and identical to manual 0; independent geometry; SINR vs delta_theta_eff (info)
+====================================================================================================
+T22a  v = 0: 60 cases mobility(slider 3 deg) vs manual(0): max |difference| = 0.00e+0; max |delta_theta_eff| = 0.0000 deg
+T22a  v = 300: 60 cases mobility(slider 3 deg) vs manual(0): max |difference| = 0.00e+0; max |delta_theta_eff| = 1.1519 deg
+T22b  432 settings: max |delta_theta_eff - independent coordinates| = 1.42e-14 deg   (worst: aoaT 45, aoaJ -30, v 300, d_min 10, tau 50 ms)
+
+T22c  mobility mode vs manual curve (v = 0, tau = 0, delta_theta = -delta_theta_eff), 300 trials, tau = 10 ms, d_min = 10 m, theta1 = 20, theta2 = -30; mean SINR dB
+algo / training       v km/h  d_eff deg  d_eff/bw3       mobility   manual(-d_eff)  diff (mob-man)     SE   mob, tau=0
+SMI signalFree           100      0.185      0.013          27.76            28.60           -0.83   0.05        28.57
+SMI signalFree           200      0.366      0.026          27.32            28.59           -1.27   0.07        28.53
+SMI signalFree           300      0.544      0.038          27.22            28.58           -1.36   0.07        28.54
+SMI withSignal           100      0.185      0.015           6.78            -5.88           12.67   0.33         0.24
+SMI withSignal           200      0.366      0.024           5.76            -6.95           12.70   0.31         4.10
+SMI withSignal           300      0.544      0.042           3.73            -8.31           12.04   0.35         6.52
+DL signalFree            100      0.185      0.013          27.84            28.86           -1.02   0.03        28.82
+DL signalFree            200      0.366      0.027          25.70            28.85           -3.16   0.05        28.70
+DL signalFree            300      0.544      0.039          23.99            28.84           -4.85   0.06        28.60
+DL withSignal            100      0.185      0.013          15.18            13.71            1.47   0.18        15.07
+DL withSignal            200      0.366      0.026          13.23            12.95            0.28   0.24        16.24
+DL withSignal            300      0.544      0.037          11.20            11.93           -0.73   0.27        16.60
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+
+T0a  T0a core.js reproduces the pre-refactor page bit for bit (seeded)   (1.4 s)
+  PASS  T0a core.js reproduces the pre-refactor page bit for bit (seeded)   value: exit 0   tolerance: exit 0
+
+T0b  T0b UI smoke test (stubbed DOM)   (7.2 s)
+  PASS  T0b UI smoke test (stubbed DOM)   value: exit 0   tolerance: exit 0
+
+T1  regression: unified vs legacy at v = 0, tau = 0 (T1a check; T1b informational decomposition)   (172.5 s)
+  PASS  T1a FOURIER: mean SINR dB, unified - legacy (K -> inf)   value: -0.000 dB   tolerance: 3*SE = 0.000 dB
+  PASS  T1a MMSE: mean SINR dB, unified - legacy (K -> inf)   value: -0.014 dB   tolerance: 3*SE = 0.160 dB
+  PASS  T1a MMSEP: mean SINR dB, unified - legacy (K -> inf)   value: -0.004 dB   tolerance: 3*SE = 0.011 dB
+  PASS  T1a SMI: mean SINR dB, unified - legacy (K -> inf)   value: -0.054 dB   tolerance: 3*SE = 0.161 dB
+  PASS  T1a DL: mean SINR dB, unified - legacy (K -> inf)   value: -0.015 dB   tolerance: 3*SE = 0.176 dB
+  PASS  T1a BEAMSPACE: mean SINR dB, unified - legacy (K -> inf)   value: -0.078 dB   tolerance: 3*SE = 0.294 dB
+
+T2  single-path invariance (K -> inf, no drift): v must not change R_hat / SINR_inst   (17.4 s)
+  PASS  T2b R_hat unchanged by v (noise-free, jammer-free)   value: 1.11e-16   tolerance: 1e-9
+  PASS  T2b SINR_inst unchanged by v (FOURIER, noise-free, jammer-free)   value: 0.00e+0   tolerance: 1e-9
+  PASS  T2c mean SINR_inst, v = 300 vs v = 0 (noise + jammer)   value: |z| = 0.98   tolerance: |z| < 3
+  PASS  T2c mean R_hat entries, v = 300 vs v = 0 (Bonferroni)   value: m = 276, z_crit = 4.1304, max |z| = 1.5150   tolerance: max |z| < z_crit (alpha = 0.01 family-wise)
+  PASS  T2d N_ICI/S = 1 - sinc^2(eps) for a single path   value: 0.00e+0   tolerance: 1e-9
+
+T3  aging: jammer-only drift (signalFree) monotone; Doppler-only invariance; MPDR tau sweep (info); FOURIER control   (357.4 s)
+  PASS  T3a d_min=5 m SMI: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 2.37 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3a d_min=5 m DL: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 9.05 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3a d_min=5 m BEAMSPACE: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 5.20 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3a d_min=30 m SMI: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 2.86 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3a d_min=30 m DL: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 4.58 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3a d_min=30 m BEAMSPACE: mean SINR_inst non-increasing in tau   value: drop 0 -> 10 ms: 3.87 dB   tolerance: each step: mean(d) <= SE(d)
+  PASS  T3b SMI: signalFree, tau = 0: mean SINR_inst at v = 300 equals v = 0   value: -0.0182 dB   tolerance: 3*SE = 0.0511 dB
+  PASS  T3b DL: signalFree, tau = 0: mean SINR_inst at v = 300 equals v = 0   value: -0.0170 dB   tolerance: 3*SE = 0.0510 dB
+  PASS  T3b BEAMSPACE: signalFree, tau = 0: mean SINR_inst at v = 300 equals v = 0   value: -0.0272 dB   tolerance: 3*SE = 0.0558 dB
+  PASS  T3d FOURIER: SINR_inst independent of tau (no adaptation)   value: 3.55e-15 dB   tolerance: 1e-9 dB
+
+T4  H1: diffuse-path ICI, sampled (M = 4096) vs numerical integral; legacy isotropic formula   (0.1 s)
+  PASS  T4 theta1=0 deg, v=100: sampled vs integral   value: 0.03 % = 0.41 SE   tolerance: < 3 SE (SE = 2.00e-6, 0.07 %)
+  PASS  T4 theta1=0 deg, v=300: sampled vs integral   value: 0.03 % = 0.41 SE   tolerance: < 3 SE (SE = 1.77e-5, 0.07 %)
+  PASS  T4 theta1=0 deg, v=500: sampled vs integral   value: 0.03 % = 0.41 SE   tolerance: < 3 SE (SE = 4.73e-5, 0.06 %)
+  PASS  T4 theta1=30 deg, v=100: sampled vs integral   value: 0.03 % = 0.09 SE   tolerance: < 3 SE (SE = 7.15e-6, 0.31 %)
+  PASS  T4 theta1=30 deg, v=300: sampled vs integral   value: 0.03 % = 0.09 SE   tolerance: < 3 SE (SE = 6.35e-5, 0.31 %)
+  PASS  T4 theta1=30 deg, v=500: sampled vs integral   value: 0.03 % = 0.10 SE   tolerance: < 3 SE (SE = 1.71e-4, 0.30 %)
+  PASS  T4 theta1=60 deg, v=100: sampled vs integral   value: 0.53 % = 0.61 SE   tolerance: < 3 SE (SE = 7.15e-6, 0.87 %)
+  PASS  T4 theta1=60 deg, v=300: sampled vs integral   value: 0.53 % = 0.61 SE   tolerance: < 3 SE (SE = 6.40e-5, 0.86 %)
+  PASS  T4 theta1=60 deg, v=500: sampled vs integral   value: 0.53 % = 0.62 SE   tolerance: < 3 SE (SE = 1.76e-4, 0.86 %)
+  PASS  T4 theta1=90 deg, v=100: sampled vs integral   value: 0.95 % = 0.45 SE   tolerance: < 3 SE (SE = 1.94e-6, 2.11 %)
+  PASS  T4 theta1=90 deg, v=300: sampled vs integral   value: 0.95 % = 0.45 SE   tolerance: < 3 SE (SE = 1.74e-5, 2.11 %)
+  PASS  T4 theta1=90 deg, v=500: sampled vs integral   value: 0.94 % = 0.45 SE   tolerance: < 3 SE (SE = 4.82e-5, 2.11 %)
+
+T5  time-domain OFDM chain: leakage vs 1 - |D|^2 (single path) and the non-coherent two-path approximation   (0.5 s)
+  PASS  T5a eps=0.02: measured leakage vs 1 - |D|^2 (N=64)   value: 0.00 %   tolerance: < 1 %
+  PASS  T5a eps=0.05: measured leakage vs 1 - |D|^2 (N=64)   value: 0.08 %   tolerance: < 1 %
+  PASS  T5a eps=0.1: measured leakage vs 1 - |D|^2 (N=64)   value: 0.18 %   tolerance: < 1 %
+  PASS  T5a eps=0.15: measured leakage vs 1 - |D|^2 (N=64)   value: 0.08 %   tolerance: < 1 %
+  PASS  T5a eps=0.2: measured leakage vs 1 - |D|^2 (N=64)   value: 0.24 %   tolerance: < 1 %
+  PASS  T5a eps=0.3: measured leakage vs 1 - |D|^2 (N=64)   value: 0.02 %   tolerance: < 1 %
+  PASS  T5c two paths: measured leakage vs sum q_i (1-|D_i|^2)   value: 1.83 %   tolerance: < 3 %
+
+T6  gamma_rel sweep of DL (informational): K = 20 dB, v = 0   (71.6 s)
+
+T7  straight-track geometry: trackAngle / trackRate vs explicit coordinates, sign consistency, drift read-outs   (0.0 s)
+  PASS  T7a trackAngle equals the coordinate geometry   value: 2.22e-16 rad   tolerance: 1e-9 rad
+  PASS  T7b trackRate equals d(theta)/dt of the coordinate geometry   value: 5.99e-11   tolerance: 1e-6
+  PASS  T7c drift direction and Doppler sign are consistent   value: consistent   tolerance: consistent
+  PASS  T7d drift read-outs vanish without drift and are positive with it   value: 0.00e+0 / 1.005 deg   tolerance: 0 / > 0
+
+T8  integrated Doppler phase: closed form vs numerical integral, explicit coordinates, d_min -> infinity   (0.3 s)
+  PASS  T8a closed-form phase vs numerical integral (1e5 points)   value: 1.26e-12 rad   tolerance: 1e-9 rad
+  PASS  T8b phase equals the explicit-coordinate range difference   value: 1.77e-10 rad   tolerance: 1e-9 rad
+  PASS  T8b sign: phase grows (f_d > 0) while approaching   value: true   tolerance: true
+  PASS  T8c d_min >= 1e8 m: phase -> 2 pi f_d t   value: 1.60e-8   tolerance: < 1e-6
+  PASS  T8c deviation scales as 1/d_min (1e6 vs 1e8 m)   value: ratio 100.0   tolerance: 100 ± 10
+
+T9  fc and numerology: eps, ICI floor, T_snap, aging ratio scaling; 28 GHz / 120 kHz hand values   (0.2 s)
+  PASS  T9a eps equals v fc cos(theta)/(c df)   value: 2.16e-16   tolerance: 1e-12
+  PASS  T9b fc x2 and df x2 leave eps and the ICI floor unchanged   value: 0.00e+0   tolerance: 1e-12
+  PASS  T9c df x2: T_snap halves (rho x0.5), tau*B_D unchanged; fc x2: both x2   value: 0.500000 / 1.000000 / 2.000000 / 2.000000   tolerance: within 1e-12 of 0.5 / 1 / 2 / 2
+  PASS  T9c T_snap = (1 + CP)/df (from rho / (L B_D))   value: 0.00e+0   tolerance: 1e-12
+  PASS  T9d f_m at 28 GHz, 300 km/h   value: 7777.78 Hz   tolerance: hand 7777.78 Hz (1e-6 rel.)
+  PASS  T9d eps_m at 28 GHz, 120 kHz, 300 km/h   value: 0.0648148   tolerance: hand 0.0648148 (1e-6 rel.)
+  PASS  T9d ICI floor (K -> inf, theta = 0) vs series hand value   value: 1.37444e-2   tolerance: hand 1.37442e-2 (1e-4 rel.)
+
+T10  seed reproducibility of the sweep and of the CSV; per-point re-run; CSV schema v2   (70.0 s)
+  PASS  T10a legacy: same seed -> byte-identical CSV (timestamp row excluded)   value: true, 1 timestamp row   tolerance: true, 1
+  PASS  T10b legacy: different seed -> different CSV   value: true   tolerance: true
+  PASS  T10c legacy: single sweep point re-run alone gives the same numbers   value: |d evm| = 0.00e+0, |d sinr| = 0.00e+0   tolerance: 0 (bit-identical)
+  PASS  T10d legacy: CSV schema v2 keys present   value: missing: []   tolerance: none missing, version 2, train= and point_seed present
+  PASS  T10a unified: same seed -> byte-identical CSV (timestamp row excluded)   value: true, 1 timestamp row   tolerance: true, 1
+  PASS  T10b unified: different seed -> different CSV   value: true   tolerance: true
+  PASS  T10c unified: single sweep point re-run alone gives the same numbers   value: |d evm| = 0.00e+0, |d sinr| = 0.00e+0   tolerance: 0 (bit-identical)
+  PASS  T10d unified: CSV schema v2 keys present   value: missing: []   tolerance: none missing, version 2, train= and point_seed present
+
+T11  MMSE-M unchanged; MMSE-P within 1 dB of SINR_opt (K = 20 dB, v = 0); MMSE-P rises with L   (20.7 s)
+  PASS  T11a MMSE-M legacy: mean SINR equals the previous value   value: 12.03 dB   tolerance: 12.03 ± 3 sqrt(SE² + 0.04²) = 0.17
+  PASS  T11a MMSE-M unified: mean SINR equals the previous value   value: -5.63 dB   tolerance: -5.63 ± 3 sqrt(SE² + 0.08²) = 0.33
+  PASS  T11b MMSE-P unified (withSignal): SINR - SINR_opt   value: -0.32 dB   tolerance: > -1 dB
+  PASS  T11b MMSE-P unified (signalFree): SINR - SINR_opt   value: -0.32 dB   tolerance: > -1 dB
+  PASS  T11c MMSE-P unified: mean SINR rises with L   value: 25.45 -> 28.60 dB   tolerance: L >= N + 2 only (12, 24, 48, 100); each step: decrease <= SE(d)
+
+T12  SMI in the small-snapshot region: pinv vs direct inverse, constraint, SINR vs L (info), DL independent of smiSingular   (121.6 s)
+  PASS  T12a L=24: pinv weights equal the direct-inverse weights   value: 1.55e-12   tolerance: 1e-9
+  PASS  T12a L=24: default SMI weights (rank N) are the direct-inverse weights   value: 0.00e+0   tolerance: 1e-12
+  PASS  T12a L=48: pinv weights equal the direct-inverse weights   value: 1.19e-12   tolerance: 1e-9
+  PASS  T12a L=48: default SMI weights (rank N) are the direct-inverse weights   value: 0.00e+0   tolerance: 1e-12
+  PASS  T12a L=100: pinv weights equal the direct-inverse weights   value: 2.32e-12   tolerance: 1e-9
+  PASS  T12a L=100: default SMI weights (rank N) are the direct-inverse weights   value: 0.00e+0   tolerance: 1e-12
+  PASS  T12b L=2: w^H a(theta_hat_1) = 1 with the pinv weights   value: 4.44e-16   tolerance: 1e-9 (fallbacks 0/50)
+  PASS  T12b L=4: w^H a(theta_hat_1) = 1 with the pinv weights   value: 1.12e-15   tolerance: 1e-9 (fallbacks 0/50)
+  PASS  T12b L=6: w^H a(theta_hat_1) = 1 with the pinv weights   value: 1.83e-15   tolerance: 1e-9 (fallbacks 0/50)
+  PASS  T12d legacy L=2: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T12d legacy L=4: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T12d legacy L=6: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T12d unified L=2: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T12d unified L=4: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T12d unified L=6: DL weights identical for smiSingular pinv / clamp   value: 0.00e+0   tolerance: 0 (exact)
+
+T13  symbol-level EVM vs the analytic sqrt(1/SINR + N_ICI/S); no-impairment limit; SER closed form (info)   (45.9 s)
+  PASS  T13a signalFree, v = 0: combined z of 10 blocks of mean EVM_meas / EVM_analytic - 1   value: Z = 0.18 (pooled 0.0035 %, SE 0.0167 %; block z sd 0.70)   tolerance: |Z| <= 3
+  PASS  T13a signalFree, v = 300: combined z of 10 blocks of mean EVM_meas / EVM_analytic - 1   value: Z = 1.31 (pooled 0.0221 %, SE 0.0163 %; block z sd 1.40)   tolerance: |Z| <= 3
+  PASS  T13a withSignal, v = 0: combined z of 10 blocks of mean EVM_meas / EVM_analytic - 1   value: Z = 0.09 (pooled 0.0020 %, SE 0.0168 %; block z sd 0.70)   tolerance: |Z| <= 3
+  PASS  T13a withSignal, v = 300: combined z of 10 blocks of mean EVM_meas / EVM_analytic - 1   value: Z = 0.06 (pooled 0.0012 %, SE 0.0167 %; block z sd 0.60)   tolerance: |Z| <= 3
+  PASS  T13b ideal chain: EVM_meas   value: 3.81e-21   tolerance: < 1e-9
+  PASS  T13c QAM16 Gaussian interferer, EVM 12.5 %: MC SER vs closed form   value: 4.5 % (MC 5.46e-4, closed 5.22e-4)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+  PASS  T13c QAM16 Gaussian interferer, EVM 15.0 %: MC SER vs closed form   value: -0.9 % (MC 4.27e-3, closed 4.31e-3)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+  PASS  T13c QAM64 Gaussian interferer, EVM 7.5 %: MC SER vs closed form   value: -0.4 % (MC 6.32e-3, closed 6.34e-3)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+  PASS  T13c QAM64 Gaussian interferer, EVM 10.0 %: MC SER vs closed form   value: -0.1 % (MC 5.03e-2, closed 5.04e-2)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+  PASS  T13c QAM64 Gaussian interferer, EVM 12.5 %: MC SER vs closed form   value: -0.2 % (MC 1.36e-1, closed 1.37e-1)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+  PASS  T13c QAM64 Gaussian interferer, EVM 15.0 %: MC SER vs closed form   value: -0.2 % (MC 2.38e-1, closed 2.39e-1)   tolerance: |rel. diff| < 10 % (>= 200 expected errors)
+
+T14  golden snapshot of the default settings (unified, signalFree): SINR / EVM / SINR_opt / SER   (0.1 s)
+  PASS  T14 default settings (model, trainMode, smiSingular, gammaRelDb, d_min, fc, df)   value: {"model":"unified","trainMode":"signalFree","smiSingular":"pinv","gammaRelDb":10,"d_min":30,"fc":5000000000,"scs":15000}   tolerance: equal to the golden file
+  PASS  T14 default(signalFree)/FOURIER   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 default(signalFree)/MMSE   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 default(signalFree)/MMSEP   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 default(signalFree)/SMI   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 default(signalFree)/DL   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 default(signalFree)/BEAMSPACE   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/FOURIER   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/MMSE   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/MMSEP   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/SMI   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/DL   value: 0.00e+0   tolerance: < 1e-9 (relative)
+  PASS  T14 withSignal/BEAMSPACE   value: 0.00e+0   tolerance: < 1e-9 (relative)
+
+T16  relative pivot threshold vs the old absolute one; MMSE with the pseudo-inverse for L < N; SINR vs L (info)   (29.9 s)
+  PASS  T16a L=8: trials where the old threshold did not act give a bit-identical inverse   value: 1995 identical, 0 differing   tolerance: 0 differing
+  PASS  T16a L=9: trials where the old threshold did not act give a bit-identical inverse   value: 2000 identical, 0 differing   tolerance: 0 differing
+  PASS  T16a L=12: trials where the old threshold did not act give a bit-identical inverse   value: 2000 identical, 0 differing   tolerance: 0 differing
+  PASS  T16a L=24: trials where the old threshold did not act give a bit-identical inverse   value: 2000 identical, 0 differing   tolerance: 0 differing
+  PASS  T16a L=100: trials where the old threshold did not act give a bit-identical inverse   value: 2000 identical, 0 differing   tolerance: 0 differing
+  PASS  T16b MMSE-P L=2: |R_hat w - r_xd| / |r_xd|   value: 4.64e-14   tolerance: < 1e-9
+  PASS  T16b MMSE-P L=4: |R_hat w - r_xd| / |r_xd|   value: 2.66e-12   tolerance: < 1e-9
+  PASS  T16b MMSE-P L=6: |R_hat w - r_xd| / |r_xd|   value: 1.28e-11   tolerance: < 1e-9
+
+T17  pointing error: delta_theta = 0 unchanged; sample SMI converges to the population solution; monotone loss; sweeps (info)   (562.6 s)
+  PASS  T17a delta_theta = 0: identical to the golden snapshot   value: 0.00e+0   tolerance: 0 (bit-identical)
+  PASS  T17b signalFree, delta = 0 deg: sample SMI (L = 20000) vs population solution   value: -0.0022 dB (SE 0.0003)   tolerance: |mean diff - (-0.00152)| <= 3 SE (population solution + Reed-Mallett-Brennan loss)
+  PASS  T17b signalFree, delta = 1 deg: sample SMI (L = 20000) vs population solution   value: -0.0026 dB (SE 0.0006)   tolerance: |mean diff - (-0.00152)| <= 3 SE (population solution + Reed-Mallett-Brennan loss)
+  PASS  T17b signalFree, delta = 3 deg: sample SMI (L = 20000) vs population solution   value: -0.0026 dB (SE 0.0016)   tolerance: |mean diff| <= 3 SE
+  PASS  T17b signalFree, delta = 5 deg: sample SMI (L = 20000) vs population solution   value: -0.0015 dB (SE 0.0031)   tolerance: |mean diff| <= 3 SE
+  PASS  T17b withSignal, delta = 0 deg: sample SMI (L = 20000) vs population solution   value: -0.0106 dB (SE 0.0097)   tolerance: |mean diff| <= 3 SE
+  PASS  T17b withSignal, delta = 1 deg: sample SMI (L = 20000) vs population solution   value: -0.0140 dB (SE 0.0177)   tolerance: |mean diff| <= 3 SE
+  PASS  T17b withSignal, delta = 3 deg: sample SMI (L = 20000) vs population solution   value: -0.0468 dB (SE 0.0482)   tolerance: |mean diff| <= 3 SE
+  PASS  T17b withSignal, delta = 5 deg: sample SMI (L = 20000) vs population solution   value: -0.0943 dB (SE 0.0862)   tolerance: |mean diff| <= 3 SE
+  PASS  T17c signalFree SMI: mean SINR decreases with |delta_theta|   value: 28.59 -> 20.56 dB   tolerance: each step: increase <= SE
+
+T18  DOA spectra: MUSIC peak position (noise-free), peak count, error vs L and separation (info)   (17.9 s)
+  PASS  T18a (-20, 40): MUSIC peak error, target / jammer   value: 0.00 / 0.00 deg   tolerance: < 0.5 deg
+  PASS  T18a (10, -50): MUSIC peak error, target / jammer   value: 0.00 / 0.00 deg   tolerance: < 0.5 deg
+  PASS  T18a (-5, 25): MUSIC peak error, target / jammer   value: 0.00 / 0.00 deg   tolerance: < 0.5 deg
+  PASS  T18b (-20, 40): number of MUSIC peaks = number of sources   value: 2   tolerance: 2
+  PASS  T18b (10, -50): number of MUSIC peaks = number of sources   value: 2   tolerance: 2
+
+T19  i18n coverage and tooltips; experiment presets (parameters, runs, measured numbers and stated phenomena)   (399.3 s)
+  PASS  T19a every Chinese phrase of the page has an English entry   value: 0 missing   tolerance: 0 missing
+  PASS  T19a no empty phrase / duplicate key in PHRASES   value: 0 empty, 0 duplicate   tolerance: 0 / 0
+  PASS  T19a tooltips: both languages, <= 40 characters   value: 0 problems   tolerance: 0
+  PASS  T19a every tooltip id exists in the page   value: 0 missing   tolerance: 0
+  PASS  T19a UI strings: same keys in both languages, none empty   value: 0 missing, 0 empty   tolerance: 0 / 0
+  PASS  T19a experiment texts: title/look/why/real in both languages, numbers filled in   value: 0 problems   tolerance: 0
+  PASS  T19b E0: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E1 (28): parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E1 (5): parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E2: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E3: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E4: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E5: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19b E6: parameters after applying   value: 25 values as expected   tolerance: all equal to the table
+  PASS  T19c presets run without exceptions (library and page code path)   value: ok   tolerance: no exception, finite values
+  PASS  T19d numbers quoted in the texts are reproduced by a new measurement   value: 0.00e+0   tolerance: <= 0.01
+  PASS  T19d stated phenomenon: E0: MMSE-M, MVDR B and MVDR A with the theoretical covariance are within 0.1 dB of SINR_opt   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E0: with the sample covariance and the target in the training data (MMSE-M, SMI) the SINR is more than 10 dB below the theory   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E0: SMI trained without the target (sample covariance) stays within 0.5 dB of the theory   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E0: the output scaling bias is 0 for MVDR and > 0 but < 1e-3 for MMSE with the theoretical covariance   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E0: the raw EVM with the theoretical covariance is below 2 %   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E1: 28 GHz/120 kHz stays below the 16-QAM threshold (13.14 %) up to 300 km/h   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E1: 5 GHz/15 kHz crosses 13.14 % at some speed <= 300 km/h   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E1: EVM rises with speed and stays within 1.5 points of the ICI limit at 300 km/h (both pairs)   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E2: rank of R_hat = 4 < N = 8   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E2: DL and BEAMSPACE are above SMI at L = 4   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E3: SMI and DL drop by more than 10 dB from 0 to 3 degrees, MMSE-P changes by < 0.05 dB   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E3: SMI without the signal in the training data is far above SMI with it (0 degrees)   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E4: signalFree falls slowly (0 > 3 > 5 degrees, total < 5 dB), withSignal falls steeply (0 > 1 > 3 degrees, > 10 dB)   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E5: SINR falls with tau for SMI and DL (0 > 5 > 10 ms) at d_min = 30 m and 5 m   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: delta_theta_eff grows with the speed and stays below 10 % of the 3 dB beamwidth   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: SMI (signalFree) and DL (signalFree) fall from 0 to 300 km/h, MMSE-P drops by more than 20 dB   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: SMI withSignal rises first (peak strictly between 0 and 300 km/h, > 5 dB above its 0 km/h value) and is lower at 300 km/h than at the peak   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: the ICI floor is above the SMI (signalFree) aging loss from the first non-zero speed of the sweep (25 km/h)   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: over the S1 grid (docs/diagnostics/s1_sensitivity.csv) the aging loss reaches the ICI loss in no cell   value: holds   tolerance: holds
+  PASS  T19d stated phenomenon: E6: with tau = 0, SMI signalFree at 300 km/h is within 0.5 dB of its 0 km/h value and SMI withSignal is > 5 dB above its 0 km/h value   value: holds   tolerance: holds
+
+T20  MATLAB data files: reproducible export, weights recomputed from the exported data, CSV columns and standard errors (MATLAB scripts not run here)   (1.9 s)
+  PASS  T20a case export is bit-identical on a second run (same seeds)   value: true   tolerance: true
+  PASS  T20a data/matlab_cases.json is the current output of the generator   value: true   tolerance: true
+  PASS  T20b weights recomputed from the exported data equal the stored weights   value: 0.00e+0   tolerance: < 1e-12 (relative)
+  PASS  T20b stored SINR equals the header formula on the stored h, a_J, w   value: 1.92e-13 dB   tolerance: < 1e-9 dB
+  PASS  T20b stored SINR_opt equals h^H R_in^-1 h on the stored h, a_J   value: 0.00e+0 dB   tolerance: < 1e-9 dB
+  PASS  T20b case list: 20 static + 2 dynamic + the lecture baseline E0 = 23 cases   value: 23   tolerance: 23
+  PASS  T20c curve_evm_vs_velocity.csv: columns equal the README list; no NaN or empty field; header comments   value: columns equal, 0 bad rows, comments ok   tolerance: equal, 0 bad rows, complete
+  PASS  T20d curve_evm_vs_velocity.csv: every point has a mean and a standard error >= 0, trials >= 500   value: 2 SE column(s), 0 bad SE, min trials 500   tolerance: SE >= 0, trials >= 500
+  PASS  T20c curve_sinr_vs_L.csv: columns equal the README list; no NaN or empty field; header comments   value: columns equal, 0 bad rows, comments ok   tolerance: equal, 0 bad rows, complete
+  PASS  T20d curve_sinr_vs_L.csv: every point has a mean and a standard error >= 0, trials >= 1000   value: 1 SE column(s), 0 bad SE, min trials 1000   tolerance: SE >= 0, trials >= 1000
+  PASS  T20c curve_sinr_vs_delta_theta.csv: columns equal the README list; no NaN or empty field; header comments   value: columns equal, 0 bad rows, comments ok   tolerance: equal, 0 bad rows, complete
+  PASS  T20d curve_sinr_vs_delta_theta.csv: every point has a mean and a standard error >= 0, trials >= 1000   value: 1 SE column(s), 0 bad SE, min trials 1000   tolerance: SE >= 0, trials >= 1000
+  PASS  T20c curve_doa_spectrum.csv: columns equal the README list; no NaN or empty field; header comments   value: columns equal, 0 bad rows, comments ok   tolerance: equal, 0 bad rows, complete
+  PASS  T20d curve_doa_spectrum.csv: every point has a mean and a standard error >= 0, trials >= 1000   value: 2 SE column(s), 0 bad SE, min trials 1000   tolerance: SE >= 0, trials >= 1000
+  PASS  T20e exercise, solution and script files exist; exercise headers have the required sections   value: 0 missing, 0 problems   tolerance: 0 / 0
+  PASS  T20f reference solutions pass 5 / 5 exercises on all cases (Node-side equivalent of check_my_work)   value: 5 / 5 (10 cases)   tolerance: 5 / 5
+  PASS  T20f the grader rejects each of the 12 typical mistakes (and only the exercise it belongs to)   value: 0 not as expected   tolerance: 0
+
+T21  lecture baseline: MMSE (theory R) = MVDR B direction, SINR at SINR_opt, raw EVM bias, MUSIC angle source (info)   (166.3 s)
+  PASS  T21a E0: MMSE-M (theory) and SMI withSignal (theory) have the same weight direction   value: 1.98e-16   tolerance: < 1e-9
+  PASS  T21a E0: w_MMSE = Es (a^H R^-1 a) w_MVDR_B   value: 1.15e-13   tolerance: < 1e-9
+  PASS  T21b E0: MMSE-M (theory) SINR vs SINR_opt   value: 7.11e-15 dB   tolerance: < 0.1 dB
+  PASS  T21c MVDR raw EVM = 0 (one user, no interferer, no noise)   value: 1.67e-16   tolerance: < 1e-9
+  PASS  T21c MMSE bias |g' - 1| = |1 - Es a^H R^-1 a| (explicit inverse of R)   value: 1.06e-14   tolerance: < 1e-9
+  PASS  T21c MMSE bias = sigma^2/(N + sigma^2) (closed form, K -> infinity)   value: 1.21e-10   tolerance: < 1e-9
+
+T22  pointing mode 'mobility': delta_theta_eff = 0 at v = 0 and identical to manual 0; independent geometry; SINR vs delta_theta_eff (info)   (38.8 s)
+  PASS  T22a v = 0: mobility (slider 3 deg) is bit-identical to manual delta_theta = 0   value: 0.00e+0   tolerance: 0 (bit-identical)
+  PASS  T22a v = 0: delta_theta_eff = 0 (target and jammer)   value: 0.00e+0   tolerance: 0 (exact)
+  PASS  T22a v = 300: mobility (slider 3 deg) is bit-identical to manual delta_theta = 0   value: 0.00e+0   tolerance: 0 (bit-identical)
+  PASS  T22a v = 300, tau = 10 ms, d_min = 10 m: delta_theta_eff is not zero   value: 1.152 deg   tolerance: > 0
+  PASS  T22b delta_theta_eff equals the explicit-coordinate computation (target and jammer)   value: 1.42e-14 deg   tolerance: < 1e-9 deg
+  PASS  T22b target on the track (theta1 = 0): no deviation   value: 0.00e+0 deg   tolerance: 0
+
+INFORMATIONAL (not counted)
+  T1b FOURIER   gap_ws -0.03, gap_sf -0.03, explained by training 0.00 dB   (SINR_opt legacy 28.38 / unified 28.93 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -21.57 / -22.15 / -21.57 / -22.15 dB; legacy ws 6.80 ± 0.00, unified ws 6.77 ± 0.01, legacy sf 6.80 ± 0.00, unified sf 6.77 ± 0.01; SE of a combination ~ 0.01 dB)
+  T1b MMSE   gap_ws -17.20, gap_sf -17.20, explained by training 0.00 dB   (SINR_opt legacy 28.38 / unified 28.91 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -16.59 / -34.32 / -16.59 / -34.32 dB; legacy ws 11.79 ± 0.04, unified ws -5.41 ± 0.08, legacy sf 11.79 ± 0.04, unified sf -5.41 ± 0.08; SE of a combination ~ 0.12 dB)
+  T1b MMSEP   gap_ws 1.88, gap_sf 1.88, explained by training -0.00 dB   (SINR_opt legacy 28.38 / unified 28.92 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -1.65 / -0.32 / -1.65 / -0.32 dB; legacy ws 26.72 ± 0.01, unified ws 28.60 ± 0.01, legacy sf 26.72 ± 0.01, unified sf 28.60 ± 0.01; SE of a combination ~ 0.02 dB)
+  T1b SMI   gap_ws -17.22, gap_sf 0.62, explained by training -17.83 dB   (SINR_opt legacy 28.38 / unified 28.91 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -16.53 / -34.29 / -0.41 / -0.33 dB; legacy ws 11.84 ± 0.04, unified ws -5.37 ± 0.08, legacy sf 27.96 ± 0.00, unified sf 28.58 ± 0.01; SE of a combination ~ 0.09 dB)
+  T1b DL   gap_ws -13.13, gap_sf 0.69, explained by training -13.83 dB   (SINR_opt legacy 28.38 / unified 28.93 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -14.36 / -28.05 / -0.27 / -0.13 dB; legacy ws 14.01 ± 0.04, unified ws 0.88 ± 0.07, legacy sf 28.11 ± 0.00, unified sf 28.80 ± 0.01; SE of a combination ~ 0.08 dB)
+  T1b BEAMSPACE   gap_ws -10.37, gap_sf 2.96, explained by training -13.33 dB   (SINR_opt legacy 28.38 / unified 28.92 dB; gap to SINR_opt (legacy ws, unified ws, legacy sf, unified sf) = -11.10 / -22.02 / -2.54 / -0.13 dB; legacy ws 17.28 ± 0.06, unified ws 6.90 ± 0.11, legacy sf 25.84 ± 0.00, unified sf 28.79 ± 0.01; SE of a combination ~ 0.13 dB)
+  T3a d_min=500 m SMI   drop 0 -> 10 ms: 0.038 dB   (monotone by the same rule)
+  T3a d_min=500 m DL   drop 0 -> 10 ms: 0.037 dB   (monotone by the same rule)
+  T3a d_min=500 m BEAMSPACE   drop 0 -> 10 ms: 0.038 dB   (monotone by the same rule)
+  T3c SMI withSignal   7.52 / 8.31 / 8.83 / 9.07 / 8.43 / 8.35 / 8.26 dB   (non-monotone: 3 rising step(s), max +0.78 dB)
+  T3c SMI signalFree   24.91 / 24.94 / 24.85 / 24.82 / 25.03 / 25.23 / 24.81 dB   (non-monotone: 2 rising step(s), max +0.21 dB)
+  T3c DL withSignal   15.13 / 15.60 / 16.00 / 16.20 / 15.86 / 15.67 / 15.53 dB   (non-monotone: 3 rising step(s), max +0.47 dB)
+  T3c DL signalFree   25.17 / 25.19 / 25.09 / 25.07 / 25.26 / 25.48 / 25.05 dB   (non-monotone: 2 rising step(s), max +0.23 dB)
+  T3c BEAMSPACE withSignal   12.53 / 12.87 / 13.10 / 13.31 / 13.16 / 13.02 / 12.80 dB   (non-monotone: 3 rising step(s), max +0.34 dB)
+  T3c BEAMSPACE signalFree   23.17 / 23.12 / 23.18 / 23.42 / 23.44 / 23.61 / 23.17 dB   (non-monotone: 2 rising step(s), max +0.24 dB)
+  T6 DL withSignal L=100   best gamma_rel 26 dB (21.18 dB)   (rises, peaks, then falls; 0 dB: 0.90, +10 dB: 14.14, -10 dB: -4.50, +30 dB: 20.81)
+  T6 DL signalFree L=100   best gamma_rel 10 dB (28.84 dB)   (rises, peaks, then falls; 0 dB: 28.78, +10 dB: 28.84, -10 dB: 28.62, +30 dB: 23.96)
+  T6 DL withSignal L=12   best gamma_rel 30 dB (13.54 dB)   (increasing up to the end of the range (saturating?); 0 dB: 0.56, +10 dB: 10.07, -10 dB: -6.35, +30 dB: 13.54)
+  T6 DL signalFree L=12   best gamma_rel 12 dB (28.52 dB)   (rises, peaks, then falls; 0 dB: 28.10, +10 dB: 28.51, -10 dB: 26.52, +30 dB: 23.65)
+  T11c observation L = 7 (N - 1)   21.86 ± 0.07 dB, median kappa(R_hat) Infinity, median ||w|| 0.704
+  T11c observation L = 8 (N )   17.72 ± 0.12 dB, median kappa(R_hat) 5.52e+5, median ||w|| 1.080
+  T11c observation L = 9 (N + 1)   21.54 ± 0.07 dB, median kappa(R_hat) 1.98e+5, median ||w|| 0.751
+  T11c curve (MMSE-P, unified)   L=4: 25.45 / L=8: 17.72 / L=12: 24.89 / L=24: 27.40 / L=48: 28.23 / L=100: 28.60 dB
+  T12c SMI signalFree   2:16.1 3:20.4 4:22.3 5:23.1 6:23.4 7:22.9 8:21.5 9:23.2 10:24.2 11:24.9 12:25.4 13:25.8 14:26.1 15:26.3 16:26.5   (steps >3 dB: 2->3: +4.30 dB;)
+  T12c DL signalFree   2:26.8 3:27.4 4:27.8 5:28.0 6:28.2 7:28.3 8:28.3 9:28.4 10:28.4 11:28.5 12:28.5 13:28.5 14:28.6 15:28.6 16:28.6   (no step > 3 dB)
+  T12c BEAMSPACE signalFree   2:22.3 3:25.3 4:26.4 5:26.9 6:27.3 7:27.6 8:27.7 9:27.9 10:28.0 11:28.0 12:28.1 13:28.2 14:28.2 15:28.3 16:28.3   (no step > 3 dB)
+  T12c MMSEP signalFree   2:24.0 3:26.0 4:25.9 5:25.2 6:24.0 7:22.0 8:17.5 9:21.4 10:23.2 11:24.2 12:24.9 13:25.4 14:25.8 15:26.1 16:26.3   (steps >3 dB: 7->8: -4.43 dB; 8->9: +3.86 dB;)
+  T12c SMI withSignal   2:3.7 3:3.7 4:1.3 5:-2.0 6:-5.1 7:-8.0 8:-10.2 9:-9.7 10:-9.1 11:-8.7 12:-8.4 13:-8.2 14:-8.0 15:-7.8 16:-7.7   (steps >3 dB: 4->5: -3.29 dB; 5->6: -3.06 dB;)
+  T12c DL withSignal   2:3.2 3:5.3 4:6.5 5:7.3 6:8.0 7:8.5 8:8.9 9:9.2 10:9.6 11:9.9 12:10.2 13:10.4 14:10.6 15:10.8 16:10.9   (no step > 3 dB)
+  T12c BEAMSPACE withSignal   2:-5.0 3:-1.9 4:-0.1 5:1.1 6:1.8 7:2.5 8:2.9 9:3.4 10:3.7 11:4.0 12:4.2 13:4.4 14:4.6 15:4.7 16:4.9   (steps >3 dB: 2->3: +3.13 dB;)
+  T12c MMSEP withSignal   2:24.0 3:26.0 4:25.9 5:25.2 6:24.0 7:22.0 8:17.5 9:21.4 10:23.2 11:24.2 12:24.9 13:25.4 14:25.8 15:26.1 16:26.3   (steps >3 dB: 7->8: -4.43 dB; 8->9: +3.86 dB;)
+  T13c QAM16 Gaussian interferer EVM 5.0%   MC 0.00e+0 vs closed 0.00e+0   (rel. diff NaN %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian interferer EVM 7.5%   MC 0.00e+0 vs closed 3.78e-9   (rel. diff -100.0 %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian interferer EVM 10.0%   MC 8.50e-6 vs closed 1.17e-5   (rel. diff -27.4 %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian (noise) EVM 5.0%   MC 0.00e+0 vs closed 0.00e+0   (rel. diff NaN %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian (noise) EVM 7.5%   MC 0.00e+0 vs closed 3.71e-9   (rel. diff -100.0 %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian (noise) EVM 10.0%   MC 1.30e-5 vs closed 1.16e-5   (rel. diff 12.1 %, n.s. (expected < 100 errors))
+  T13c QAM16 Gaussian (noise) EVM 12.5%   MC 5.13e-4 vs closed 5.19e-4   (rel. diff -1.3 %)
+  T13c QAM16 Gaussian (noise) EVM 15.0%   MC 4.27e-3 vs closed 4.29e-3   (rel. diff -0.5 %)
+  T13c QAM16 QPSK interferer EVM 5.0%   MC 0.00e+0 vs closed 0.00e+0   (rel. diff NaN %, n.s. (expected < 100 errors))
+  T13c QAM16 QPSK interferer EVM 7.5%   MC 0.00e+0 vs closed 3.75e-9   (rel. diff -100.0 %, n.s. (expected < 100 errors))
+  T13c QAM16 QPSK interferer EVM 10.0%   MC 0.00e+0 vs closed 1.17e-5   (rel. diff -100.0 %, n.s. (expected < 100 errors))
+  T13c QAM16 QPSK interferer EVM 12.5%   MC 0.00e+0 vs closed 5.21e-4   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T13c QAM16 QPSK interferer EVM 15.0%   MC 0.00e+0 vs closed 4.31e-3   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T13c QAM64 Gaussian interferer EVM 5.0%   MC 1.80e-5 vs closed 2.25e-5   (rel. diff -19.9 %, n.s. (expected < 100 errors))
+  T13c QAM64 Gaussian (noise) EVM 5.0%   MC 2.25e-5 vs closed 2.23e-5   (rel. diff 1.0 %, n.s. (expected < 100 errors))
+  T13c QAM64 Gaussian (noise) EVM 7.5%   MC 6.28e-3 vs closed 6.32e-3   (rel. diff -0.6 %)
+  T13c QAM64 Gaussian (noise) EVM 10.0%   MC 5.00e-2 vs closed 5.02e-2   (rel. diff -0.4 %)
+  T13c QAM64 Gaussian (noise) EVM 12.5%   MC 1.36e-1 vs closed 1.36e-1   (rel. diff -0.1 %)
+  T13c QAM64 Gaussian (noise) EVM 15.0%   MC 2.39e-1 vs closed 2.39e-1   (rel. diff 0.0 %)
+  T13c QAM64 QPSK interferer EVM 5.0%   MC 0.00e+0 vs closed 2.24e-5   (rel. diff -100.0 %, n.s. (expected < 100 errors))
+  T13c QAM64 QPSK interferer EVM 7.5%   MC 0.00e+0 vs closed 6.34e-3   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T13c QAM64 QPSK interferer EVM 10.0%   MC 0.00e+0 vs closed 5.03e-2   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T13c QAM64 QPSK interferer EVM 12.5%   MC 0.00e+0 vs closed 1.37e-1   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T13c QAM64 QPSK interferer EVM 15.0%   MC 0.00e+0 vs closed 2.39e-1   (rel. diff -100.0 %, DEVIATION > 20 %)
+  T16a L = N = 8: old absolute threshold acted   5/2000 = 0.25 %   (new relative rule acts in 0 of them)
+  T16b MMSE-M L=2: |R_hat w - r_xd| / |r_xd|   7.64e-1   (r_xd = P_s a is generally NOT in the range of R_hat for L < N, so a residual is expected (the pinv solution is the projection))
+  T16b MMSE-M L=4: |R_hat w - r_xd| / |r_xd|   1.22e-1   (r_xd = P_s a is generally NOT in the range of R_hat for L < N, so a residual is expected (the pinv solution is the projection))
+  T16b MMSE-M L=6: |R_hat w - r_xd| / |r_xd|   9.21e-2   (r_xd = P_s a is generally NOT in the range of R_hat for L < N, so a residual is expected (the pinv solution is the projection))
+  T16c MMSE-P: step L=8 -> 9   4.08 ± 0.16 dB   (paired difference)
+  T16c MMSE-M: step L=8 -> 9   0.57 ± 0.14 dB   (paired difference)
+  T16c SMI signalFree: step L=8 -> 9   1.74 ± 0.08 dB   (paired difference)
+  T17b2 signalFree, delta = 0 deg: sample SMI (L = 20000) - population vs Reed-Mallett-Brennan   -0.0022 dB (SE 0.0003) vs -0.0015 dB, difference -0.0007 dB, z = -2.07   (yes)
+  T17b2 signalFree, delta = 1 deg: sample SMI (L = 20000) - population vs Reed-Mallett-Brennan   -0.0026 dB (SE 0.0006) vs -0.0015 dB, difference -0.0011 dB, z = -1.78   (approximately (delta != 0))
+  T17b2 signalFree, delta = 3 deg: sample SMI (L = 20000) - population vs Reed-Mallett-Brennan   -0.0026 dB (SE 0.0016) vs -0.0015 dB, difference -0.0011 dB, z = -0.68   (approximately (delta != 0))
+  T17b2 signalFree, delta = 5 deg: sample SMI (L = 20000) - population vs Reed-Mallett-Brennan   -0.0015 dB (SE 0.0031) vs -0.0015 dB, difference 0.0000 dB, z = 0.00   (approximately (delta != 0))
+  T17d signalFree L=100   SMI: 28.6 (0°) / 28.0 (3°) / 26.8 (5°); DL: 28.9 (0°) / 28.2 (3°) / 27.1 (5°); BEAMSPACE: 28.8 (0°) / 28.7 (3°) / 28.5 (5°); MMSE: -5.5 (0°) / -19.7 (3°) / -21.5 (5°); MMSEP: 28.6 (0°) / 28.6 (3°) / 28.6 (5°)
+  T17d withSignal L=100   SMI: -5.5 (0°) / -19.7 (3°) / -21.5 (5°); DL: 13.9 (0°) / -0.3 (3°) / -5.4 (5°); BEAMSPACE: 6.9 (0°) / -13.0 (3°) / -17.4 (5°); MMSE: -5.5 (0°) / -19.7 (3°) / -21.5 (5°); MMSEP: 28.6 (0°) / 28.6 (3°) / 28.6 (5°)
+  T17d signalFree L=12   SMI: 25.3 (0°) / 24.7 (3°) / 23.5 (5°); DL: 28.5 (0°) / 27.9 (3°) / 26.7 (5°); BEAMSPACE: 28.1 (0°) / 28.0 (3°) / 27.8 (5°); MMSE: -8.7 (0°) / -13.4 (3°) / -13.5 (5°); MMSEP: 24.8 (0°) / 24.8 (3°) / 24.8 (5°)
+  T17d withSignal L=12   SMI: -8.7 (0°) / -13.4 (3°) / -13.5 (5°); DL: 10.0 (0°) / -0.2 (3°) / -5.0 (5°); BEAMSPACE: 4.0 (0°) / -11.3 (3°) / -12.6 (5°); MMSE: -8.7 (0°) / -13.4 (3°) / -13.5 (5°); MMSEP: 24.8 (0°) / 24.8 (3°) / 24.8 (5°)
+  T17d self-nulling onset (K = 40 dB, SMI, L = 100)   smallest delta_theta with (signalFree - withSignal) > 3 dB: 0 deg
+  T17e DL gamma_rel sweep (withSignal, delta = 3 deg)   best gamma_rel 28 dB (20.51 dB); +10 dB: -0.28 dB
+  T18b (-20, 40) Capon peak count   2   (Capon with a rank-2 + noise covariance)
+  T18b (10, -50) Capon peak count   2   (Capon with a rank-2 + noise covariance)
+  T18c L=4   MUSIC T 0.23 ± 0.01, J 0.00 ± 0.00; Capon T 0.37 ± 0.02, J 0.03 ± 0.01 deg
+  T18c L=8   MUSIC T 0.22 ± 0.01, J 0.00 ± 0.00; Capon T 0.32 ± 0.02, J 0.01 ± 0.00 deg
+  T18c L=12   MUSIC T 0.22 ± 0.01, J 0.00 ± 0.00; Capon T 0.24 ± 0.01, J 0.00 ± 0.00 deg
+  T18c L=24   MUSIC T 0.21 ± 0.01, J 0.00 ± 0.00; Capon T 0.21 ± 0.01, J 0.00 ± 0.00 deg
+  T18c L=48   MUSIC T 0.20 ± 0.01, J 0.00 ± 0.00; Capon T 0.20 ± 0.01, J 0.00 ± 0.00 deg
+  T18c L=100   MUSIC T 0.22 ± 0.01, J 0.00 ± 0.00; Capon T 0.20 ± 0.01, J 0.00 ± 0.00 deg
+  T18c separation 5 deg   MUSIC T 1.29 ± 0.07, J 0.00 ± 0.00; Capon T 1.85 ± 0.09, J 0.00 ± 0.00 deg
+  T18c separation 10 deg   MUSIC T 0.33 ± 0.01, J 0.00 ± 0.00; Capon T 0.34 ± 0.01, J 0.00 ± 0.00 deg
+  T18c separation 20 deg   MUSIC T 0.21 ± 0.01, J 0.00 ± 0.00; Capon T 0.21 ± 0.01, J 0.00 ± 0.00 deg
+  T18c separation 40 deg   MUSIC T 0.22 ± 0.01, J 0.00 ± 0.00; Capon T 0.21 ± 0.01, J 0.00 ± 0.00 deg
+  T21d SINR vs L, SMI, signalFree   L=4: 22.4 / 22.4  L=8: 21.7 / 21.7  L=12: 25.4 / 25.4  L=24: 27.5 / 27.5  L=48: 28.2 / 28.3  L=100: 28.6 / 28.6
+  T21d SINR vs L, DL, signalFree   L=4: 27.9 / 27.9  L=8: 28.4 / 28.4  L=12: 28.6 / 28.6  L=24: 28.7 / 28.7  L=48: 28.8 / 28.8  L=100: 28.9 / 28.9
+  T21d SINR vs L, BEAMSPACE, signalFree   L=4: 26.4 / 26.4  L=8: 27.8 / 27.8  L=12: 28.2 / 28.2  L=24: 28.5 / 28.5  L=48: 28.7 / 28.7  L=100: 28.8 / 28.8
+  T21d SINR vs L, MMSE, signalFree   L=4: 0.8 / 1.3  L=8: -10.0 / -10.1  L=12: -8.7 / -8.4  L=24: -6.7 / -6.0  L=48: -6.1 / -5.1  L=100: -5.5 / -4.5
+  T21d SINR vs L, SMI, withSignal   L=4: 0.8 / 1.3  L=8: -10.0 / -10.1  L=12: -8.7 / -8.4  L=24: -6.7 / -6.0  L=48: -6.1 / -5.1  L=100: -5.5 / -4.5
+  T21d SINR vs L, DL, withSignal   L=4: 6.4 / 6.5  L=8: 9.2 / 9.5  L=12: 10.1 / 10.5  L=24: 11.7 / 12.2  L=48: 13.0 / 13.6  L=100: 14.0 / 14.7
+  T21d SINR vs L, BEAMSPACE, withSignal   L=4: 0.1 / 0.2  L=8: 3.1 / 3.2  L=12: 4.1 / 4.2  L=24: 5.6 / 5.6  L=48: 6.6 / 6.5  L=100: 7.3 / 7.2
+  T21d SINR vs L, MMSE, withSignal   L=4: 0.8 / 1.3  L=8: -10.0 / -10.1  L=12: -8.7 / -8.4  L=24: -6.7 / -6.0  L=48: -6.1 / -5.1  L=100: -5.5 / -4.5
+  T21d MUSIC errors, L=100   |err theta1| median 0.00, 90% 0.50, 99% 1.00 deg; 0-0.01°: n=353, mean loss 0.00 dB | 0.01-0.3°: n=0, mean loss - dB | 0.3-0.6°: n=237, mean loss -0.01 dB | 0.6-90°: n=10, mean loss -0.03 dB
+  T21d MUSIC errors, L=12   |err theta1| median 0.00, 90% 0.50, 99% 1.00 deg; 0-0.01°: n=344, mean loss 0.00 dB | 0.01-0.3°: n=0, mean loss - dB | 0.3-0.6°: n=249, mean loss 0.01 dB | 0.6-90°: n=7, mean loss 0.14 dB
+  T22c SMI signalFree   100: 27.8 vs 28.6 (diff -0.8 ± 0.1; mobility with tau = 0: 28.6); 200: 27.3 vs 28.6 (diff -1.3 ± 0.1; mobility with tau = 0: 28.5); 300: 27.2 vs 28.6 (diff -1.4 ± 0.1; mobility with tau = 0: 28.5)
+  T22c SMI withSignal   100: 6.8 vs -5.9 (diff 12.7 ± 0.3; mobility with tau = 0: 0.2); 200: 5.8 vs -6.9 (diff 12.7 ± 0.3; mobility with tau = 0: 4.1); 300: 3.7 vs -8.3 (diff 12.0 ± 0.4; mobility with tau = 0: 6.5)
+  T22c DL signalFree   100: 27.8 vs 28.9 (diff -1.0 ± 0.0; mobility with tau = 0: 28.8); 200: 25.7 vs 28.9 (diff -3.2 ± 0.0; mobility with tau = 0: 28.7); 300: 24.0 vs 28.8 (diff -4.9 ± 0.1; mobility with tau = 0: 28.6)
+  T22c DL withSignal   100: 15.2 vs 13.7 (diff 1.5 ± 0.2; mobility with tau = 0: 15.1); 200: 13.2 vs 13.0 (diff 0.3 ± 0.2; mobility with tau = 0: 16.2); 300: 11.2 vs 11.9 (diff -0.7 ± 0.3; mobility with tau = 0: 16.6)
+
+198/198 checks passed, 0 failed

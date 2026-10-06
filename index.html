@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>陣列訊號處理 × 高移動性都卜勒 實驗平台 V4.0</title>
     <style>
@@ -83,8 +84,8 @@
         .ctrl { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-family: var(--mono); }
         .ctrl .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
         .ctrl .lab { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-        .ctrl .lab .zh { font-size: 0.66rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ctrl .lab .en { font-size: 0.54rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ctrl .lab .zh { font-size: 0.66rem; color: var(--text); white-space: normal; overflow-wrap: anywhere; }
+        .ctrl .lab .en { font-size: 0.54rem; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
         .ctrl.real .lab .zh { color: var(--violet); }
         .ctrl .field { display: flex; align-items: baseline; gap: 3px; flex: 0 0 auto; }
         .ctrl .unit { font-size: 0.58rem; color: var(--muted); min-width: 2.2em; }
@@ -103,14 +104,29 @@
         .stage-wrap { grid-area: stage; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
         .stage-grid { display: grid; gap: 10px; min-height: 100%;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(260px, 0.8fr); }
+            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(250px, 0.9fr) minmax(300px, 0.9fr) minmax(260px, 0.8fr); }
+        .panel.wide { grid-column: 1 / -1; }
+        .exp-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr); gap: 10px; padding: 8px 10px; overflow: auto; }
+        .exp-btns { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+        .exp-btns .btn { width: auto; height: 26px; padding: 0 9px; }
+        .exp-btns .btn.sel { border-color: var(--cyan); color: var(--cyan); }
+        .exp-text p { margin: 0 0 6px; font: 0.68rem/1.45 var(--sans); color: var(--text); }
+        .exp-text p b { color: var(--yellow); font-weight: 650; }
+        .exp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .exp-actions .btn { width: auto; height: 28px; padding: 0 12px; }
+        .exp-result { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .exp-result canvas { width: 100%; height: 190px; display: block; background: #10131b; border: 1px solid var(--line); border-radius: 4px; }
+        .exp-table { font: 0.66rem var(--mono); color: var(--text); line-height: 1.5; }
+        #btn-lang { width: auto; min-width: 44px; }
+        html[lang="en"] .lab .zh { display: none; }
+        html[lang="en"] .lab .en { font-size: 0.66rem; color: var(--text); }
         .bench { grid-column: 1 / -1; }
         .panel { display: flex; flex-direction: column; min-height: 250px; min-width: 0; overflow: hidden; }
-        .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: normal; line-height: 1.3; }
         .p-head em { color: var(--muted); margin-left: 4px; }
-        .kv-grid { flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 1px 14px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-        .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 0.62rem var(--mono); min-width: 0; }
-        .kv .k { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .kv-grid { flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 3px 14px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+        .kv { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font: 0.62rem var(--mono); min-width: 0; }
+        .kv .k { color: var(--muted); white-space: normal; overflow-wrap: break-word; word-break: normal; line-height: 1.15; min-width: 0; }
         .kv .v { color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 auto; }
         /* the canvas host: a real, in-flow box; the bitmap is mapped 1:1 to its client size (see Render.setup) */
         .cv { position: relative; flex: 1 1 0; min-height: 120px; overflow: hidden; }
@@ -213,13 +229,14 @@
         </section>
         <div class="card hdr-export">
             <button class="btn" id="btn-csv">⬇ 匯出 CSV<em>Export</em></button>
+            <button class="btn" id="btn-lang" aria-label="language">EN</button>
         </div>
     </header>
 
     <!-- LEFT SIDEBAR: Tx / Channel / Rx parameter cards -->
     <aside class="left">
         <div class="notice" id="st-note"></div>
-        <div class="card group g-tx"><div class="g-title">TX 發射端<em>Transmitter</em></div><div class="g-body" id="body-tx"></div></div>
+        <div class="card group g-tx"><div class="g-title">TX 發射端<em>Transmitter</em> <span id="model-tag" class="chip pause" style="margin-left:6px" title="channel model (selector below)">Unified（新）</span></div><div class="g-body" id="body-tx"></div></div>
         <div class="card group g-ch"><div class="g-title">CHANNEL 通道<em>Channel</em></div><div class="g-body" id="body-ch"></div></div>
         <div class="card group g-rx"><div class="g-title">RX 接收端<em>Receiver</em></div><div class="g-body" id="body-rx"></div></div>
     </aside>
@@ -242,7 +259,7 @@
             </section>
             <!-- B: OFDM -->
             <section class="card panel">
-                <div class="p-head">B // 頻域：OFDM 子載波與 ICI 洩漏 <em>Subcarriers &amp; ICI (Δf = 15 kHz)</em></div>
+                <div class="p-head">B // 頻域：OFDM 子載波與 ICI 洩漏 <em>Subcarriers &amp; ICI (Δf = <span id="hd-scs">15</span> kHz)</em></div>
                 <div class="kv-grid">
                     <div class="kv"><span class="k">最大都卜勒 f<sub>m</sub></span><span class="v"><span id="m-fm">0</span> Hz</span></div>
                     <div class="kv"><span class="k">有效頻偏 f<sub>d</sub></span><span class="v"><span id="m-fd">0</span> Hz</span></div>
@@ -257,6 +274,8 @@
                 <div class="kv-grid">
                     <div class="kv"><span class="k">調變 Modulation</span><span class="v" id="m-mod">16-QAM</span></div>
                     <div class="kv"><span class="k">誤差向量 EVM</span><span class="v"><span id="m-evm">0</span> %</span></div>
+                    <div class="kv" title="Unified model: EVM measured on 4000 simulated symbols (Core.symbolLevel), to be compared with the analytic EVM above"><span class="k">EVM 符元量測</span><span class="v"><span id="m-evm-meas">—</span> %</span></div>
+                    <div class="kv" title="Raw EVM (lecture): s_hat = w^H x compared with s, no gain normalisation"><span class="k">原始 EVM（不正規化）</span><span class="v"><span id="m-evm-raw">—</span> %</span></div>
                     <div class="kv"><span class="k">符元錯誤率 SER</span><span class="v" id="m-ser">0</span></div>
                     <div class="kv"><span class="k">訊干雜比 SINR</span><span class="v"><span id="m-sinr2">0</span> dB</span></div>
                 </div>
@@ -270,16 +289,60 @@
                     <div class="kv"><span class="k">加載因子 γ</span><span class="v" id="m-delta">OFF</span></div>
                     <div class="kv"><span class="k">秩上限 rank bound</span><span class="v" id="m-rank">0</span></div>
                     <div class="kv"><span class="k">樣本窗 Window</span><span class="v" id="m-win">0</span></div>
+                    <div class="kv" title="Doppler spread of the realised paths: max f_d,i − min f_d,i (unified model only)"><span class="k">Doppler 展寬 B<sub>D</sub></span><span class="v"><span id="m-bd">—</span> Hz</span></div>
+                    <div class="kv" title="ρ = L·T_snap·B_D. ≪ 1: the channel is nearly static over the training window (unified model only)"><span class="k">窗內變化 ρ=L·T<sub>snap</sub>·B<sub>D</sub></span><span class="v" id="m-rho">—</span></div>
+                    <div class="kv" title="Largest angle change of any path (target paths and jammer) inside the training window; The model integrates the Doppler phase along the track; in parentheses: largest |integrated phase − first-order phase (f_d at t_app × t)| in rad, i.e. how much the first-order model of the previous version would have been off. Unified model only."><span class="k">窗內角度漂移 Δθ<sub>max</sub></span><span class="v"><span id="m-drift">—</span> °<span id="m-perr"></span></span></div>
+                    <div class="kv" title="τ·B_D: aging between estimation and application (unified model only)"><span class="k">老化比 τ·B<sub>D</sub></span><span class="v" id="m-aging">—</span></div>
+                    <div class="kv" title="Steering angle source; with MUSIC: estimation error against theta_1 / theta_2"><span class="k">導向角度 / MUSIC 誤差</span><span class="v" id="m-angsrc">—</span></div>
+                    <div class="kv" title="Pointing error as a fraction of the 3 dB main-lobe width: |δθ| / θ_3dB (weights are designed for a(θ̂₁+δθ); MMSE-P is not affected)"><span class="k">指向偏差 δθ/θ<sub>3dB</sub></span><span class="v"><span id="m-point">—</span></span></div>
+                    <div class="kv" title="Effective pointing deviation caused by mobility: target angle at the application time minus the angle at the estimation time (deg), its ratio to the 3 dB beamwidth; the jammer drift in the same interval"><span class="k">有效指向偏差 δθ<sub>eff</sub>（目標 / 干擾）</span><span class="v"><span id="m-deff">—</span></span></div>
+                    <div class="kv" title="Genie upper bound: w_opt = R_in⁻¹h with the TRUE interference+noise covariance and this trial's true channel vector (unified model); legacy: λ_max(R_in⁻¹R_t) of the expected covariances. Read-out only."><span class="k">SINR<sub>opt</sub> (genie)</span><span class="v"><span id="m-opt">—</span> dB<span id="m-optgap" class="note"></span></span></div>
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
             </section>
+            <!-- F: DOA spatial spectrum -->
+            <section class="card panel wide">
+                <div class="p-head">F // 空間譜：到達角估計 <em>DOA spectrum (Capon &amp; MUSIC)</em></div>
+                <div class="kv-grid">
+                    <div class="kv" title="Capon (MVDR) spectrum peak nearest to the true target angle / error. Capon: P(θ) = 1/(a^H R^-1 a)."><span class="k">Capon 目標角誤差</span><span class="v" id="m-doa-ct">—</span></div>
+                    <div class="kv" title="Capon peak nearest to the true jammer angle / error"><span class="k">Capon 干擾角誤差</span><span class="v" id="m-doa-cj">—</span></div>
+                    <div class="kv" title="MUSIC peak nearest to the true target angle / error. MUSIC assumes 2 sources (target and jammer)."><span class="k">MUSIC 目標角誤差</span><span class="v" id="m-doa-mt">—</span></div>
+                    <div class="kv" title="MUSIC peak nearest to the true jammer angle / error"><span class="k">MUSIC 干擾角誤差</span><span class="v" id="m-doa-mj">—</span></div>
+                    <div class="kv" title="Numerical rank of the sample covariance (threshold 1e-10 of the largest eigenvalue)"><span class="k">R̂ 秩 rank</span><span class="v" id="m-doa-rank">—</span></div>
+                </div>
+                <div class="cv"><canvas id="cvs-doa"></canvas></div>
+                <div class="note" id="doa-note" style="padding:4px 10px;font:0.6rem var(--mono);color:var(--muted)"></div>
+            </section>
+
+            <!-- G: experiments -->
+            <section class="card panel wide" id="exp-panel">
+                <div class="p-head">G // 實驗：一鍵情境 <em>Experiments (one-click scenarios)</em></div>
+                <div class="exp-body">
+                    <div>
+                        <div class="exp-btns" id="exp-btns"></div>
+                        <div class="exp-text" id="exp-text"></div>
+                        <div class="exp-actions">
+                            <button class="btn" id="btn-exp-apply">套用參數<em>Apply</em></button>
+                            <button class="btn" id="btn-exp-run">▶ 套用並執行<em>Apply &amp; run</em></button>
+                            <select class="btn" id="sel-exp-variant" style="width:auto"></select>
+                        </div>
+                    </div>
+                    <div class="exp-result">
+                        <canvas id="cvs-exp"></canvas>
+                        <div class="exp-table" id="exp-table"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- E: benchmark scanner -->
             <section class="card panel bench">
                 <div class="p-head">E // 效能對比：EVM vs. 車速 <em>Benchmarking Scanner (5 algorithms)</em></div>
                 <div class="bench-bar">
                     <button class="btn" id="btn-sweep">▶ 執行速度掃描<em>Run Velocity Sweep</em></button>
+                    <label class="lg" title="Also measure the EVM on simulated symbols (5 channel realisations x 4000 symbols per point and algorithm) and write it to the CSV (evm_meas_sample). Slower. Unified model only."><input type="checkbox" id="chk-symval"> 符元層級驗證</label>
                     <span class="lg"><i style="border-color:#22d3ee"></i><span id="lg-FOURIER">FOURIER</span></span>
-                    <span class="lg"><i style="border-color:#60a5fa"></i><span id="lg-MMSE">MMSE</span></span>
+                    <span class="lg"><i style="border-color:#60a5fa"></i><span id="lg-MMSE">MMSE-M</span></span>
+                    <span class="lg"><i class="dash" style="border-color:#2dd4bf"></i><span id="lg-MMSEP">MMSE-P</span></span>
                     <span class="lg"><i style="border-color:#fb923c"></i><span id="lg-SMI">SMI-MVDR</span></span>
                     <span class="lg"><i style="border-color:#34d399"></i><span id="lg-DL">DL-MVDR</span></span>
                     <span class="lg"><i style="border-color:#f472b6"></i><span id="lg-BEAMSPACE">BS-MVDR</span></span>
@@ -312,493 +375,117 @@
         </section>
     </aside>
 
+    <script src="core.js"></script>
+    <script src="i18n.js"></script>
+    <script src="experiment_numbers.js"></script>
+    <script src="experiments.js"></script>
     <script>
-        /**
-         * Complex math library
-         */
-        class Cplx {
-            constructor(r=0, i=0) { this.r = r; this.i = i; }
-            static add(a, b) { return new Cplx(a.r + b.r, a.i + b.i); }
-            static sub(a, b) { return new Cplx(a.r - b.r, a.i - b.i); }
-            static mul(a, b) { return new Cplx(a.r * b.r - a.i * b.i, a.r * b.i + a.i * b.r); }
-            static div(a, b) { const den = b.r*b.r + b.i*b.i; return new Cplx((a.r*b.r + a.i*b.i)/den, (a.i*b.r - a.r*b.i)/den); }
-            static conj(a) { return new Cplx(a.r, -a.i); }
-            mag2() { return this.r*this.r + this.i*this.i; }
-            mag() { return Math.sqrt(this.mag2()); }
-        }
+        const { Cplx, invertMatrix, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, CONFIG } = Core;
 
-        // Gauss-Jordan complex matrix inversion with partial pivoting. Returns null if singular.
-        function invertMatrix(M, force = false) {
-            const n = M.length;
-            const A = M.map(row => row.map(c => new Cplx(c.r, c.i)));
-            const I = Array(n).fill(0).map((_, i) => Array(n).fill(0).map((_, j) => new Cplx(i === j ? 1 : 0, 0)));
-            for (let i = 0; i < n; i++) {
-                let maxRow = i, maxVal = A[i][i].mag2();
-                for (let k = i + 1; k < n; k++) if (A[k][i].mag2() > maxVal) { maxVal = A[k][i].mag2(); maxRow = k; }
-                if (maxRow !== i) {
-                    const tA = A[i]; A[i] = A[maxRow]; A[maxRow] = tA;
-                    const tI = I[i]; I[i] = I[maxRow]; I[maxRow] = tI;
-                }
-                let diag = A[i][i];
-                if (diag.mag2() < 1e-12) {                  // singular (e.g. L < N without regularisation)
-                    if (!force) return null;
-                    diag = A[i][i] = new Cplx(1e-6, 0);     // force: carry on with a tiny pivot -> meaningless, huge weights (collapse)
-                }
-                for (let j = 0; j < n; j++) { A[i][j] = Cplx.div(A[i][j], diag); I[i][j] = Cplx.div(I[i][j], diag); }
-                for (let k = 0; k < n; k++) {
-                    if (k === i) continue;
-                    const f = A[k][i];
-                    for (let j = 0; j < n; j++) {
-                        A[k][j] = Cplx.sub(A[k][j], Cplx.mul(f, A[i][j]));
-                        I[k][j] = Cplx.sub(I[k][j], Cplx.mul(f, I[i][j]));
-                    }
-                }
-            }
-            return I;
-        }
-        function matMulVec(M, v) { return M.map(row => row.reduce((acc, val, i) => Cplx.add(acc, Cplx.mul(val, v[i])), new Cplx(0,0))); }
-        function vecDot(v1, v2) { return v1.reduce((acc, val, i) => Cplx.add(acc, Cplx.mul(Cplx.conj(val), v2[i])), new Cplx(0,0)); } // v1^H v2
-        function quadForm(w, R) { // w^H R w
-            let s = 0;
-            for (let m = 0; m < w.length; m++) for (let n = 0; n < w.length; n++)
-                s += Cplx.mul(Cplx.mul(Cplx.conj(w[m]), R[m][n]), w[n]).r;
-            return s;
-        }
-
-        // Eigenvalues of a real symmetric matrix (cyclic Jacobi). A is modified in place.
-        function eigvalsSym(A) {
-            const n = A.length;
-            let scale = 0;
-            for (let i = 0; i < n; i++) scale += A[i][i] * A[i][i];
-            scale = scale || 1;
-            for (let sweep = 0; sweep < 40; sweep++) {
-                let off = 0;
-                for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += A[p][q] * A[p][q];
-                if (off < 1e-26 * scale) break;
-                for (let p = 0; p < n - 1; p++) for (let q = p + 1; q < n; q++) {
-                    if (Math.abs(A[p][q]) < 1e-300) continue;
-                    const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
-                    const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-                    const c = 1 / Math.sqrt(t * t + 1), s = t * c;
-                    for (let k = 0; k < n; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
-                    for (let k = 0; k < n; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
-                }
-            }
-            return A.map((row, i) => row[i]);
-        }
-        // Hermitian H = A + jB  ->  real symmetric [[A,-B],[B,A]] (each eigenvalue appears twice)
-        function hermitianEigvals(H) {
-            const n = H.length;
-            const M = Array.from({ length: 2 * n }, () => new Float64Array(2 * n));
-            for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-                const a = H[i][j].r, b = H[i][j].i;
-                M[i][j] = a; M[i + n][j + n] = a; M[i][j + n] = -b; M[i + n][j] = b;
-            }
-            return eigvalsSym(M).sort((x, y) => x - y);
-        }
-        function sinc(x) { return x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x); }
-        function erfc(x) { // Abramowitz-Stegun 7.1.26
-            const z = Math.abs(x), t = 1 / (1 + 0.3275911 * z);
-            const y = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-            const r = y * Math.exp(-z * z);
-            return x >= 0 ? r : 2 - r;
-        }
-        function qfunc(x) { return 0.5 * erfc(x / Math.SQRT2); }
-
-        /**
-         * Amplitude tapers (real, symmetric, max-normalised)
-         */
-        function hammingWindow(N) {
-            if (N <= 1) return [1];
-            return Array.from({ length: N }, (_, n) => 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (N - 1)));
-        }
-        // Dolph-Chebyshev window (same construction as scipy.signal.windows.chebwin)
-        function chebWindow(N, sllDb) {
-            if (N <= 1) return [1];
-            const order = N - 1, r = Math.pow(10, sllDb / 20);
-            const beta = Math.cosh(Math.acosh(r) / order);
-            const p = [];
-            for (let k = 0; k < N; k++) {
-                const x = beta * Math.cos(k * Math.PI / N);
-                if (x > 1) p.push(Math.cosh(order * Math.acosh(x)));
-                else if (x < -1) p.push((order % 2 ? -1 : 1) * Math.cosh(order * Math.acosh(-x)));
-                else p.push(Math.cos(order * Math.acos(x)));
-            }
-            const even = N % 2 === 0, W = [];
-            for (let m = 0; m < N; m++) {
-                let s = 0;
-                for (let k = 0; k < N; k++) s += p[k] * Math.cos(-2 * Math.PI * k * m / N + (even ? k * Math.PI / N : 0));
-                W.push(s);
-            }
-            const w = [];
-            if (even) { const n = N / 2 + 1; for (let i = n - 1; i >= 1; i--) w.push(W[i]); for (let i = 1; i < n; i++) w.push(W[i]); }
-            else      { const n = (N + 1) / 2; for (let i = n - 1; i >= 1; i--) w.push(W[i]); for (let i = 0; i < n; i++) w.push(W[i]); }
-            const mx = Math.max(...w);
-            return w.map(x => x / mx);
-        }
-
-        // Square M-QAM with unit average power: levels (2k-(m-1))*a, a = sqrt(3/(2(M-1)))
-        const MODS = {
-            QPSK:  { name: 'QPSK',   M: 4,  bits: 2 },
-            QAM16: { name: '16-QAM', M: 16, bits: 4 },
-            QAM64: { name: '64-QAM', M: 64, bits: 6 },
-        };
-        function modInfo(key) {
-            const m = MODS[key] || MODS.QAM16, ax = Math.sqrt(m.M);
-            const a = Math.sqrt(3 / (2 * (m.M - 1)));
-            return { ...m, ax, a, levels: Array.from({ length: ax }, (_, k) => (2 * k - (ax - 1)) * a) };
-        }
-
+        // Training data: 'withSignal' (target inside the training window) -> the design is MPDR (minimum power distortionless response);
+        // 'signalFree' (interference + noise only, the textbook MVDR assumption) -> MVDR. The algorithm names follow the setting.
+        // `csv` keeps the historical labels, so the CSV file does not change.
+        const MV = () => Sys.trainMode === 'signalFree' ? 'MVDR' : 'MPDR';
         const ALGO = {
-            FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)' },
-            MMSE:      { short: 'MMSE',     long: 'MMSE (Wiener Filter)' },
-            SMI:       { short: 'SMI-MVDR', long: 'SMI-MVDR (Capon Beamformer)' },
-            DL:        { short: 'DL-MVDR',  long: 'DL-MVDR (Tikhonov Regularization)' },
-            BEAMSPACE: { short: 'BS-MVDR',  long: 'BEAMSPACE-MVDR (Dimensionality Reduction)' },
+            FOURIER:   { short: 'FOURIER',  long: 'FOURIER (Matched Filter)', csv: 'FOURIER' },
+            MMSE:      { get short() { return Sys.covSource === 'theory' ? 'MMSE-M(理論)' : 'MMSE-M'; }, get long() { return Sys.covSource === 'theory' ? 'MMSE-M（理論協方差，講義版）' : 'MMSE-M（樣本協方差）'; }, csv: 'MMSE' },
+            MMSEP:     { short: 'MMSE-P',   long: 'MMSE-P (Wiener, pilot-trained r_xd)', csv: 'n/a' },
+            SMI:       { get short() { return 'SMI-' + MV() + (Sys.covSource === 'theory' ? '(理論 R)' : ''); }, get long() { return `SMI-${MV()} (Capon Beamformer)` + (Sys.covSource === 'theory' ? '（理論 R）' : ''); }, csv: 'SMI-MVDR' },
+            DL:        { get short() { return 'DL-' + MV(); },  get long() { return `DL-${MV()} (Tikhonov Regularization)`; }, csv: 'DL-MVDR' },
+            BEAMSPACE: { get short() { return 'BS-' + MV(); },  get long() { return `BEAMSPACE-${MV()} (Dimensionality Reduction)`; }, csv: 'BS-MVDR' },
         };
 
-        /**
-         * System parameters and signal-processing engine
-         */
-        const Sys = {
-            // UI parameters
-            N: 8, L: 100, aoaT: 0, aoaJ: 40, snr: 20, sir: -10, v: 0,
-            calDeg: 0, latMs: 0, kDb: 20, sll: 35,
-            algo: 'SMI', gammaDL: 0.01, taper: 'NONE', mod: 'QAM16',
-            // lifecycle
-            isRunning: true, simTime: 0, forceOnce: false,
-            // constants
-            fc: 5e9, c: 3e8, d_lambda: 0.5, scs: 15e3,
-            R_RNG: 30,                      // effective range (m): angular rate = v*sin(theta)/R
-            SIGMA_ANG: 10 * Math.PI / 180,  // angular spread of the diffuse (NLoS) component
-            M_SCAT: 8,                      // scatterers per source per snapshot
-            LAMBDA_Q: 30, REL_Q: 10.0,      // quiescent-preserving loading of the adaptive path (see computeMath)
-            REFRESH: 0.2,                   // fraction of the snapshot window replaced per update
-            calZ: [], calVer: 0, dirty: true, lastCompute: 0,
-            snaps: [], snapKey: '',
+        const Sys = Core.createSys();
 
-            // computed state
-            R_hat: [], weights: [], pattern: [], tVec: [], applied: {},
-            kappa: 1, status: 'OK', fallback: false, invOk: true, delta: 0, lambdaQ: 0, noisePow: 0,
-            outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
-            eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, isDb: 0, nuICI: 0, evm: 0, ser: 0,
-            fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity,
-            thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
-            psll: -Infinity, bw3: 0, mainL: 0, mainR: 0, jamInSL: false, jamGainDb: 0,
-
-            rollCal() {
-                this.calZ = Array.from({ length: 16 }, () => this.randn());
-                this.calZ[0] = 0; // element 0 is the phase reference
-                this.calVer++; this.dirty = true;
+        /* ---------------------------------------------------------------- language (繁中 / English)
+           The page text is written in Chinese (with an English <em> hint in many places). In English mode every Chinese phrase of the page - static labels, generated diagnosis /
+           inspector text, tooltips, canvas text - is replaced through the phrase table of i18n.js; where an element carries an <em> English sibling, the Chinese part is dropped instead.
+           New texts (tooltips, experiments, buttons) are keyed in i18n.js for both languages. A MutationObserver re-translates content that the page re-renders. */
+        const CJK = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/, CJK_RUNS = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+/g;
+        const Lang = {
+            cur: 'zh', map: new Map(), re: null, done: new WeakMap(),
+            init() {
+                const ph = I18N.PHRASES.slice().sort((a, b) => b[0].length - a[0].length);
+                ph.forEach(([z, e]) => this.map.set(z, e));
+                this.re = new RegExp(ph.map(p => p[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
             },
-            randn() { const u = 1 - Math.random(), v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); },
-            qpsk(power) { const a = Math.sqrt(power / 2); return new Cplx(Math.random() < 0.5 ? -a : a, Math.random() < 0.5 ? -a : a); },
-            taperWeights() {
-                if (this.taper === 'HAMMING') return hammingWindow(this.N);
-                if (this.taper === 'CHEBYSHEV') return chebWindow(this.N, this.sll);
-                return Array(this.N).fill(1);
+            tr(s) { return this.cur === 'zh' || !this.re ? s : String(s).replace(this.re, m => this.map.get(m)); },
+            node(n) {
+                if (this.cur === 'zh' || !CJK.test(n.nodeValue)) return;
+                const p = n.parentNode;
+                if (p && p.id === 'btn-lang') return;                                  // the language button always names the other language
+                const hasEm = p && p.children && Array.prototype.some.call(p.children, c => c.tagName === 'EM');
+                const t = hasEm ? n.nodeValue.replace(CJK_RUNS, '').replace(/\s+/g, ' ') : this.tr(n.nodeValue);     // English comes from the <em> sibling
+                if (t === n.nodeValue) return;                  // nothing (more) to translate: do not write, or the observer would fire again and again
+                if (!this.done.has(n)) this.done.set(n, n.nodeValue);
+                n.nodeValue = t;
             },
-            steer(rad) { // nominal a(theta)
-                return Array.from({ length: this.N }, (_, n) => {
-                    const p = -2 * Math.PI * n * this.d_lambda * Math.sin(rad);
-                    return new Cplx(Math.cos(p), Math.sin(p));
+            walk(root) {
+                const tw = document.createTreeWalker(root, 4 /* SHOW_TEXT */); let n; const nodes = [];
+                while ((n = tw.nextNode())) nodes.push(n);
+                nodes.forEach(x => this.node(x));
+                if (root.querySelectorAll) root.querySelectorAll('[title]').forEach(el => this.title(el));
+            },
+            title(el) {
+                if (el.dataset.tip) return;
+                const t = el.getAttribute('title'); if (t === null) return;
+                if (this.cur === 'en' && CJK.test(t)) { const e = this.tr(t); if (e === t) return; if (!el.dataset.titleZh) el.dataset.titleZh = t; el.setAttribute('title', e); }
+            },
+            restore(root) {
+                const tw = document.createTreeWalker(root, 4); let n; const nodes = [];
+                while ((n = tw.nextNode())) nodes.push(n);
+                nodes.forEach(x => { if (this.done.has(x)) { x.nodeValue = this.done.get(x); this.done.delete(x); } });
+                if (root.querySelectorAll) root.querySelectorAll('[data-title-zh]').forEach(el => { el.setAttribute('title', el.dataset.titleZh); delete el.dataset.titleZh; });
+            },
+            set(l) {
+                this.cur = l; document.documentElement.lang = l === 'en' ? 'en' : 'zh-Hant';
+                try { localStorage.setItem('lang', l); } catch (e) { /* storage not available: the choice is simply not remembered */ }
+                const b = document.getElementById('btn-lang'); if (b) b.textContent = l === 'en' ? '中文' : 'EN';
+                if (l === 'zh') this.restore(document.body); else this.walk(document.body);
+                this.tips();
+                if (typeof ExpUI !== 'undefined') ExpUI.renderText();
+                Sys.dirty = true;
+                if (typeof Diagnosis !== 'undefined') Diagnosis.last = '';
+            },
+            // tooltips (<= 40 characters, both languages): keyed by element id; 'm-...' read-outs put the tip on their row
+            tips() {
+                Object.keys(I18N.TIPS).forEach(id => {
+                    let el = document.getElementById(id); if (!el) return;
+                    if (/^m-/.test(id) && el.closest) el = el.closest('.kv') || el;
+                    el.setAttribute('title', I18N.TIPS[id][this.cur]); el.dataset.tip = '1';
                 });
             },
-            gamma() { // hardware phase mismatch Gamma = diag(e^{j phi_n})
-                return Array.from({ length: this.N }, (_, n) => {
-                    const ph = this.calDeg * Math.PI / 180 * this.calZ[n];
-                    return new Cplx(Math.cos(ph), Math.sin(ph));
-                });
-            },
-            diffuse(rad, gr, gi) { // diffuse (NLoS) component g(l): M scatterers, Gaussian angular spread
-                const N = this.N, M = this.M_SCAT, bs = 1 / Math.sqrt(2 * M);
-                gr.fill(0); gi.fill(0);
-                for (let m = 0; m < M; m++) {
-                    const th = rad + this.randn() * this.SIGMA_ANG;
-                    const br = this.randn() * bs, bi = this.randn() * bs;
-                    const k = -2 * Math.PI * this.d_lambda * Math.sin(th);
-                    for (let n = 0; n < N; n++) {
-                        const c = Math.cos(k * n), s = Math.sin(k * n);
-                        gr[n] += br * c - bi * s; gi[n] += br * s + bi * c;
-                    }
-                }
-            },
-            trueCov(rad, pow, gam, cL2, cD2) { // expected covariance of one source
-                const N = this.N, R = [];
-                for (let m = 0; m < N; m++) {
-                    R.push([]);
-                    for (let n = 0; n < N; n++) {
-                        const k = m - n;
-                        const ph = -2 * Math.PI * this.d_lambda * k * Math.sin(rad);
-                        const spread = Math.exp(-0.5 * Math.pow(2 * Math.PI * this.d_lambda * k * Math.cos(rad) * this.SIGMA_ANG, 2));
-                        const amp = pow * (cL2 + cD2 * spread);
-                        R[m].push(Cplx.mul(new Cplx(amp * Math.cos(ph), amp * Math.sin(ph)), Cplx.mul(gam[m], Cplx.conj(gam[n]))));
-                    }
-                }
-                return R;
-            },
-            blockingMatrix(a) { // orthonormal basis B (as column arrays) of the complement of a: B^H a = 0, B^H B = I
-                const N = a.length, cols = [];
-                const nrm = Math.sqrt(a.reduce((s, c) => s + c.mag2(), 0));
-                const basis = [a.map(c => new Cplx(c.r / nrm, c.i / nrm))];
-                for (let k = 0; k < N && cols.length < N - 1; k++) {
-                    let v = Array.from({ length: N }, (_, i) => new Cplx(i === k ? 1 : 0, 0));
-                    for (const q of basis) {
-                        const pr = vecDot(q, v);
-                        v = v.map((c, i) => Cplx.sub(c, Cplx.mul(q[i], pr)));
-                    }
-                    const nv = Math.sqrt(v.reduce((s, c) => s + c.mag2(), 0));
-                    if (nv < 1e-3) continue;
-                    const u = v.map(c => new Cplx(c.r / nv, c.i / nv));
-                    basis.push(u); cols.push(u);
-                }
-                return cols;
-            },
+            initial() {
+                let stored = null, ok = true;
+                try { stored = localStorage.getItem('lang'); } catch (e) { ok = false; }
+                if (!ok) return 'zh';                                                 // storage unavailable: Traditional Chinese
+                if (stored === 'zh' || stored === 'en') return stored;
+                return (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language || '')) ? 'zh' : 'en';
+            }
+        };
 
-            // clear the snapshot window, R_hat history, time (RESET)
-            resetCache() {
+        // clear the snapshot window, R_hat history, time (RESET)
+        Sys.resetCache = function () {
                 this.snaps = []; this.snapKey = ''; this.simTime = 0;
                 this.R_raw = []; this.R_B = []; this.bsBins = []; this.bsAngles = []; Inspector.algoSeen = '';   // algorithm histories
+                this.real = null;                                                                 // unified model: draw a new path realisation
                 this.forceOnce = true; this.dirty = true;
-            },
-
-            // w = R^-1 a / (a^H R^-1 a); returns null if the inverse does not exist (unless `force`) or the result is not finite
-            mvdrWeights(R, a, force) {
-                const inv = invertMatrix(R, force); if (!inv) return null;
-                const num = matMulVec(inv, a), den = vecDot(a, num);
-                if (!(den.mag2() > 1e-300)) return null;
-                const w = num.map(c => Cplx.div(c, den));
-                return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
-            },
-            // Wiener / MMSE: w = R^-1 r_xd  (not normalised, so it differs from MVDR only by a scalar); null if not finite
-            wienerWeights(R, rxd, force) {
-                const inv = invertMatrix(R, force); if (!inv) return null;
-                const w = matMulVec(inv, rxd);
-                return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
-            },
-            // Beamspace-MVDR: project onto K = min(3,N) orthonormal DFT beams, invert only the K x K matrix
-            //   B = [d_k1 ... d_kK] (N x K), d_k[n] = e^{-j2 pi n k/N}/sqrt(N)  (sin(theta_k) = 2k/N for d = 0.5 lambda)
-            //   r_B = B^H r,  R_B = B^H R B,  a_B = B^H a,  w_B = R_B^-1 a_B / (a_B^H R_B^-1 a_B),  w = B w_B
-            // beams: the one nearest the target + the (K-1) with the highest estimated power (they cover strong interferers)
-            beamspace(aNom, thTo) {
-                const N = this.N, K = Math.min(3, N), R = this.R_raw;
-                const dft = k => Array.from({ length: N }, (_, n) => {
-                    const p = -2 * Math.PI * n * k / N, s = Math.sqrt(N);
-                    return new Cplx(Math.cos(p) / s, Math.sin(p) / s);
-                });
-                const kT = ((Math.round(Math.sin(thTo) * N / 2) % N) + N) % N;
-                const pw = [];
-                for (let k = 0; k < N; k++) { const d = dft(k); pw.push({ k, p: vecDot(d, matMulVec(R, d)).r }); }
-                const others = pw.filter(o => o.k !== kT).sort((a, b) => b.p - a.p).slice(0, K - 1).map(o => o.k);
-                const bins = [kT, ...others].sort((a, b) => a - b);
-                const B = bins.map(dft);
-                const aB = B.map(b => vecDot(b, aNom));
-                const RBc = B.map(b => matMulVec(R, b));
-                const M = B.map(bi => RBc.map(rb => vecDot(bi, rb)));          // R_B (K x K)
-                this.R_B = M; this.bsBins = bins;
-                this.bsAngles = bins.map(k => { const kk = k >= N / 2 ? k - N : k; return Math.asin(Math.max(-1, Math.min(1, 2 * kk / N))) * 180 / Math.PI; });
-                const ev = hermitianEigvals(M), lmax = ev[ev.length - 1], lmin = Math.max(ev[0], 0);
-                this.kappa = (lmin <= 1e-12 * lmax) ? Infinity : lmax / lmin;   // condition number of the small matrix
-                this.bsSingular = this.kappa === Infinity;                      // only when L < K
-                const inv = invertMatrix(M, true);
-                const wBnum = matMulVec(inv, aB), den = vecDot(aB, wBnum);
-                if (!(den.mag2() > 1e-300)) return null;
-                const wB = wBnum.map(c => Cplx.div(c, den));
-                const w = Array.from({ length: N }, (_, n) => {
-                    let acc = new Cplx(0, 0);
-                    for (let j = 0; j < K; j++) acc = Cplx.add(acc, Cplx.mul(wB[j], B[j][n]));
-                    return acc;
-                });
-                return w.every(c => Number.isFinite(c.r) && Number.isFinite(c.i)) ? w : null;
-            },
-
-            computeMath() {
-                const N = this.N, L = this.L, D2R = Math.PI / 180;
-                const sigPow = 1;
-                const noisePow = Math.pow(10, -this.snr / 10);
-                const jamPow = Math.pow(10, -this.sir / 10);
-                const Klin = Math.pow(10, this.kDb / 10);
-                const cL = Math.sqrt(Klin / (Klin + 1)), cD = Math.sqrt(1 / (Klin + 1));
-                const thT = this.aoaT * D2R, thJ = this.aoaJ * D2R;
-
-                // Channel aging: weights are estimated at t - tau, applied at t.
-                const tau = this.latMs * 1e-3, vms = this.v / 3.6;
-                const thTo = thT + vms * Math.sin(thT) * tau / this.R_RNG;
-                const thJo = thJ - vms * Math.sin(thJ) * tau / this.R_RNG;
-                this.thTo = thTo; this.thJo = thJo;
-                this.dTdeg = (thTo - thT) / D2R; this.dJdeg = (thJo - thJ) / D2R;
-
-                const gam = this.gamma();
-                const withG = (a) => a.map((c, n) => Cplx.mul(c, gam[n]));
-
-                // ---- snapshot window: r(l) = a1(l) s1(l) + a2(l) s2(l) + n(l)  (sources at the OLD angles)
-                // statistics-changing parameters flush the window; otherwise a fraction REFRESH is replaced per update
-                const key = [N, this.aoaT, this.aoaJ, this.snr, this.sir, this.calDeg, this.calVer, this.latMs, this.v, this.kDb].join('|');
-                if (key !== this.snapKey) { this.snaps = []; this.snapKey = key; }
-                const have = this.snaps.length;
-                let add = have === 0 ? L : Math.max(0, L - have);
-                if (have > 0) add = Math.max(add, Math.ceil(this.REFRESH * L));
-                const nomT = this.steer(thTo), nomJ = this.steer(thJo);
-                const sd = Math.sqrt(noisePow / 2);
-                const gTr = new Float64Array(N), gTi = new Float64Array(N), gJr = new Float64Array(N), gJi = new Float64Array(N);
-                for (let l = 0; l < add; l++) {
-                    const s1 = this.qpsk(sigPow), s2 = this.qpsk(jamPow);
-                    this.diffuse(thTo, gTr, gTi); this.diffuse(thJo, gJr, gJi);
-                    const rr = new Float64Array(N), ri = new Float64Array(N);
-                    for (let n = 0; n < N; n++) {
-                        const t1r = cL * nomT[n].r + cD * gTr[n], t1i = cL * nomT[n].i + cD * gTi[n];
-                        const t2r = cL * nomJ[n].r + cD * gJr[n], t2i = cL * nomJ[n].i + cD * gJi[n];
-                        const a1r = gam[n].r * t1r - gam[n].i * t1i, a1i = gam[n].r * t1i + gam[n].i * t1r;
-                        const a2r = gam[n].r * t2r - gam[n].i * t2i, a2i = gam[n].r * t2i + gam[n].i * t2r;
-                        rr[n] = a1r * s1.r - a1i * s1.i + a2r * s2.r - a2i * s2.i + this.randn() * sd;
-                        ri[n] = a1r * s1.i + a1i * s1.r + a2r * s2.i + a2i * s2.r + this.randn() * sd;
-                    }
-                    this.snaps.push({ rr, ri });
-                }
-                while (this.snaps.length > L) this.snaps.shift();
-
-                const Rr = new Float64Array(N * N), Ri = new Float64Array(N * N);
-                for (const { rr, ri } of this.snaps) {
-                    for (let m = 0; m < N; m++) for (let n = 0; n < N; n++) { // r r^H
-                        Rr[m * N + n] += rr[m] * rr[n] + ri[m] * ri[n];
-                        Ri[m * N + n] += ri[m] * rr[n] - rr[m] * ri[n];
-                    }
-                }
-                const Lw = this.snaps.length;
-                this.R_hat = Array.from({ length: N }, (_, m) => Array.from({ length: N }, (_, n) =>
-                    new Cplx(Rr[m * N + n] / Lw, Ri[m * N + n] / Lw)));
-                this.noisePow = noisePow;
-                const algo = this.algo;
-
-                // ---- raw sample covariance R_hat (before any regularisation): eigenvalues, diagonal, condition number
-                this.R_raw = this.R_hat;
-                const evRaw = hermitianEigvals(this.R_raw);
-                this.eig = []; for (let i = evRaw.length - 1; i >= 0; i -= 2) this.eig.push(Math.max(evRaw[i], 0));   // each eigenvalue appears twice
-                this.diagR = this.R_raw.map((row, m) => row[m].r);
-                const lmax = evRaw[evRaw.length - 1], lmin = Math.max(evRaw[0], 0);
-                this.kappaRaw = (lmin <= 1e-12 * lmax) ? Infinity : lmax / lmin;
-
-                // ---- DL-MVDR:  R_DL = R_hat + gamma I   (also the matrix shown in panel D)
-                this.gammaUsed = algo === 'DL' ? this.gammaDL : 0;
-                this.delta = this.gammaUsed;
-                if (this.gammaUsed > 0) this.R_hat = this.R_raw.map((row, m) => row.map((c, n) => m === n ? new Cplx(c.r + this.gammaUsed, c.i) : c));
-                this.kappa = algo === 'DL' ? (lmax + this.gammaUsed) / (lmin + this.gammaUsed) : this.kappaRaw;   // condition number of the matrix that is inverted
-
-                // ---- quiescent weight  w_q = (t . a) / sum(t)   (so that w_q^H a = 1)
-                const t = this.taperWeights(); this.tVec = t;
-                const sumT = t.reduce((a, b) => a + b, 0);
-                const wq = nomT.map((c, n) => new Cplx(c.r * t[n] / sumT, c.i * t[n] / sumT));
-
-                // ---- beamformer
-                this.fallback = false; this.collapsed = false; this.lambdaQ = 0; this.invOk = true;
-                this.bsBins = []; this.bsAngles = []; this.R_B = []; this.bsSingular = false;
-                const gscTaper = this.taper !== 'NONE' && (algo === 'SMI' || algo === 'DL');
-                if (algo === 'FOURIER') {
-                    this.weights = wq;
-                } else if (algo === 'MMSE') {
-                    // MMSE / Wiener:  w = R^-1 r_xd,  r_xd = E[r d*] = P_s a(theta_t)  (known pilot d, perfectly correlated with the target).
-                    // Inverted like SMI (no safeguard): an exactly singular R_hat (L < N) collapses the beamformer.
-                    const rxd = nomT.map(c => new Cplx(c.r * sigPow, c.i * sigPow));
-                    const w = this.wienerWeights(this.R_hat, rxd, true);
-                    if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = this.kappaRaw === Infinity;
-                } else if (algo === 'BEAMSPACE') {
-                    const w = this.beamspace(nomT, thTo);
-                    if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = this.bsSingular;
-                } else if (gscTaper) {
-                    // tapered MVDR in generalized-sidelobe-canceller form (quiescent pattern = taper):
-                    //   w = w_q - B w_a,  w_a = (B^H R B + lambda I)^-1 B^H R w_q      (R = R_hat, or R_DL for DL-MVDR)
-                    const B = this.blockingMatrix(nomT), K = B.length;
-                    const RB = B.map(b => matMulVec(this.R_hat, b));
-                    const Rwq = matMulVec(this.R_hat, wq);
-                    this.lambdaQ = Math.max(this.LAMBDA_Q * noisePow, this.REL_Q * vecDot(wq, Rwq).r);
-                    const M = Array.from({ length: K }, (_, i) => Array.from({ length: K }, (_, j) => vecDot(B[i], RB[j])));
-                    for (let i = 0; i < K; i++) M[i][i] = Cplx.add(M[i][i], new Cplx(this.lambdaQ, 0));
-                    const cvec = B.map(b => vecDot(b, Rwq));
-                    const Minv = invertMatrix(M); this.invOk = !!Minv;
-                    if (Minv) {
-                        const wa = matMulVec(Minv, cvec);
-                        this.weights = wq.map((c, n) => {
-                            let acc = new Cplx(c.r, c.i);
-                            for (let j = 0; j < K; j++) acc = Cplx.sub(acc, Cplx.mul(B[j][n], wa[j]));
-                            return acc;
-                        });
-                    } else { this.weights = wq; this.fallback = true; }
-                } else {
-                    // plain SMI-MVDR or DL-MVDR:  w = R^-1 a / (a^H R^-1 a).  SMI is inverted *without* any safeguard, so an
-                    // exactly singular R_hat (L < N) yields numerically meaningless weights: the beamformer collapses.
-                    const w = this.mvdrWeights(this.R_hat, nomT, algo === 'SMI');
-                    if (w) this.weights = w; else { this.weights = wq; this.fallback = true; }
-                    this.collapsed = (algo === 'SMI' && this.kappaRaw === Infinity);
-                }
-                if (algo === 'FOURIER') this.status = 'OK';                       // R_hat is not used
-                else if (this.collapsed) this.status = 'SINGULAR';
-                else if (L < N) this.status = algo === 'BEAMSPACE' ? 'L<N (beamspace)' : ((algo === 'DL' || gscTaper) ? 'L<N (regularized)' : 'L<N');
-                else if (this.kappa > 1e6) this.status = 'ILL-COND';
-                else this.status = 'OK';
-
-                this.outGain = vecDot(this.weights, nomT).r;     // w^H a: 1 for the distortionless designs, < 1 for the Wiener (MMSE) filter
-
-                // ---- SINR from TRUE covariances at the CURRENT angles (after latency)
-                const Rt = this.trueCov(thT, sigPow, gam, cL * cL, cD * cD);
-                const Rj = this.trueCov(thJ, jamPow, gam, cL * cL, cD * cD);
-                const w = this.weights;
-                this.S = quadForm(w, Rt);
-                this.I = quadForm(w, Rj);
-                this.Nn = w.reduce((a, c) => a + c.mag2(), 0) * noisePow;
-                const sinrLin = this.S / (this.I + this.Nn);
-                this.sinrDb = 10 * Math.log10(sinrLin);
-                this.isDb = 10 * Math.log10(this.I / this.S + 1e-30);
-
-                const gJ2 = vecDot(w, withG(this.steer(thJ))).mag2();
-                const gT2 = vecDot(w, withG(this.steer(thT))).mag2();
-                this.nullDb = 10 * Math.log10(gJ2 / gT2 + 1e-30);
-
-                // ---- Doppler / ICI
-                this.fm = vms * this.fc / this.c;
-                this.fd = this.fm * Math.cos(thT);                // fixed heading (+x): fd = fm cos(theta)
-                this.eps0 = this.fd / this.scs;
-                this.epsM = this.fm / this.scs;
-                const los = 1 - Math.pow(sinc(this.eps0), 2);
-                let dif = 0; const A = 32;
-                for (let k = 0; k < A; k++) dif += 1 - Math.pow(sinc(this.epsM * Math.cos(2 * Math.PI * (k + 0.5) / A)), 2);
-                dif /= A;
-                this.nuICI = (Klin / (Klin + 1)) * los + (1 / (Klin + 1)) * dif;   // N_ICI / S
-                this.nIciDb = 10 * Math.log10(this.nuICI + 1e-30);
-                this.evm = Math.sqrt(1 / sinrLin + this.nuICI);
-
-                // ---- symbol error rate of the chosen square M-QAM under Gaussian error (per-axis sigma = EVM/sqrt2)
-                const mi = modInfo(this.mod), sig = Math.max(this.evm, 1e-9) / Math.SQRT2;
-                const pAxis = Math.min(1, 2 * (1 - 1 / mi.ax) * qfunc(mi.a / sig));
-                this.ser = 1 - Math.pow(1 - pAxis, 2);
-
-                // ---- pattern |w^H a(theta)|^2 (nominal array), 1-degree grid, plus lobe metrics
-                const g = [];
-                for (let deg = -90; deg <= 90; deg++) g.push(vecDot(w, this.steer(deg * D2R)).mag2());
-                const gm = Math.max(...g, 1e-30);
-                const p = g.map(x => 10 * Math.log10(x / gm + 1e-30));
-                this.pattern = p;
-                let ip = 0; for (let i = 1; i < p.length; i++) if (p[i] > p[ip]) ip = i;
-                let il = ip; while (il > 0 && p[il - 1] <= p[il]) il--;
-                let ir = ip; while (ir < p.length - 1 && p[ir + 1] <= p[ir]) ir++;
-                this.mainL = il; this.mainR = ir;
-                let psll = -Infinity;
-                for (let i = 0; i < p.length; i++) if (i < il || i > ir) psll = Math.max(psll, p[i]);
-                this.psll = psll;
-                let xl = il, xr = ir;
-                for (let i = ip; i > il; i--) if (p[i - 1] < -3) { xl = i - 1 + (-3 - p[i - 1]) / (p[i] - p[i - 1]); break; }
-                for (let i = ip; i < ir; i++) if (p[i + 1] < -3) { xr = i + (p[i] + 3) / (p[i] - p[i + 1]); break; }
-                this.bw3 = xr - xl;
-                const jIdx = Math.min(180, Math.max(0, Math.round(this.aoaJ) + 90));
-                this.jamInSL = jIdx < il || jIdx > ir;
-                this.jamGainDb = p[jIdx];
-
-                // snapshot of the parameters this result was computed with (diagnosis reads these, not the live sliders)
-                this.applied = { algo: this.algo, taper: this.taper, gamma: this.gammaUsed, L, N, aoaJ: this.aoaJ, mod: this.mod };
-            }
         };
-        Sys.rollCal();
+
+        if (typeof location !== 'undefined' && location.search) {            // ?model=legacy|unified  &train=withSignal|signalFree
+            const q = new URLSearchParams(location.search), m = q.get('model'), tr = q.get('train');
+            if (m === 'legacy' || m === 'unified') Sys.model = m;
+            if (tr === 'withSignal' || tr === 'signalFree') Sys.trainMode = tr;
+            const fcq = parseFloat(q.get('fc')), scq = parseFloat(q.get('scs'));                   // ?fc=28 (GHz)  &scs=120 (kHz)
+            if (fcq > 0) Sys.fc = fcq * 1e9;
+            if ([15, 30, 60, 120].includes(scq)) Sys.scs = scq * 1e3;
+        }
+        // seed: ?seed=<uint32> or a new random seed on every page load. Everything derived from it is reproducible:
+        // the phase mismatch (index calIndex), the sweep (child seed per point/algorithm/trial, Bench.point).
+        let uiSeed = 0, calIndex = 0;
+        function rollCalSeeded() { Core.withSeed(Core.deriveSeed(uiSeed, 0xCA1, calIndex), () => Sys.rollCal()); }
+        function applySeed(s) { uiSeed = s >>> 0; Core.setSeed(uiSeed); calIndex = 0; rollCalSeeded(); }
+        applySeed((typeof location !== 'undefined' && location.search && /[?&]seed=(\d+)/.test(location.search)) ? parseInt(RegExp.$1, 10) : Core.randomSeed());
 
         /**
          * Math & Derivation Inspector + 1 Hz log
@@ -808,31 +495,42 @@
             f(x, d = 1) { return Number.isFinite(x) ? x.toFixed(d) : (x > 0 ? '∞' : '-∞'); },
             sci(x) { return Number.isFinite(x) ? x.toExponential(1) : '∞'; },
             v(txt) { return `<span class="live">${txt}</span>`; },
-            statusCls(s) { return s === 'OK' ? 'ok' : (/regularized|beamspace/.test(s) ? 'warn' : 'bad'); },
+            statusCls(s) { return s === 'OK' ? 'ok' : (/regularized|beamspace|pinv/.test(s) ? 'warn' : 'bad'); },
             // called after every computation of the *live* system: prints the result of the user's last optimisation step
             algoSeen: '', collSeen: false,
             onCompute() {
-                const S = Sys, coll = S.status === 'SINGULAR';
+                const S = Sys, coll = S.status === 'SINGULAR' || /RANK-DEFICIENT/.test(S.status);
                 if (S.algo !== this.algoSeen) { this.algoSeen = S.algo; this.collSeen = coll; this.announce(); return; }
                 if (coll !== this.collSeen) {
                     this.collSeen = coll;
-                    if (coll) this.push(`[CRITICAL] L < ${S.algo === 'BEAMSPACE' ? 'K' : 'N'}. Matrix is singular. Beamforming collapsed.`, 'e');
+                    if (coll && S.status !== 'SINGULAR') this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}（L = ${S.L} < N = ${S.N}），求逆為偽逆（Moore–Penrose，閾值 ${S.epsRank}·λmax）。`, 'w');
+                    else if (coll) this.push(`[CRITICAL] L < ${S.algo === 'BEAMSPACE' ? 'K' : 'N'}. Matrix is singular. Beamforming collapsed.`, 'e');
                     else this.push(`[RECOVERED] Matrix invertible again (κ = ${this.sci(S.kappa)}).`, 'g');
                 }
             },
             announce() {
                 const S = Sys, K = S.bsBins.length, kr = S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw), ku = S.kappa === Infinity ? '∞' : this.sci(S.kappa);
                 if (S.algo === 'FOURIER') this.push('[INFO] FOURIER (Matched Filter) selected. Baseline: no interference suppression.', 'i');
+                else if (S.algo === 'MMSEP') {
+                    this.push('[ALGO] 切換至 MMSE-P (pilot-trained Wiener)', 'i');
+                    this.push('w = R̂⁻¹ r̂_xd，r̂_xd = (1/L) Σ x_n·conj(s_n)（s_n：訓練窗內已知導頻符元）', 'f');
+                    this.push('Requires KNOWN pilot symbols in the training window; R̂ contains the target (Wiener), independent of the training-data setting.', 'n');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（Moore–Penrose）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    else this.push(`[INFO] MMSE-P: κ = ${ku}. High Doppler rotates the channel inside the window, so r̂_xd (a window average) shrinks and its direction degrades.${Number.isFinite(S.evmPilot) ? ` EVM with the pilot-based scaling ŵ^H ĥ = ${(S.evmPilot * 100).toFixed(1)} % (|ρ| = ${S.rhoPilot.toFixed(2)}).` : ''}`, 'i');
+                }
                 else if (S.algo === 'MMSE') {
-                    this.push('[ALGO] 切換至 MMSE (Minimum Mean Square Error)', 'i');
+                    this.push('[ALGO] 切換至 MMSE-M (model-based Wiener)', 'i');
                     this.push('w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)', 'f');
                     this.push('Requires known reference signal (Pilot). Minimizes MSE between output and reference.', 'n');
-                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
-                    else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MVDR (κ = ${ku}).`, 'i');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（Moore–Penrose）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    else this.push(`[INFO] MMSE: w^H a = ${S.outGain.toFixed(3)} (scalar alpha vs MVDR), identical beam shape and null positions as SMI-MPDR (κ = ${ku}). MMSE always trains on data that contain the target.`, 'i');
                 }
                 else if (S.algo === 'SMI') {
-                    if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
-                    else this.push(`[INFO] SMI-MVDR selected. Direct inversion succeeded (κ = ${ku}). It collapses when L < N.`, 'i');
+                    if (/RANK-DEFICIENT/.test(S.status)) this.push(`[WARN] 秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（SMI-${MV()}，Moore–Penrose）；κ = ∞（秩 ${S.rankR}/${S.N}）。`, 'w');
+                    else if (S.status === 'SINGULAR') this.push('[CRITICAL] L < N. Matrix is singular. Beamforming collapsed.', 'e');
+                    else this.push(`[INFO] SMI-${MV()} selected (${S.trainMode === 'signalFree' ? 'training window without the target, idealised' : 'training window contains the target: signal self-nulling possible under look-direction mismatch'}). Direct inversion succeeded (κ = ${ku}). It collapses when L < N.`, 'i');
                 } else if (S.algo === 'DL') {
                     this.push(`[OPTIMIZED] Diagonal Loading applied (γ = ${this.sci(S.gammaUsed)}). Condition number stabilized (κ ${kr} → ${ku}).`, 'g');
                 } else if (S.algo === 'BEAMSPACE') {
@@ -861,6 +559,7 @@
                 $('m-psll').innerText = this.f(S.psll); $('m-bw').innerText = this.f(S.bw3);
                 const kEl = $('m-kappa');
                 kEl.innerText = S.kappa === Infinity ? '∞' : S.kappa.toExponential(1);
+                if (S.algo !== 'FOURIER' && S.algo !== 'BEAMSPACE' && S.rankR < S.N && S.kappa === Infinity) kEl.innerText = `∞ (秩 ${S.rankR}/${S.N})`;   // relative threshold epsRank*lambda_max
                 kEl.className = 'v ' + ((S.kappa === Infinity || S.kappa > 1e6) ? 'bad' : (S.kappa > 1e3 ? 'warn' : ''));
                 const ln = $('m-ln'); ln.innerText = (S.L / S.N).toFixed(1); ln.className = 'v ' + (S.L < S.N ? 'bad' : (S.L < 1.5 * S.N ? 'warn' : ''));
                 $('m-fm').innerText = this.f(S.fm); $('m-fd').innerText = this.f(S.fd);
@@ -876,6 +575,18 @@
                 const dimN = S.algo === 'BEAMSPACE' ? Math.min(3, S.N) : S.N;
                 $('m-rank').innerText = Math.min(S.snaps.length, dimN) + ' / ' + dimN;
                 $('m-win').innerText = `${S.snaps.length} / ${S.L}`;
+                const dash = x => Number.isFinite(x) ? x : null;     // legacy model: no path realisation -> show a dash
+                $('m-bd').innerText = dash(S.bD) === null ? '—' : S.bD.toFixed(1);
+                $('m-rho').innerText = dash(S.rho) === null ? '—' : S.rho.toPrecision(3);
+                $('m-point').innerText = S.pointUsedDeg === 0 ? '0' : `${(S.pointUsedDeg).toFixed(1)}° / ${this.f(S.bw3)}° = ${(100 * Math.abs(S.pointUsedDeg) / Math.max(S.bw3, 1e-9)).toFixed(0)} %${S.algo === 'MMSEP' ? '（MMSE-P 不受影響）' : ''}`;
+                $('m-deff').innerText = `${S.dEffT.toFixed(2)}° (${(100 * Math.abs(S.dEffT) / Math.max(S.bw3, 1e-9)).toFixed(0)} % θ₃dB) / ${S.dEffJ.toFixed(2)}°`;
+                $('m-evm-raw').innerText = Number.isFinite(S.evmRaw) ? this.f(Math.min(S.evmRaw * 100, 999)) : '—';
+                $('m-angsrc').innerText = S.angleSource === 'music' && Number.isFinite(S.angleUsedDeg) ? `MUSIC ${S.angleUsedDeg.toFixed(1)}° (Δθ₁ ${S.musicErrT.toFixed(1)}°, Δθ₂ ${S.musicErrJ.toFixed(1)}°)` : (S.angleSource === 'music' ? 'MUSIC —' : '名義');
+                $('m-opt').innerText = Number.isFinite(S.sinrOptDb) ? S.sinrOptDb.toFixed(1) : '—';
+                $('m-optgap').innerText = Number.isFinite(S.sinrOptDb) ? ` (Δ ${(S.sinrDb - S.sinrOptDb).toFixed(1)} dB)` : '';
+                $('m-drift').innerText = dash(S.angDrift) === null ? '—' : S.angDrift.toPrecision(3);
+                $('m-perr').innerText = dash(S.dopPhaseErr) === null ? '' : ` (${S.dopPhaseErr.toPrecision(2)} rad)`;
+                $('m-aging').innerText = dash(S.agingB) === null ? '—' : S.agingB.toPrecision(3);
             },
             renderEq() {
                 const S = Sys, v = t => this.v(t), $ = id => document.getElementById(id), mi = modInfo(S.mod);
@@ -894,7 +605,7 @@
                     (alg === 'DL' ? `，R̂<sub>DL</sub> = R̂<sub>r</sub> + γI` : ``) +
                     (alg === 'BEAMSPACE' ? `，R̂<sub>B</sub> = BᴴR̂<sub>r</sub>B (${Kb}×${Kb})` : ``) + `<br>` +
                     `<span class="note">L=${v(S.L)}  N=${v(S.N)}  L/N=${v((S.L / S.N).toFixed(1))}  γ=${alg === 'DL' ? v(this.sci(S.gammaUsed)) : v('—')}<br>` +
-                    `rank(R̂<sub>r</sub>) ≤ min(L,N) = ${v(Math.min(S.L, S.N))}  κ(R̂<sub>r</sub>)=${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))}` +
+                    `rank(R̂<sub>r</sub>) ≤ min(L,N) = ${v(Math.min(S.L, S.N))}  κ(R̂<sub>r</sub>)=${v(S.kappaRank === Infinity ? `∞（秩 ${S.rankR}/${S.N}）` : this.sci(S.kappaRank))}` +
                     (alg === 'FOURIER' ? `  <span class="note">(Fourier 不使用 R̂)</span>` : `  κ(求逆矩陣)=${v(S.kappa === Infinity ? '∞' : this.sci(S.kappa))}  <span class="${this.statusCls(S.status)}">${S.status}</span>`) +
                     `<br>樣本窗 window：最近 L 筆快照，每次更新替換 ${v(Math.round(S.REFRESH * 100) + '%')}</span>`;
 
@@ -906,18 +617,20 @@
                 $('eq-w').innerHTML =
                     `<div class="${cls(alg === 'FOURIER')}"><b>FOURIER</b>（匹配濾波 Matched Filter）：w = w<sub>q</sub> = (t ⊙ a(θ̂<sub>1</sub>)) / Σt<sub>n</sub>，w<sub>q</sub><sup>H</sup>a = 1<br>` +
                     `<span class="note">${tdef}<br>t = [${v(tvals)}]${alg === 'FOURIER' ? '<br>無零陷；干擾由旁瓣洩入' : ''}</span></div>` +
-                    `<div class="${cls(alg === 'MMSE')}"><b>MMSE</b>（Wiener 濾波器）：min<sub>w</sub> E|wᴴr − d|²<br>` +
+                    `<div class="${cls(alg === 'MMSEP')}"><b>MMSE-P</b>（Wiener，導頻訓練）：w = R̂<sub>r</sub><sup>−1</sup> r̂<sub>xd</sub>，r̂<sub>xd</sub> = (1/L)Σ x<sub>n</sub>·s<sub>n</sub>*<br>` +
+                    `<span class="note">需要已知導頻 s<sub>n</sub>；R̂ 含目標（與訓練資料設定無關）。EVM 縮放：ĥ = r̂<sub>xd</sub>/P<sub>s</sub>，g<sub>hat</sub> = wᴴĥ；ρ = wᴴh / g<sub>hat</sub>，EVM² = |ρ−1|² + |ρ|²(1/SINR + N<sub>ICI</sub>/S)${alg === 'MMSEP' && Number.isFinite(S.evmPilot) ? `<br>|ρ| = ${v(S.rhoPilot.toFixed(2))}，EVM(導頻縮放) = ${v((S.evmPilot * 100).toFixed(1) + ' %')}` : ''}${alg === 'MMSEP' && S.collapsed ? '<br><span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : ''}</span></div>` +
+                    `<div class="${cls(alg === 'MMSE')}"><b>MMSE-M</b>（Wiener 濾波器，模型式 r<sub>xd</sub>）：min<sub>w</sub> E|wᴴr − d|²<br>` +
                     `w_MMSE = R⁻¹ * r_xd (r_xd: 互相關向量)<br>` +
                     `模擬：參考訊號與目標完全相關 ⇒ r<sub>xd</sub> = P<sub>s</sub>·a(θ<sub>t</sub>)，w = R̂<sub>r</sub><sup>−1</sup>(P<sub>s</sub>a)，P<sub>s</sub>=1<br>` +
                     `<span class="note">Requires known reference signal (Pilot). Minimizes MSE between output and reference.<br>` +
                     `與 MVDR 只差純量 α = P<sub>s</sub>·aᴴR̂<sup>−1</sup>a：${alg === 'MMSE' ? `wᴴa = ${v(S.outGain.toFixed(3))}（理論 α = SINR/(1+SINR) &lt; 1；樣本估計使 R̂⁻¹ 偏大約 L/(L−N)，α 會略增；場型形狀與零陷位置與 SMI-MVDR 完全相同）${S.collapsed ? '<br><span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : ''}` : '波束形狀與零陷位置與 SMI-MVDR 相同'}</span></div>` +
-                    `<div class="${cls(alg === 'SMI' && !gsc)}"><b>SMI-MVDR</b>：min<sub>w</sub> wᴴR<sub>r</sub>w s.t. wᴴa(θ̂<sub>1</sub>) = 1<br>` +
+                    `<div class="${cls(alg === 'SMI' && !gsc)}"><b>SMI-${MV()}</b>：min<sub>w</sub> wᴴR<sub>r</sub>w s.t. wᴴa(θ̂<sub>1</sub>) = 1<br>` +
                     `⇒ w = R̂<sub>r</sub><sup>−1</sup>a / (aᴴR̂<sub>r</sub><sup>−1</sup>a)<br>` +
-                    `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
-                    `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-MVDR</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
+                    `<span class="note">${alg === 'SMI' ? (S.collapsed ? '<span class="bad">L &lt; N：R̂ 奇異，求逆失效 → 波束崩潰</span>' : /RANK-DEFICIENT/.test(S.status) ? `<span class="warn">秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆 R̂⁺（w = R̂⁺a/(aᴴR̂⁺a)，wᴴa = 1）</span>` : `a = a(θ̂<sub>1</sub>) = a(${v((S.thTo * 180 / Math.PI).toFixed(1) + '°')})，L ≥ N 可求逆`) : 'L &lt; N 時 R̂ 秩不足，必定崩潰'}</span></div>` +
+                    `<div class="${cls(alg === 'DL' && !gsc)}"><b>DL-${MV()}</b>（Tikhonov 正則化）：R̂<sub>DL</sub> = R̂<sub>r</sub> + γI<br>` +
                     `⇒ w = R̂<sub>DL</sub><sup>−1</sup>a / (aᴴR̂<sub>DL</sub><sup>−1</sup>a)<br>` +
-                    `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
-                    `<div class="${cls(alg === 'BEAMSPACE')}"><b>BEAMSPACE-MVDR</b>（降維 N→K）：B = [d<sub>k₁</sub> … d<sub>k<sub>K</sub></sub>] (N×K)，d<sub>k</sub>[n] = e<sup>−j2πnk/N</sup>/√N，BᴴB = I<br>` +
+                    `<span class="note">${alg === 'DL' ? `γ=${v(this.sci(S.gammaUsed))}${S.model === 'unified' ? `（= ${S.gammaRelDb} dB × σ<sub>n</sub>²，σ<sub>n</sub>²=${this.sci(S.noisePow)}）` : ''}：特徵值 λ → λ+γ，κ ${v(S.kappaRaw === Infinity ? '∞' : this.sci(S.kappaRaw))} → ${v(this.sci(S.kappa))}` : '特徵值整體抬升 γ，穩定求逆'}</span></div>` +
+                    `<div class="${cls(alg === 'BEAMSPACE')}"><b>BEAMSPACE-${MV()}</b>（降維 N→K）：B = [d<sub>k₁</sub> … d<sub>k<sub>K</sub></sub>] (N×K)，d<sub>k</sub>[n] = e<sup>−j2πnk/N</sup>/√N，BᴴB = I<br>` +
                     `r<sub>B</sub> = Bᴴr，R̂<sub>B</sub> = BᴴR̂<sub>r</sub>B，a<sub>B</sub> = Bᴴa<br>` +
                     `w<sub>B</sub> = R̂<sub>B</sub><sup>−1</sup>a<sub>B</sub> / (a<sub>B</sub>ᴴR̂<sub>B</sub><sup>−1</sup>a<sub>B</sub>)，w = B·w<sub>B</sub><br>` +
                     `<span class="note">${alg === 'BEAMSPACE' ? `K=${v(S.bsBins.length)}  波束 k=[${v(S.bsBins.join(', '))}] ≈ [${v(S.bsAngles.map(a => a.toFixed(0) + '°').join(', '))}]<br>κ<sub>B</sub>=${v(S.kappa === Infinity ? '∞' : this.sci(S.kappa))}，只需 ${S.bsBins.length}×${S.bsBins.length} 求逆（L ≥ K 即可）` : '選取目標與強干擾所在的 DFT 波束'}</span></div>` +
@@ -944,7 +657,11 @@
 
                 $('eq-aging').innerHTML =
                     `權重於 t−τ 估計，於 t 套用：θ̂ = θ(t−τ)<br>` +
-                    `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/R，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/R (R=${v(S.R_RNG + ' m')})<br>` +
+                    (S.model === 'unified'
+                        ? `θ̇ = v·sinθ·|sinθ|/d<sub>min</sub>（目標與干擾相同，各用自己當前的 θ；沿直線軌道的精確幾何）　(d<sub>min</sub>=${v(S.d_min + ' m')})<br>` +
+                          `<span class="note">d<sub>min</sub>：地面點到直線軌道的垂直距離；θ 自行進方向量起，f<sub>d</sub> = f<sub>m</sub>cosθ，θ̇ 與 f<sub>d</sub> 同步（接近時 θ 增大、f<sub>d</sub> 下降）</span><br>`
+                        : `θ̇<sub>1</sub> = −v·sinθ<sub>1</sub>/d<sub>min</sub>，θ̇<sub>2</sub> = +v·sinθ<sub>2</sub>/d<sub>min</sub>　(d<sub>min</sub>=${v(S.d_min + ' m')})<br>` +
+                          `<span class="note">legacy：一階線性模型（沿用舊符號），嚴格僅在 θ=±90° 成立；unified 模型改用精確幾何</span><br>`) +
                     `<span class="note">τ=${v(S.latMs + ' ms')}  Δθ<sub>1</sub>=${v(this.f(S.dTdeg, 2) + '°')}  Δθ<sub>2</sub>=${v(this.f(S.dJdeg, 2) + '°')}<br>` +
                     (S.latMs > 0 && S.v > 0 ? `零陷指向 θ₂−Δθ₂，但干擾源此刻位於 θ₂` : `τ=0 或 v=0：無通道老化`) + `</span>`;
             },
@@ -953,8 +670,8 @@
                 const t = S.simTime.toFixed(0).padStart(3, ' ');
                 const tag = ALGO[S.algo].short + (S.algo === 'DL' ? `(γ=${this.sci(S.gammaUsed)})` : '');
                 const line = `[${t}s] ${tag}/${S.taper}/${modInfo(S.mod).name} κ=${S.kappa === Infinity ? '∞' : this.sci(S.kappa)} L/N=${(S.L / S.N).toFixed(1)} ${S.status} SINR=${this.f(S.sinrDb)}dB PSLL=${this.f(S.psll)}dB null=${this.f(S.nullDb)}dB N_ICI=${this.f(S.nIciDb)}dB EVM=${this.f(Math.min(S.evm * 100, 999))}%`;
-                this.push(line + (S.status === 'SINGULAR' ? '  !! 奇異：R̂ 不可逆，波束崩潰' : S.status === 'L<N' ? '  !! L<N' : ''),
-                          (S.status === 'SINGULAR' || S.status === 'L<N' || S.status === 'ILL-COND') ? 'w' : '');
+                this.push(line + (S.status === 'SINGULAR' ? '  !! 奇異：R̂ 不可逆，波束崩潰' : /RANK-DEFICIENT/.test(S.status) ? '  !! 秩虧：偽逆' : S.status === 'L<N' ? '  !! L<N' : ''),
+                          (S.status === 'SINGULAR' || S.status === 'L<N' || S.status === 'ILL-COND' || /RANK-DEFICIENT/.test(S.status)) ? 'w' : '');
             },
             push(text, cls) {
                 const log = document.getElementById('log'), div = document.createElement('div');
@@ -984,11 +701,14 @@
                 const kap = x => x === Infinity ? '∞' : I.sci(x);
 
                 // 空間域失配：快照數不足 (SMI-MVDR only: the other algorithms either regularise or reduce the dimension)
-                if ((A.algo === 'SMI' || A.algo === 'MMSE') && A.L < 1.5 * A.N) {
+                if ((A.algo === 'SMI' || A.algo === 'MMSE' || A.algo === 'MMSEP') && A.L < 1.5 * A.N) {
                     const gsc = A.algo === 'SMI' && A.taper !== 'NONE';
-                    const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRaw)}`;
-                    const fixes = [['dl', '套用 DL-MVDR (對角線加載)'], ['bs', '切換 BEAMSPACE-MVDR (降維)']];
-                    if (S.status === 'SINGULAR') {
+                    const detail = `L=${A.L} &lt; ${A.L < A.N ? 'N' : '1.5N'}=${(A.L < A.N ? A.N : 1.5 * A.N).toFixed(0)}，κ(R̂)=${kap(S.kappaRank)}${S.rankR < A.N ? `（秩 ${S.rankR}/${A.N}）` : ''}`;
+                    const fixes = [['dl', `套用 DL-${MV()} (對角線加載)`], ['bs', `切換 BEAMSPACE-${MV()} (降維)`]];
+                    if (/RANK-DEFICIENT/.test(S.status)) {
+                        out.push({ id: 'starve', stage: 'rx', cls: 'warn', map: 'warn', flag: '秩虧', tag: '[診斷]',
+                            msg: `秩虧：R̂ 秩 = ${S.rankR}，求逆為偽逆（只用非零特徵空間）。`, dim: detail + `，κ=∞（秩 ${S.rankR}/${A.N}）`, actions: fixes });
+                    } else if (S.status === 'SINGULAR') {
                         out.push({ id: 'starve', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]',
                             msg: 'L &lt; N. Matrix is singular. Beamforming collapsed.', dim: detail + '，波束圖失真', actions: fixes });
                     } else if (gsc) {
@@ -1010,10 +730,12 @@
                     });
                 }
                 // 時頻雙選擇性：都卜勒 ICI
-                if (Math.abs(S.fd) > 100) {
+                // threshold on the ICI-to-signal ratio N_ICI/S (CONFIG.iciWarnDb / iciSevereDb), not on |f_d| alone: the leakage depends on f_d/Δf (PARAMS.md section 8)
+                if (S.nIciDb > CONFIG.iciWarnDb) {
+                    const severe = S.nIciDb > CONFIG.iciSevereDb;
                     out.push({
-                        id: 'ici', stage: 'ch', cls: 'warn', map: 'bad', flag: 'ICI', tag: '[診斷]',
-                        msg: '高移動性導致 OFDM 載波間干擾 (ICI)，正交性喪失。',
+                        id: 'ici', stage: 'ch', cls: severe ? 'err' : 'warn', map: severe ? 'bad' : 'warn', flag: 'ICI', tag: severe ? '[CRITICAL]' : '[診斷]',
+                        msg: severe ? '嚴重 OFDM 載波間干擾 (ICI)：僅 ICI 即使 EVM 超過約 10 %，正交性喪失。' : '高移動性導致 OFDM 載波間干擾 (ICI)，正交性開始劣化。',
                         dim: `|f<sub>d</sub>|=${I.f(Math.abs(S.fd))} Hz，ε=${S.eps0.toFixed(3)}，N<sub>ICI</sub>/S=${I.f(S.nIciDb)} dB，SER=${S.ser < 1e-6 ? '&lt;1e-6' : S.ser.toExponential(1)} (${modInfo(A.mod).name})`,
                         actions: [], note: '[研究方向] 此為物理極限，陣列最佳化無法消除；需改用 OTFS 等次世代調變（延遲-都卜勒域 Delay-Doppler）。'
                     });
@@ -1026,7 +748,7 @@
                 } else if (A.algo === 'BEAMSPACE') {
                     const K = S.bsBins.length;
                     out.push(S.status === 'SINGULAR'
-                        ? { id: 'bs', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]', actions: [['dl', '套用 DL-MVDR (對角線加載)']],
+                        ? { id: 'bs', stage: 'rx', cls: 'err', map: 'bad', flag: '奇異', tag: '[CRITICAL]', actions: [['dl', `套用 DL-${MV()} (對角線加載)`]],
                             msg: `L &lt; K=${K}. Beamspace matrix is singular.`, dim: `κ<sub>B</sub>=${kap(S.kappa)}` }
                         : { id: 'bs', stage: 'rx', cls: 'okk', map: 'ok', flag: '', tag: '[OPTIMIZED]', optimized: true, actions: [],
                             msg: `Projected to ${K}D Beamspace. Subspace inversion successful.`,
@@ -1086,7 +808,7 @@
                 this.lastUI = now;
                 const S = Sys, I = Inspector, mi = modInfo(S.mod), $ = (id, s) => { document.getElementById(id).innerText = s; };
                 $('pp-tx-1', `${mi.name} · ${mi.bits} bit/符元`);
-                $('pp-tx-2', `OFDM Δf 15 kHz · fc 5 GHz`);
+                $('pp-tx-2', `OFDM Δf ${S.scs / 1e3} kHz · fc ${Number((S.fc / 1e9).toPrecision(4))} GHz`);
                 $('pp-ch-1', `v ${S.v} km/h · f_d ${I.f(S.fd, 0)} Hz · ε ${S.eps0.toFixed(3)}`);
                 $('pp-ch-2', `干擾 θ₂ ${S.aoaJ}° · SIR ${S.sir} dB · K ${S.kDb} dB · σφ ${S.calDeg}°`);
                 $('pp-rx-1', `${ALGO[S.algo].short}${S.algo === 'DL' ? ' γ=' + I.sci(S.gammaUsed) : ''}${S.algo === 'BEAMSPACE' ? ' K=' + S.bsBins.length : ''} · 加窗 ${S.taper}`);
@@ -1104,7 +826,7 @@
          */
         const Bench = {
             VMAX: 300, STEP: 10, TRIALS: 3,
-            ALGOS: [['FOURIER', '#22d3ee'], ['MMSE', '#60a5fa'], ['SMI', '#fb923c'], ['DL', '#34d399'], ['BEAMSPACE', '#f472b6']],
+            ALGOS: [['FOURIER', '#22d3ee'], ['MMSE', '#60a5fa'], ['MMSEP', '#2dd4bf', [6, 3]], ['SMI', '#fb923c'], ['DL', '#34d399'], ['BEAMSPACE', '#f472b6']],
             running: false, progress: 0, result: null,
 
             evmForSer(modKey, target) {                       // EVM at which the chosen M-QAM reaches SER = target
@@ -1114,26 +836,40 @@
                 for (let i = 0; i < 60; i++) { const mid = Math.sqrt(lo * hi); if (ser(mid) < target) lo = mid; else hi = mid; }
                 return Math.sqrt(lo * hi);
             },
+            gammaOf() { return Sys.model === 'unified' ? Math.pow(10, Sys.gammaRelDb / 10) * Math.pow(10, -Sys.snr / 10) : Sys.gammaDL; },   // absolute gamma in use
             shadow(algo) {
-                return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {} });
+                return Object.assign(Object.create(Sys), { algo, snaps: [], snapKey: '', R_hat: [], R_raw: [], R_B: [], weights: [], pattern: [], tVec: [], applied: {}, real: null, freshRealization: true });
             },
-            point(P, v) {                                      // average of TRIALS independent snapshot windows
-                let e2 = 0, s = 0, ici = 0;
+            // point index pi (speed), algorithm index ai: every trial k runs with its own child seed deriveSeed(deriveSeed(seed, pi), ai, k) (the inner one is the CSV's point_seed), so any single
+            // (speed, algorithm, trial) cell can be re-run alone and gives the same number; the live RNG stream is left untouched (Core.withSeed)
+            point(P, v, pi, ai) {                              // average of TRIALS independent snapshot windows
+                let e2 = 0, s = 0, ici = 0, evmMeas = NaN;
+                const seed = this.result ? this.result.seed : uiSeed;
                 for (let k = 0; k < this.TRIALS; k++) {
-                    P.snaps = []; P.snapKey = ''; P.v = v;
-                    Sys.computeMath.call(P);
-                    e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuICI;
+                    Core.withSeed(Core.deriveSeed(Core.deriveSeed(seed, pi), ai, k), () => {
+                        P.snaps = []; P.snapKey = ''; P.v = v;
+                        Sys.computeMath.call(P);
+                    });
+                    e2 += P.evm * P.evm; s += P.sinrDb; ici = P.nuIciFloor;
                 }
-                return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici) };
+                if (this.symval && Sys.model === 'unified') {          // symbol-level EVM: mean over 5 further channel realisations, 4000 symbols each (child seeds 1000 + j)
+                    let m = 0; const n = 5;
+                    for (let j = 0; j < n; j++) Core.withSeed(Core.deriveSeed(Core.deriveSeed(seed, pi), ai, 1000 + j), () => {
+                        P.snaps = []; P.snapKey = ''; P.v = v; Sys.computeMath.call(P); m += Sys.symbolEvm.call(P, 4000, 0).evm;
+                    });
+                    evmMeas = m / n;
+                }
+                return { evm: Math.sqrt(e2 / this.TRIALS), sinr: s / this.TRIALS, ici: Math.sqrt(ici), evmMeas };
             },
             start() {
                 if (this.running) return;
                 const vs = []; for (let v = 0; v <= this.VMAX; v += this.STEP) vs.push(v);
                 const res = {
-                    v: vs, ici: [], curves: {}, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: Sys.gammaDL,
-                    meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: Sys.gammaDL }
+                    v: vs, ici: [], curves: {}, seed: uiSeed, train: Sys.trainMode, model: Sys.model, mod: Sys.mod, thr: this.evmForSer(Sys.mod, 1e-3), taper: Sys.taper, gamma: this.gammaOf(),
+                    meta: { N: Sys.N, L: Sys.L, snr: Sys.snr, sir: Sys.sir, aoaT: Sys.aoaT, aoaJ: Sys.aoaJ, calDeg: Sys.calDeg, kDb: Sys.kDb, latMs: Sys.latMs, taper: Sys.taper, gamma: this.gammaOf() }
                 };
-                this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [] }; });
+                this.symval = !!(document.getElementById('chk-symval') && document.getElementById('chk-symval').checked); res.symval = this.symval && Sys.model === 'unified';
+                this.ALGOS.forEach(([k]) => { res.curves[k] = { evm: [], sinr: [], evmMeas: [] }; });
                 this.result = res; this.running = true; this.progress = 0;
                 const P = {}; this.ALGOS.forEach(([k]) => { P[k] = this.shadow(k); });
                 let i = 0;
@@ -1143,9 +879,9 @@
                         Inspector.push(`[SWEEP] 速度掃描完成：${vs.length} 點 × ${this.ALGOS.length} 演算法 × ${this.TRIALS} 次平均。`, 's');
                         return;
                     }
-                    this.ALGOS.forEach(([k]) => {
-                        const r = this.point(P[k], vs[i]);
-                        res.curves[k].evm.push(r.evm); res.curves[k].sinr.push(r.sinr);
+                    this.ALGOS.forEach(([k], ai) => {
+                        const r = this.point(P[k], vs[i], i, ai);
+                        res.curves[k].evm.push(r.evm); res.curves[k].sinr.push(r.sinr); res.curves[k].evmMeas.push(r.evmMeas);
                         if (k === 'FOURIER') res.ici.push(r.ici);
                     });
                     i++; this.progress = i / vs.length; this.updateButton();
@@ -1201,7 +937,7 @@
                     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.moveTo(X(v), T); ctx.lineTo(X(v), T + ph); ctx.stroke();
                     ctx.fillStyle = '#6b7280'; ctx.fillText(`${v}`, X(v), T + ph + 12);
                 }
-                ctx.fillText('車速 Velocity (km/h)', L + pw / 2, h - 6);
+                ctx.fillText(Lang.tr('車速 Velocity (km/h)'), L + pw / 2, h - 6);
                 ctx.save(); ctx.translate(11, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('EVM (dB / %)', 0, 0); ctx.restore();
                 ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.strokeRect(L, T, pw, ph);
 
@@ -1210,7 +946,7 @@
 
                 if (!r) {
                     ctx.fillStyle = '#6b7280'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-                    ctx.fillText('按「▶ 執行速度掃描」以目前參數比較五種演算法的 EVM–車速曲線', L + pw / 2, T + ph / 2);
+                    ctx.fillText(Lang.tr('按「▶ 執行速度掃描」以目前參數比較五種演算法的 EVM–車速曲線'), L + pw / 2, T + ph / 2);
                     return;
                 }
                 const clampDb = e => Math.min(hi, Math.max(lo, db(e)));
@@ -1224,8 +960,8 @@
                 ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]);       // SER = 1e-3 threshold
                 ctx.beginPath(); ctx.moveTo(L, Y(db(r.thr))); ctx.lineTo(L + pw, Y(db(r.thr))); ctx.stroke(); ctx.setLineDash([]);
                 line(r.ici, '#a78bfa', [5, 4], 1.4);
-                this.ALGOS.forEach(([k, color]) => {
-                    line(r.curves[k].evm, color, [], 1.8);
+                this.ALGOS.forEach(([k, color, dash]) => {
+                    line(r.curves[k].evm, color, dash || [], 1.8);
                     document.getElementById('lg-' + k).innerText = this.label(k, r);
                 });
                 document.getElementById('lg-thr').innerText = `SER=10⁻³ 門檻 (${modInfo(r.mod).name}: ${(r.thr * 100).toFixed(1)}%)`;
@@ -1241,7 +977,8 @@
                 const S = Sys, f = x => this.fmt(x), rows = [];
                 const add = (sec, key, val, unit = '') => rows.push([sec, key, val, unit].join(','));
                 rows.push('section,key,value,unit');
-                add('meta', 'timestamp', new Date().toISOString());
+                add('meta', 'csv_schema_version', 2);                                   // v2: model/seed/geometry/numerology columns, new algorithm names, point_seed in the sweep table
+                add('meta', 'timestamp', new Date().toISOString());                      // the only field that differs between two runs with the same seed
                 add('meta', 'sim_time', f(S.simTime), 's');
                 add('meta', 'running', S.isRunning ? 'yes' : 'paused');
                 add('param', 'N', S.N); add('param', 'L', S.L);
@@ -1250,7 +987,19 @@
                 add('param', 'AoA_target', S.aoaT, 'deg'); add('param', 'AoA_jammer', S.aoaJ, 'deg');
                 add('param', 'phase_mismatch_sigma', S.calDeg, 'deg'); add('param', 'rician_K', S.kDb, 'dB');
                 add('param', 'update_latency', S.latMs, 'ms');
-                add('param', 'algorithm', ALGO[S.algo].short);
+                add('param', 'algorithm', ALGO[S.algo].short);                           // v2: names follow the training mode (SMI-MPDR / SMI-MVDR ...)
+                add('param', 'algorithm_legacy', ALGO[S.algo].csv);                      // the label used by schema v1
+                const uni = S.model === 'unified', na = x => Number.isFinite(x) ? f(x) : 'n/a';
+                add('param', 'delta_theta_deg', S.pointErrDeg, 'deg'); add('param', 'pointing_mode', S.pointingMode); add('result', 'delta_theta_eff_deg', f(S.dEffT), 'deg'); add('result', 'delta_theta_eff_jammer_deg', f(S.dEffJ), 'deg'); add('param', 'cov_source', S.covSource); add('param', 'angle_source', S.angleSource); add('param', 'model', S.model); add('param', 'train_mode', S.trainMode); add('param', 'jam_wave', S.jamWave);
+                add('param', 'gamma_rel_dB', uni ? S.gammaRelDb : 'n/a', 'dB');
+                add('param', 'd_min', S.d_min, 'm');
+                add('param', 'M', uni ? S.M_UNIFIED : S.M_SCAT, uni ? 'diffuse paths per trial' : 'scatterers per snapshot');
+                add('param', 'K', S.kDb, 'dB'); add('param', 'sigma_theta', f(S.SIGMA_ANG * 180 / Math.PI), 'deg'); add('param', 'sigma_phi', S.calDeg, 'deg');
+                add('param', 'P_s', 1, 'normalised');                                    // sigPow is fixed to 1 in core.js
+                add('param', 'tau', S.latMs, 'ms'); add('param', 'theta1', S.aoaT, 'deg'); add('param', 'theta2', S.aoaJ, 'deg');
+                add('param', 'fc_GHz', f(S.fc / 1e9), 'GHz'); add('param', 'delta_f_kHz', f(S.scs / 1e3), 'kHz');
+                add('param', 'seed', uiSeed); add('param', 'cal_roll_index', calIndex);   // the phase mismatch is derived from (seed, cal_roll_index)
+                add('param', 'point_seed', 'n/a (live state; see the sweep table)');
                 add('param', 'loading_factor_gamma', S.algo === 'DL' ? f(S.gammaUsed) : 'n/a');
                 add('param', 'beamspace_beams', S.algo === 'BEAMSPACE' ? S.bsBins.join('|') : 'n/a');
                 add('param', 'taper', S.taper === 'CHEBYSHEV' ? `CHEBYSHEV_${S.sll}dB` : S.taper);
@@ -1263,17 +1012,18 @@
                 add('result', 'condition_number_R_hat', f(S.kappaRaw)); add('result', 'condition_number_inverted_matrix', f(S.kappa));
                 add('result', 'output_gain_wHa', f(S.outGain)); add('result', 'N_ICI_over_S', f(S.nIciDb), 'dB'); add('result', 'f_m', f(S.fm), 'Hz'); add('result', 'f_d', f(S.fd), 'Hz');
                 add('result', 'status', S.status);
+                add('result', 'evm_raw', na(S.evmRaw * 100), '%'); add('result', 'music_err_theta1_deg', na(S.musicErrT), 'deg'); add('result', 'music_err_theta2_deg', na(S.musicErrJ), 'deg'); add('result', 'max_angle_drift_deg', na(S.angDrift), 'deg'); add('result', 'SINR_opt_dB', na(S.sinrOptDb), 'dB');
                 S.eig.forEach((x, i) => add('R_hat_eigenvalue', `lambda_${i + 1}`, f(x)));
                 S.diagR.forEach((x, i) => add('R_hat_diagonal', `R_${i + 1}${i + 1}`, f(x)));
                 const r = Bench.result;
                 if (r && r.v.length) {
                     const ks = Bench.ALGOS.map(([k]) => k);
                     rows.push('');
-                    rows.push(`sweep_info,modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
-                    rows.push(['sweep', 'velocity_kmh', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct'].join(','));
+                    rows.push(`sweep_info,train=${r.train},model=${r.model},seed=${r.seed},symbol_validation=${r.symval ? 'on' : 'off'},evm_meas_sample_n=${r.symval ? '5 realisations x 4000 symbols' : 'n/a'},modulation=${modInfo(r.mod).name},N=${r.meta.N},L=${r.meta.L},SNR=${r.meta.snr}dB,SIR=${r.meta.sir}dB,jammer=${r.meta.aoaJ}deg,taper=${r.meta.taper},gamma_DL=${f(r.meta.gamma)},evm_threshold_SER1e-3=${f(r.thr * 100)}%`);
+                    rows.push(['sweep', 'velocity_kmh', 'point_seed', ...ks.map(k => `evm_${k}_pct`), ...ks.map(k => `sinr_${k}_dB`), 'evm_ici_floor_pct', ...ks.map(k => `evm_meas_sample_${k}_pct`)].join(','));
                     r.v.forEach((v, i) => {
                         if (i >= r.ici.length) return;
-                        rows.push(['sweep', v, ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100)].join(','));
+                        rows.push(['sweep', v, Core.deriveSeed(r.seed, i), ...ks.map(k => f(r.curves[k].evm[i] * 100)), ...ks.map(k => f(r.curves[k].sinr[i])), f(r.ici[i] * 100), ...ks.map(k => r.symval ? f(r.curves[k].evmMeas[i] * 100) : 'n/a')].join(','));
                     });
                 }
                 return '﻿' + rows.join('\r\n') + '\r\n';
@@ -1313,7 +1063,7 @@
             },
 
             drawAll(live = true) {                       // one complete frame (also used while PAUSED and on resize)
-                this.drawBeam(); this.drawOFDM(); this.drawConst(live); this.drawMatrix(); Bench.draw();
+                this.drawBeam(); this.drawOFDM(); this.drawConst(live); this.drawMatrix(); this.drawDoa(); Bench.draw();
             },
 
             drawBeam() {
@@ -1416,11 +1166,18 @@
                 if (this.lastModKey !== Sys.mod) { this.constHist = []; this.lastModKey = Sys.mod; }
                 const scale = Math.min(w, h) * 0.3, cx = w / 2, cy = h / 2;
 
-                if (Sys.isRunning && live) {
-                    const sd = Math.min(Sys.evm, 1.5) / Math.SQRT2;      // x_hat = x + e, e ~ CN(0, EVM^2)
+                if (Sys.isRunning && live && Sys.model === 'unified') {
+                    // unified: the scatter is the real symbol-level output (Core.symbolLevel: 4000 symbols through w^H h, interferer, noise, Gaussian ICI); the first 500 are drawn
+                    const r = Sys.symbolEvm(4000, 500);
+                    this.symEvm = r.evm; this.symSer = r.ser;
+                    const me = document.getElementById('m-evm-meas'); if (me) me.innerText = this.f ? this.f(Math.min(r.evm * 100, 999)) : (r.evm * 100).toFixed(1);
+                    this.constHist.push(r.pts);
+                    while (this.constHist.length > 4) this.constHist.shift();
+                } else if (Sys.isRunning && live) {
+                    const sd = Math.min(Sys.evm, 1.5) / Math.SQRT2;      // legacy: x_hat = x + e, e ~ CN(0, EVM^2) (synthetic scatter)
                     const pts = [];
                     for (let k = 0; k < 70; k++) {
-                        const ii = Math.floor(Math.random() * mi.ax), qq = Math.floor(Math.random() * mi.ax);
+                        const ii = Math.floor(Core.rng() * mi.ax), qq = Math.floor(Core.rng() * mi.ax);
                         const x = mi.levels[ii] + Sys.randn() * sd, y = mi.levels[qq] + Sys.randn() * sd;
                         const di = Math.min(mi.ax - 1, Math.max(0, Math.round((x / mi.a + (mi.ax - 1)) / 2)));
                         const dq = Math.min(mi.ax - 1, Math.max(0, Math.round((y / mi.a + (mi.ax - 1)) / 2)));
@@ -1459,6 +1216,32 @@
                 const a = stops[i], b = stops[i + 1];
                 return `rgb(${Math.round(a[0] + (b[0] - a[0]) * f)},${Math.round(a[1] + (b[1] - a[1]) * f)},${Math.round(a[2] + (b[2] - a[2]) * f)})`;
             },
+            drawDoa() {
+                if (Sys.doaFor !== Sys.nCompute || !Sys.doa) { Sys.computeDoa(); Sys.doaFor = Sys.nCompute; }
+                const D = Sys.doa, { ctx, w, h } = this.setup('cvs-doa');
+                ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);
+                const L = 40, R = 12, T = 10, B = 24, pw = w - L - R, ph = h - T - B, X = deg => L + (deg + 90) / 180 * pw, Y = db => T + Math.min(1, Math.max(0, -db / 50)) * ph;
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.fillStyle = '#6b7280'; ctx.font = '9px monospace'; ctx.lineWidth = 1;
+                for (let a = -90; a <= 90; a += 30) { ctx.beginPath(); ctx.moveTo(X(a), T); ctx.lineTo(X(a), T + ph); ctx.stroke(); ctx.fillText(a + '°', X(a) - 8, h - 8); }
+                for (let db = 0; db >= -50; db -= 10) { ctx.beginPath(); ctx.moveTo(L, Y(db)); ctx.lineTo(L + pw, Y(db)); ctx.stroke(); ctx.fillText(db + ' dB', 2, Y(db) + 3); }
+                const curve = (arr, color) => { ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath(); arr.forEach((db, i) => { const x = X(-90 + 0.5 * i), y = Y(db); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); };
+                curve(D.capon, '#22d3ee'); curve(D.music, '#e879f9');
+                const vline = (deg, color, label) => { ctx.strokeStyle = color; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(X(deg), T); ctx.lineTo(X(deg), T + ph); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = color; ctx.fillText(label, X(deg) + 3, T + 10); };
+                vline(Sys.aoaT, '#34d399', Lang.cur === 'en' ? 'θ₁ target' : 'θ₁ 目標 target'); vline(Sys.aoaJ, '#f87171', Lang.cur === 'en' ? 'θ₂ jammer' : 'θ₂ 干擾 jammer');
+                const marks = (pk, color) => pk.slice(0, 4).forEach(p => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(p.deg), Y(p.db), 3, 0, 2 * Math.PI); ctx.fill(); });
+                marks(D.peaksCapon, '#22d3ee'); marks(D.peaksMusic, '#e879f9');
+                ctx.fillStyle = '#22d3ee'; ctx.fillText('— Capon', L + pw - 120, T + 22); ctx.fillStyle = '#e879f9'; ctx.fillText('— MUSIC (2 sources)', L + pw - 120, T + 34);
+                const e = D.err, fm = p => p ? `${p.deg.toFixed(1)}° (${(p.deg - 0).toFixed(1)})` : '—';
+                const show = (id, p, tru) => { const el = document.getElementById(id); if (el) el.innerText = p ? `${p.deg.toFixed(1)}°  (誤差 ${(p.deg - tru >= 0 ? '+' : '') + (p.deg - tru).toFixed(1)}°)` : '—'; };
+                show('m-doa-ct', Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP' ? null : e.caponT, Sys.aoaT); show('m-doa-cj', e.caponJ, Sys.aoaJ);
+                show('m-doa-mt', Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP' ? null : e.musicT, Sys.aoaT); show('m-doa-mj', e.musicJ, Sys.aoaJ);
+                const rk = document.getElementById('m-doa-rank'); if (rk) rk.innerText = `${D.rank} / ${Sys.N}`;
+                const nt = document.getElementById('doa-note');
+                if (nt) nt.innerText = (Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP')
+                    ? '訓練資料不含訊號，譜只看到干擾（目標不出現）。MUSIC 假設 2 個源（目標與干擾）。'
+                    : '譜含目標與干擾（訓練資料含訊號）。MUSIC 假設 2 個源（目標與干擾）。';
+            },
+
             drawMatrix() {
                 const { ctx, w, h } = this.setup('cvs-matrix');
                 ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);
@@ -1515,12 +1298,15 @@
             { group: 'ch', key: 'aoaJ',   zh: '干擾角度 θ₂',     en: 'Jammer AoA',          min: -90, max: 90,  step: 1,   unit: '°' },
             { group: 'ch', key: 'v',      zh: '車速 v',          en: 'Velocity',            min: 0,   max: 500, step: 1,   unit: 'km/h' },
             { group: 'ch', key: 'calDeg', zh: '陣列相位失真 σφ', en: 'Phase mismatch',      min: 0,   max: 30,  step: 1,   unit: '°',  real: true },
+            { group: 'ch', key: 'd_min', zh: '離軌道最近距離 d_min', en: 'Distance to the track', min: 5, max: 500, log: true, unit: 'm' },
             { group: 'ch', key: 'kDb',    zh: '萊斯因子 K',      en: 'Rician K-factor',     min: -10, max: 20,  step: 1,   unit: 'dB', real: true },
             { group: 'rx', key: 'N',      zh: '天線數 N',        en: 'Antennas',            min: 2,   max: 16,  step: 1,   unit: '' },
             { group: 'rx', key: 'L',      zh: '快照數 L',        en: 'Snapshots',           min: 2,   max: 200, step: 1,   unit: '' },
             { group: 'rx', key: 'latMs',  zh: '更新延遲 τ',      en: 'Beamformer latency',  min: 0,   max: 10,  step: 0.5, unit: 'ms', real: true },
+            { group: 'rx', key: 'pointErrDeg', zh: '指向偏差 δθ', en: 'Pointing error', min: -10, max: 10, step: 0.5, unit: '°' },
             { group: 'rx', key: 'sll',    zh: '旁瓣位準 SLL',    en: 'Chebyshev SLL',       min: 20,  max: 60,  step: 1,   unit: 'dB' },
-            { group: 'rx', key: 'gammaDL', zh: '加載因子 γ', en: 'Loading factor (DL-MVDR)', min: 1e-4, max: 1, log: true, unit: '' },
+            { group: 'rx', key: 'gammaDL', zh: '加載因子 γ', en: 'Loading factor (DL, legacy: absolute)', min: 1e-4, max: 1, log: true, unit: '' },
+            { group: 'rx', key: 'gammaRelDb', zh: '加載比 γ_rel', en: 'Loading γ = γ_rel·σₙ² (DL, unified)', min: -10, max: 30, step: 1, unit: 'dB' },
         ];
         const bodies = { tx: document.getElementById('body-tx'), ch: document.getElementById('body-ch'), rx: document.getElementById('body-rx') };
         const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -1545,13 +1331,56 @@
         const selMod = addSelect('tx', 'sel-mod', '調變格式', 'Modulation', [['QPSK', 'QPSK (2 bit)'], ['QAM16', '16-QAM (4 bit)'], ['QAM64', '64-QAM (6 bit)']],
             v => { Sys.mod = v; Sys.dirty = true; });
         selMod.value = Sys.mod;
+        // channel model: unified (default) or the v4 analytic model (legacy, also ?model=legacy)
+        const MODEL_LABEL = { unified: 'Unified（新）', legacy: 'v4 analytic（舊版）' };
+        const selModel = addSelect('tx', 'sel-model', '通道模型', 'Channel model', [['unified', 'Unified · 單一實現、積分都卜勒'], ['legacy', 'v4 analytic（舊版）']], v => setModel(v));
+        selModel.value = Sys.model;
+        function setModel(m) {
+            Sys.model = m; selModel.value = m; Sys.resetCache(); Sys.dirty = true;
+            const tag = document.getElementById('model-tag'); if (tag) tag.textContent = MODEL_LABEL[m];
+            if (typeof syncRxControls === 'function') syncRxControls();
+            Render.constHist = []; Diagnosis.last = '';
+        }
+        // carrier frequency (independent of the numerology) and subcarrier spacing; nothing is linked automatically
+        const FC_PRESETS = [3.5, 5, 7, 15, 28];
+        const selFc = addSelect('tx', 'sel-fc', '載波頻率 fc', 'Carrier frequency (GHz)', [...FC_PRESETS.map(x => [x, x + ' GHz']), ['custom', '自訂 Custom…']], v => {
+            if (v !== 'custom') setFc(parseFloat(v));
+        });
+        const fcWrap = document.createElement('div'); fcWrap.className = 'ctrl';
+        fcWrap.innerHTML = `<div class="row"><div class="lab"><span class="zh">自訂 fc</span><span class="en">Custom fc</span></div><span class="field"><input class="num" id="num-fc" type="number" min="0.5" max="100" step="any"><span class="unit">GHz</span></span></div>`;
+        bodies.tx.appendChild(fcWrap);
+        const numFc = fcWrap.querySelector('input');
+        numFc.addEventListener('change', () => { const x = parseFloat(numFc.value); if (Number.isFinite(x)) setFc(clamp(x, 0.5, 100)); else numFc.value = Number((Sys.fc / 1e9).toPrecision(4)); });
+        const selScs = addSelect('tx', 'sel-scs', '子載波間隔 Δf（numerology）', 'Subcarrier spacing', [15, 30, 60, 120].map(x => [x, `${x} kHz (μ=${Math.log2(x / 15)})`]), v => setScs(parseFloat(v)));
         const info = document.createElement('div'); info.className = 'tx-info';
-        info.innerHTML =
-            `<div class="kv"><span class="k">OFDM 子載波間隔 Δf</span><span class="v">15 kHz</span></div>` +
-            `<div class="kv"><span class="k">載波頻率 f<sub>c</sub></span><span class="v">5 GHz</span></div>` +
-            `<div class="kv"><span class="k">平均功率 P<sub>avg</sub></span><span class="v">1 (歸一)</span></div>`;
         bodies.tx.appendChild(info);
+        function refreshRadio() {
+            const lam = Sys.c / Sys.fc, Tsnap = (1 + CONFIG.cpRatio) / Sys.scs;
+            const g = Sys.fc / 1e9; selFc.value = FC_PRESETS.includes(g) ? String(g) : 'custom'; if (document.activeElement !== numFc) numFc.value = Number(g.toPrecision(4));
+            selScs.value = String(Sys.scs / 1e3);
+            const hd = document.getElementById('hd-scs'); if (hd) hd.textContent = Sys.scs / 1e3;
+            info.innerHTML =
+                `<div class="kv"><span class="k">波長 λ / 陣元間距 d=0.5λ</span><span class="v">${(lam * 1000).toFixed(1)} / ${(lam * 500).toFixed(1)} mm</span></div>` +
+                `<div class="kv"><span class="k">符元週期 T<sub>snap</sub>=(1+CP)/Δf</span><span class="v">${(Tsnap * 1e6).toFixed(2)} µs</span></div>` +
+                `<div class="kv"><span class="k">平均功率 P<sub>avg</sub></span><span class="v">1 (歸一)</span></div>`;
+        }
+        function setFc(ghz) { Sys.fc = ghz * 1e9; Sys.dirty = true; refreshRadio(); }
+        function setScs(khz) { Sys.scs = khz * 1e3; Sys.dirty = true; refreshRadio(); }
+        refreshRadio();
 
+        // random seed: shown, editable, re-drawable. Same seed + same parameters => same sweep and same CSV (except the timestamp)
+        const seedWrap = document.createElement('div'); seedWrap.className = 'ctrl';
+        seedWrap.innerHTML = `<div class="row"><div class="lab"><span class="zh">隨機種子 Seed</span><span class="en">Random seed (uint32)</span></div><span class="field"><input class="num" id="num-seed" type="number" min="0" max="4294967295" step="1" style="width:110px"></span></div>`;
+        bodies.tx.appendChild(seedWrap);
+        const numSeed = seedWrap.querySelector('input'); numSeed.value = uiSeed;
+        function reseed(s) {
+            applySeed(s); numSeed.value = uiSeed; Sys.resetCache(); Render.constHist = []; Sys.dirty = true;
+            Inspector.push(`[SEED] 種子 = ${uiSeed}；相位誤差、快取已重設。`, 's'); Diagnosis.last = '';
+        }
+        numSeed.addEventListener('change', () => { const x = parseInt(numSeed.value, 10); if (Number.isFinite(x) && x >= 0 && x <= 4294967295) reseed(x); else numSeed.value = uiSeed; });
+        addButton('tx', 'btn-seed', '重新抽種子<em>Re-draw seed</em>', () => reseed(Core.randomSeed()));
+
+        const ctlSet = {};                                   // key -> setter (used by the experiment presets to move the sliders)
         CONTROLS.forEach(c => {
             const el = document.createElement('div');
             el.className = 'ctrl' + (c.real ? ' real' : ''); el.id = 'ctl-' + c.key;
@@ -1577,25 +1406,59 @@
             num.addEventListener('input', () => { const x = parseFloat(num.value); if (Number.isFinite(x)) set(x); });
             num.addEventListener('change', () => { const x = parseFloat(num.value); num.value = Number.isFinite(x) ? show(clamp(x, c.min, c.max)) : show(Sys[c.key]); set(parseFloat(num.value)); });
             num.value = show(Sys[c.key]); rng.value = toSlider(Sys[c.key]);
+            ctlSet[c.key] = val => { const x = clamp(val, c.min, c.max); num.value = show(x); set(x); rng.value = toSlider(x); };
         });
-        addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => Sys.rollCal());
+        addButton('ch', 'btn-cal', '重抽相位誤差<em>Re-roll φₙ</em>', () => { calIndex++; rollCalSeeded(); });
+        const selJam = addSelect('ch', 'sel-jam', '干擾源波形', 'Jammer waveform', [['gaussian', '高斯（OFDM 干擾近似，預設）'], ['qpsk', 'QPSK（舊行為）']], v => { Sys.jamWave = v; Sys.snaps = []; Sys.dirty = true; });
+        selJam.value = Sys.jamWave;
 
         // RX: algorithm selector (four strategies), taper
         const selAlgo = addSelect('rx', 'sel-algo', '演算法對策', 'Algorithm selector (small-snapshot remedies)', [
             ['FOURIER',   'FOURIER (Matched Filter) · 基準線'],
-            ['MMSE',      'MMSE (Wiener Filter) · 需參考訊號'],
-            ['SMI',       'SMI-MVDR (Capon Beamformer)'],
-            ['DL',        'DL-MVDR (Tikhonov Regularization)'],
-            ['BEAMSPACE', 'BEAMSPACE-MVDR (Dimensionality Reduction)']], v => setAlgo(v));
+            ['MMSEP',     'MMSE-P (Wiener, pilot-trained) · 需已知導頻'],
+            ['MMSE',      'MMSE-M (Wiener, model-based) · 模型式'],
+            ['SMI',       ALGO.SMI.long],
+            ['DL',        ALGO.DL.long],
+            ['BEAMSPACE', ALGO.BEAMSPACE.long]], v => setAlgo(v));
         selAlgo.parentElement.classList.add('wide');
         bodies.rx.insertBefore(selAlgo.parentElement, bodies.rx.firstChild);                  // selector first in the Rx card
         const selTaper = addSelect('rx', 'sel-taper', '旁瓣加窗', 'Sidelobe taper (w = t ⊙ a)',
             [['NONE', '無 NONE（均勻）'], ['HAMMING', 'Hamming 窗'], ['CHEBYSHEV', '套用 Chebyshev 加窗']], v => setTaper(v));
+        // training data of the sample covariance (SMI, DL, BEAMSPACE; FOURIER does not use R, MMSE always keeps the target)
+        const selTrain = addSelect('rx', 'sel-train', '訓練資料', 'Training data (MPDR vs MVDR)',
+            [['signalFree', 'MVDR（理想化：訓練資料不含訊號）'], ['withSignal', 'MPDR（含訊號）']], v => setTrain(v));
+        selTrain.value = Sys.trainMode;
+        const trainNote = document.createElement('div'); trainNote.className = 'note'; trainNote.style.cssText = 'font:0.58rem var(--mono);color:var(--yellow);margin-top:2px';
+        trainNote.textContent = '理想化假設：干擾加雜訊協方差可獨立取得';
+        selTrain.parentElement.appendChild(trainNote);
+        const selCov = addSelect('rx', 'sel-cov', '協方差來源', 'Covariance source (SMI, MMSE-M)', [['sample', '樣本協方差（現行）'], ['theory', '理論協方差（講義版，僅供對照）']], v => { Sys.covSource = v; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; });
+        selCov.value = Sys.covSource;
+        const selAng = addSelect('rx', 'sel-angsrc', '導向角度來源', 'Steering angle source (SMI, DL, BEAMSPACE, MMSE-M)', [['true', '名義角度 θ̂₁+δθ（現行）'], ['music', 'MUSIC 估計角（2 個源）']], v => { Sys.angleSource = v; Sys.dirty = true; Diagnosis.last = ''; });
+        selAng.value = Sys.angleSource;
+        const selPm = addSelect('rx', 'sel-pmode', '指向模式', 'Pointing mode', [['manual', '手動：用上面的 δθ 滑桿（現行）'], ['mobility', '由移動性決定（忽略 δθ 滑桿）']], v => { Sys.pointingMode = v; Sys.dirty = true; Diagnosis.last = ''; syncRxControls(); });
+        selPm.value = Sys.pointingMode;
+        const pmNote = document.createElement('div'); pmNote.className = 'note'; pmNote.style.cssText = 'font:0.58rem var(--mono);color:var(--muted);margin-top:2px';
+        pmNote.textContent = '由移動性決定：權重用估計時刻的角度、不補償漂移，偏差由 d_min、v、τ 自動決定';
+        selPm.parentElement.appendChild(pmNote);
+        function refreshNames() {                                                                // algorithm names follow the training mode
+            ['SMI', 'MMSE', 'DL', 'BEAMSPACE'].forEach(k => {
+                const o = selAlgo.querySelector(`option[value="${k}"]`); if (o) o.textContent = ALGO[k].long;
+                const lg = document.getElementById('lg-' + k); if (lg) lg.innerText = Bench.label(k, Bench.result);
+            });
+            trainNote.style.display = Sys.trainMode === 'signalFree' ? '' : 'none';
+        }
+        function setTrain(t) { Sys.trainMode = t; selTrain.value = t; Sys.snaps = []; Sys.dirty = true; refreshNames(); Diagnosis.last = ''; }
+        trainNote.style.display = Sys.trainMode === 'signalFree' ? '' : 'none';
         function syncRxControls() {
-            const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE';                    // beamspace / Wiener have no tapered variant
+            const taperOk = Sys.algo !== 'BEAMSPACE' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP';                    // beamspace / Wiener have no tapered variant
             selTaper.disabled = !taperOk;
             selTaper.parentElement.classList.toggle('off', !taperOk);
+            const uni = Sys.model === 'unified';                                                // one loading control per model
+            document.getElementById('ctl-gammaDL').style.display = uni ? 'none' : '';
+            document.getElementById('ctl-gammaRelDb').style.display = uni ? '' : 'none';
             document.getElementById('ctl-gammaDL').classList.toggle('off', Sys.algo !== 'DL');
+            document.getElementById('ctl-gammaRelDb').classList.toggle('off', Sys.algo !== 'DL');
+            document.getElementById('ctl-pointErrDeg').classList.toggle('off', Sys.pointingMode === 'mobility');
             document.getElementById('ctl-sll').classList.toggle('off', !(taperOk && Sys.taper === 'CHEBYSHEV'));
         }
         function setAlgo(a) { Sys.algo = a; selAlgo.value = a; Sys.dirty = true; syncRxControls(); }
@@ -1633,6 +1496,88 @@
             Diagnosis.last = ''; Diagnosis.update(performance.now(), true);
         });
         setAlgo('SMI'); setTaper('NONE'); setRunning(true);
+        document.getElementById('model-tag').textContent = MODEL_LABEL[Sys.model]; refreshNames();
+
+        /* ---------------------------------------------------------------- experiments (presets of experiments.js; texts of i18n.js)
+           Apply = set the parameters (sliders and menus follow), Run = apply + compute: a sweep (E1, the existing benchmark), a table (E2, E3) or a curve (E4, E5). */
+        function applyParams(p) {
+            Object.keys(ctlSet).forEach(k => { if (p[k] !== undefined) ctlSet[k](p[k]); });
+            if (p.kDb > 20) { Sys.kDb = p.kDb; const nk = document.getElementById('num-kDb'); if (nk) nk.value = p.kDb; }       // K = infinity (E0): beyond the slider range
+            Sys.jamWave = p.jamWave; selJam.value = p.jamWave; Sys.smiSingular = p.smiSingular;
+            Sys.pointingMode = p.pointingMode; selPm.value = p.pointingMode; Sys.covSource = p.covSource; selCov.value = p.covSource; Sys.angleSource = p.angleSource; selAng.value = p.angleSource;
+            Sys.mod = p.mod; selMod.value = p.mod; Sys.taper = p.taper;
+            setModel(p.model); setTrain(p.trainMode); setFc(p.fc / 1e9); setScs(p.scs / 1e3); setAlgo(p.algo); setTaper(p.taper);
+            Sys.resetCache(); Render.constHist = []; Diagnosis.last = ''; Sys.dirty = true; Sys.doa = null;
+        }
+        const ExpUI = {
+            sel: 'E1', variant: '28', busy: false,
+            init() {
+                const box = document.getElementById('exp-btns');
+                Experiments.EXPERIMENTS.forEach(e => {
+                    const b = document.createElement('button'); b.className = 'btn'; b.dataset.exp = e.id; b.addEventListener('click', () => this.select(e.id)); box.appendChild(b);
+                });
+                document.getElementById('btn-exp-apply').addEventListener('click', () => this.apply());
+                document.getElementById('btn-exp-run').addEventListener('click', () => this.run());
+                document.getElementById('sel-exp-variant').addEventListener('change', ev => { this.variant = ev.target.value; this.renderText(); });
+                this.select('E1');
+            },
+            select(id) {
+                this.sel = id; const e = Experiments.byId(id); this.variant = e.defaultVariant;
+                this.renderText();
+                const c = document.getElementById('cvs-exp'); const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+                document.getElementById('exp-table').innerHTML = '';
+            },
+            renderText() {
+                const U = I18N.UI[Lang.cur], t = I18N.EXP[this.sel], n = EXP_NUMBERS, e = Experiments.byId(this.sel), L = Lang.cur;
+                document.querySelectorAll('#exp-btns .btn').forEach(b => { b.textContent = I18N.EXP[b.dataset.exp].title[L]; b.classList.toggle('sel', b.dataset.exp === this.sel); });
+                const sv = document.getElementById('sel-exp-variant'), vs = Object.keys(e.variants);
+                sv.style.display = vs.length > 1 ? '' : 'none';
+                sv.innerHTML = vs.map(k => `<option value="${k}">${(I18N.EXP[this.sel].variantLabel || {})[k] ? I18N.EXP[this.sel].variantLabel[k][L] : k}</option>`).join(''); sv.value = this.variant;
+                document.getElementById('exp-text').innerHTML = ['look', 'why', 'real'].map(k => `<p><b>${U[k]}</b> ${t[k][L](n, this.variant)}</p>`).join('');
+                const ba = document.getElementById('btn-exp-apply'), br = document.getElementById('btn-exp-run');
+                if (ba.firstChild) ba.firstChild.textContent = U.apply + ' ';
+                if (br.firstChild) br.firstChild.textContent = U.run + ' ';
+            },
+            apply() { applyParams(Experiments.params(this.sel, this.variant)); Inspector.push(`[EXP] ${this.sel}: ${I18N.EXP[this.sel].title[Lang.cur]}`, 's'); },
+            run() {
+                if (this.busy) return; this.apply();
+                const e = Experiments.byId(this.sel), tab = document.getElementById('exp-table'), U = I18N.UI[Lang.cur];
+                if (e.action === 'bench') { Bench.start(); tab.textContent = U.benchHint; return; }
+                if (e.action === 'table') {
+                    const nT = this.sel === 'E0' ? 6 : 60, rows = Experiments.runTable(Core, this.sel, this.variant, nT);   // E0: L = 1000 snapshots per realisation, a few realisations are enough
+                    tab.innerHTML = `<div>${U.tableHead.replace('{n}', nT)}</div>` + rows.map(r => `<div>${(r.label || ALGO[r.algo].short).padEnd(r.label ? 38 : 10, ' ').replace(/ /g, '&nbsp;')} ${r.sinr.toFixed(1)} dB  (SINR_opt ${r.opt.toFixed(1)}, raw EVM ${(100 * r.evmRaw).toFixed(2)} %, rank ${r.rank}/${Sys.N})</div>`).join('');
+                    return;
+                }
+                this.busy = true; tab.textContent = U.running;
+                setTimeout(() => { const res = Experiments.runCurve(Core, this.sel, this.variant, 40); this.busy = false; this.draw(res); tab.textContent = U.curveNote; if (res.aux) tab.innerHTML = '<div>' + U.curveNote + '</div><div>' + U.auxHead + '</div>' + res.xs.map((x, i) => [0, 100, 200, 300].includes(x) ? '<div>' + (res.x + ' = ' + x).padEnd(10, ' ').replace(/ /g, '&nbsp;') + ' δθ_eff ' + res.aux.dEffT[i].toFixed(2) + '° (' + (100 * Math.abs(res.aux.dEffT[i]) / res.aux.bw3[i]).toFixed(1) + ' % θ₃dB), ' + res.aux.dEffJ[i].toFixed(2) + '°;  N_ICI/S ' + res.aux.iciDb[i].toFixed(1) + ' dB</div>' : '').join(''); }, 30);
+            },
+            draw(res) {
+                const c = document.getElementById('cvs-exp'), dpr = window.devicePixelRatio || 1, w = c.clientWidth || 400, h = c.clientHeight || 190;
+                c.width = w * dpr; c.height = h * dpr; const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);
+                const L = 44, R = 10, T = 12, B = 28, pw = w - L - R, ph = h - T - B, all = [].concat(...res.series.map(s => s.ys)), lo = Math.floor(Math.min(...all) / 5) * 5, hi = Math.ceil(Math.max(...all) / 5) * 5 + 5;
+                const X = x => L + (x - res.xs[0]) / (res.xs[res.xs.length - 1] - res.xs[0]) * pw, Y = y => T + (1 - (y - lo) / (hi - lo)) * ph;
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.fillStyle = '#6b7280'; ctx.font = '9px monospace';
+                for (let y = lo; y <= hi; y += 5) { ctx.beginPath(); ctx.moveTo(L, Y(y)); ctx.lineTo(L + pw, Y(y)); ctx.stroke(); ctx.fillText(y + ' dB', 2, Y(y) + 3); }
+                res.xs.filter((x, i) => i % Math.ceil(res.xs.length / 6) === 0).forEach(x => ctx.fillText(x + res.unit, X(x) - 8, h - 14));
+                ctx.fillText(I18N.UI[Lang.cur].xLabel[res.x] || res.x, L + pw / 2 - 40, h - 3);
+                const cols = ['#fb923c', '#34d399', '#e879f9', '#60a5fa'];
+                res.series.forEach((s, k) => { ctx.strokeStyle = cols[k % 4]; ctx.lineWidth = 1.8; ctx.beginPath(); s.ys.forEach((y, i) => { const px = X(res.xs[i]), py = Y(y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }); ctx.stroke(); ctx.fillStyle = cols[k % 4]; ctx.fillText('— ' + s.label, L + 8 + (k % 2) * 120, T + 10 + Math.floor(k / 2) * 11); });
+            }
+        };
+
+        /* ---------------------------------------------------------------- language start-up */
+        Lang.init(); ExpUI.init();
+        document.getElementById('btn-lang').addEventListener('click', () => Lang.set(Lang.cur === 'zh' ? 'en' : 'zh'));
+        if (typeof MutationObserver !== 'undefined') new MutationObserver(muts => {
+            if (Lang.cur === 'zh') return;
+            for (const m of muts) {
+                if (m.type === 'characterData') Lang.node(m.target);
+                else if (m.type === 'attributes') Lang.title(m.target);
+                else m.addedNodes.forEach(n => { if (n.nodeType === 3) Lang.node(n); else if (n.nodeType === 1) Lang.walk(n); });
+            }
+        }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['title'] });
+        Lang.set(Lang.initial());
 
         // render safety: paint one complete frame synchronously (even if the page ever starts PAUSED), then redraw on every layout change
         Sys.computeMath(); Sys.lastCompute = performance.now(); Sys.dirty = false; Inspector.onCompute();

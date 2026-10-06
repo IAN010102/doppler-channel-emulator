@@ -1,0 +1,12 @@
+static_L4_signalFree_d0    | eigs kept: 7.35e+1 6.91e+0 1.94e-2 6.35e-3 | dropped: 7.59e-15 4.73e-15 1.04e-15 -2.82e-15
+   kappa(R_nz)= 1.16e+4  kappa(X)= 1.08e+2  smallest kept/lmax= 8.63e-5  largest dropped/lmax= 1.03e-16   threshold eps= 1e-10 
+   web w vs QR reference: rel err (w^H a=1) 2.82e-10   SINR web  SINR(web w)-SINR(QR w)= -3.62e-10  dB; json sinr 25.455192277745837  (kappa_nz*2.2e-16 = 2.55e-12 )
+static_L4_signalFree_d3    | eigs kept: 8.65e+1 5.56e+0 2.45e-2 7.74e-3 | dropped: 4.62e-15 1.28e-15 -3.43e-16 -4.52e-15
+   kappa(R_nz)= 1.12e+4  kappa(X)= 1.06e+2  smallest kept/lmax= 8.95e-5  largest dropped/lmax= 5.34e-17   threshold eps= 1e-10 
+   web w vs QR reference: rel err (w^H a=1) 5.72e-10   SINR web  SINR(web w)-SINR(QR w)= 2.13e-9  dB; json sinr 26.164289208615948  (kappa_nz*2.2e-16 = 2.46e-12 )
+static_L4_withSignal_d0    | eigs kept: 3.03e+1 3.09e+0 1.44e-2 7.44e-3 | dropped: 3.61e-15 2.03e-16 -5.54e-16 -1.29e-15
+   kappa(R_nz)= 4.08e+3  kappa(X)= 6.39e+1  smallest kept/lmax= 2.45e-4  largest dropped/lmax= 1.19e-16   threshold eps= 1e-10 
+   web w vs QR reference: rel err (w^H a=1) 6.63e-10   SINR web  SINR(web w)-SINR(QR w)= 6.35e-10  dB; json sinr 23.345488183998683  (kappa_nz*2.2e-16 = 8.98e-13 )
+static_L4_withSignal_d3    | eigs kept: 9.29e+1 5.14e+0 1.17e-2 4.79e-3 | dropped: 1.13e-14 1.88e-15 -8.40e-17 -2.80e-15
+   kappa(R_nz)= 1.94e+4  kappa(X)= 1.39e+2  smallest kept/lmax= 5.16e-5  largest dropped/lmax= 1.21e-16   threshold eps= 1e-10 
+   web w vs QR reference: rel err (w^H a=1) 4.80e-10   SINR web  SINR(web w)-SINR(QR w)= -2.21e-10  dB; json sinr 25.718331213643634  (kappa_nz*2.2e-16 = 4.27e-12 )

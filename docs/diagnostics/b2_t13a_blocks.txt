@@ -1,0 +1,13 @@
+
+blocks of 300 realisations (seed0 = 1313 + 300 k)
+  block 0: 0.1957 % ± 0.0526 %  z = 3.72
+  block 1: 0.0110 % ± 0.0522 %  z = 0.21
+  block 2: -0.0544 % ± 0.0530 %  z = -1.03
+  block 3: 0.0621 % ± 0.0562 %  z = 1.10
+  block 4: 0.0030 % ± 0.0495 %  z = 0.06
+  block 5: 0.0270 % ± 0.0526 %  z = 0.51
+  block 6: -0.0734 % ± 0.0505 %  z = -1.45
+  block 7: 0.0092 % ± 0.0477 %  z = 0.19
+  block 8: -0.0045 % ± 0.0509 %  z = -0.09
+  block 9: 0.0454 % ± 0.0498 %  z = 0.91
+  mean of the 10 block means 0.0221 % ± 0.0232 % (from the spread of the blocks)

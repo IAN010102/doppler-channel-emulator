@@ -1,0 +1,22 @@
+T18a  (theta1, theta2) = (-20, 40): rank 2, MUSIC peaks -20.0, 40.0; errors 0.00 / 0.00 deg
+T18a  (theta1, theta2) = (10, -50): rank 2, MUSIC peaks -50.0, 10.0; errors 0.00 / 0.00 deg
+T18a  (theta1, theta2) = (-5, 25): rank 2, MUSIC peaks 25.0, -5.0; errors 0.00 / 0.00 deg
+T18b  (-20, 40), SNR 40 dB: peaks within 30 dB of the maximum: MUSIC 2, Capon 2
+T18b  (10, -50), SNR 40 dB: peaks within 30 dB of the maximum: MUSIC 2, Capon 2
+
+T18c  K = 20 dB, SNR 20 dB, withSignal, 500 trials; mean |error| [deg] of the peak nearest to the true angle (MUSIC target / MUSIC jammer / Capon target / Capon jammer)
+vs L (theta1 = 0, theta2 = 40):
+L               MUSIC T         MUSIC J         Capon T         Capon J
+4           0.23 ± 0.01     0.00 ± 0.00     0.37 ± 0.02     0.03 ± 0.01
+8           0.22 ± 0.01     0.00 ± 0.00     0.32 ± 0.02     0.01 ± 0.00
+12          0.22 ± 0.01     0.00 ± 0.00     0.24 ± 0.01     0.00 ± 0.00
+24          0.21 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+48          0.20 ± 0.01     0.00 ± 0.00     0.20 ± 0.01     0.00 ± 0.00
+100         0.22 ± 0.01     0.00 ± 0.00     0.20 ± 0.01     0.00 ± 0.00
+vs separation (theta1 = 0, L = 100):
+theta2            MUSIC T         MUSIC J         Capon T         Capon J
+5             1.29 ± 0.07     0.00 ± 0.00     1.85 ± 0.09     0.00 ± 0.00
+10            0.33 ± 0.01     0.00 ± 0.00     0.34 ± 0.01     0.00 ± 0.00
+20            0.21 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+40            0.22 ± 0.01     0.00 ± 0.00     0.21 ± 0.01     0.00 ± 0.00
+RESULT T18: 5/5 checks passed
