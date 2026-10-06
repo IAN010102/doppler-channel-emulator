@@ -201,6 +201,58 @@
             }));
             return { pinv: P, rank: Math.round(keep.length / 2), lmax, lminKept };
         }
+        // Real symmetric eigen-decomposition (cyclic Jacobi): returns { vals (descending), vecs (columns as arrays, same order) }.
+        function eigSymDecomp(M) {
+            const m = M.length, A = M.map(r => Float64Array.from(r)), V = Array.from({ length: m }, (_, i) => { const r = new Float64Array(m); r[i] = 1; return r; });
+            let scale = 0; for (let i = 0; i < m; i++) scale += A[i][i] * A[i][i]; scale = scale || 1;
+            for (let sweep = 0; sweep < 60; sweep++) {
+                let off = 0; for (let p = 0; p < m; p++) for (let q = p + 1; q < m; q++) off += A[p][q] * A[p][q];
+                if (off < 1e-30 * scale) break;
+                for (let p = 0; p < m - 1; p++) for (let q = p + 1; q < m; q++) {
+                    if (Math.abs(A[p][q]) < 1e-300) continue;
+                    const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+                    for (let k = 0; k < m; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+                    for (let k = 0; k < m; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+                    for (let k = 0; k < m; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+                }
+            }
+            const idx = Array.from({ length: m }, (_, i) => i).sort((a, b) => A[b][b] - A[a][a]);
+            return { vals: idx.map(i => A[i][i]), vecs: idx.map(i => Array.from({ length: m }, (_, k) => V[k][i])) };
+        }
+        // DOA spatial spectra from a sample covariance H (N x N Hermitian) of a ULA (d in wavelengths), on a grid of angles (rad).
+        //   Capon:  P(theta) = 1 / (a^H R^-1 a)   (R^-1 = direct inverse; pseudo-inverse when R is rank deficient: numerical rank < N at epsRank * lambda_max)
+        //   MUSIC:  P(theta) = 1 / (a^H E_n E_n^H a), E_n = the N - nSrc eigenvectors of the smallest eigenvalues (nSrc = assumed number of sources)
+        // Both are returned in dB, normalised to their maximum. MUSIC uses the real symmetric embedding [[A,-B],[B,A]] of H: its 2 nSrc largest eigenvectors span the embedded signal subspace,
+        // and a^H E_n E_n^H a = |a|^2 - [x;y]^T P_s [x;y] for a = x + jy.
+        function doaSpectra(H, d, grid, nSrc = 2, epsRank = 1e-10) {
+            const N = H.length, m = 2 * N, M = Array.from({ length: m }, () => new Float64Array(m));
+            for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const a = H[i][j].r, b = H[i][j].i; M[i][j] = a; M[i + N][j + N] = a; M[i][j + N] = -b; M[i + N][j] = b; }
+            const eig = eigSymDecomp(M), lmax = eig.vals[0];
+            const rank = eig.vals.filter(v => v > epsRank * lmax).length / 2;
+            const Rinv = rank >= N ? invertMatrix(H, true) : pinvHermitian(H, epsRank).pinv;
+            const cap = new Float64Array(grid.length), mus = new Float64Array(grid.length), ks = 2 * Math.min(nSrc, N - 1);
+            grid.forEach((th, g) => {
+                const x = new Float64Array(N), y = new Float64Array(N), k = -2 * Math.PI * d * Math.sin(th);
+                for (let n = 0; n < N; n++) { x[n] = Math.cos(k * n); y[n] = Math.sin(k * n); }
+                let q = 0;                                                    // a^H R^-1 a
+                for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const r = Rinv[i][j]; q += (x[i] * (r.r * x[j] - r.i * y[j]) + y[i] * (r.r * y[j] + r.i * x[j])); }
+                cap[g] = 1 / Math.max(q, 1e-300);
+                let ps = 0;
+                for (let v = 0; v < ks; v++) { const e = eig.vecs[v]; let dot = 0; for (let n = 0; n < N; n++) dot += e[n] * x[n] + e[n + N] * y[n]; ps += dot * dot; }
+                mus[g] = 1 / Math.max(N - ps, 1e-300);
+            });
+            const norm = a => { let mx = 0; for (const v of a) if (v > mx) mx = v; return Array.from(a, v => 10 * Math.log10(Math.max(v, 1e-300) / mx)); };
+            return { capon: norm(cap), music: norm(mus), rank };
+        }
+        // local maxima of a spectrum (dB array on `grid`, rad), highest first: [{ i, deg, db }]
+        function spectrumPeaks(db, grid, minDb = -Infinity) {
+            const out = [];
+            for (let i = 0; i < db.length; i++) {
+                const l = i > 0 ? db[i - 1] : -Infinity, r = i + 1 < db.length ? db[i + 1] : -Infinity;
+                if (db[i] > l && db[i] >= r && db[i] >= minDb) out.push({ i, deg: grid[i] * 180 / Math.PI, db: db[i] });
+            }
+            return out.sort((a, b) => b.db - a.db);
+        }
         function sinc(x) { return x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x); }
         function erfc(x) { // Abramowitz-Stegun 7.1.26
             const z = Math.abs(x), t = 1 / (1 + 0.3275911 * z);
@@ -347,6 +399,7 @@
             outGain: 1, R_raw: [], kappaRaw: 1, gammaUsed: 0, collapsed: false, bsBins: [], bsAngles: [], R_B: [], bsSingular: false,
             eig: [], diagR: [], S: 0, I: 0, Nn: 0, sinrDb: 0, sinrOptDb: NaN, evmPilot: NaN, rhoPilot: NaN, isDb: 0, nuICI: 0, evm: 0, ser: 0,
             fm: 0, fd: 0, eps0: 0, epsM: 0, nIciDb: -Infinity, nuIciFloor: 0, fdPaths: [],
+            doa: null,
             bD: NaN, rho: NaN, agingB: NaN,       // diagnostics (unified model): Doppler spread, window-staticity ratio, aging ratio
             thTo: 0, thJo: 0, dTdeg: 0, dJdeg: 0, nullDb: 0,
             angDrift: NaN, dopPhaseErr: NaN,      // diagnostics (unified model): max angle change inside the training window (deg), Doppler first-order phase error (rad)
@@ -366,6 +419,15 @@
                 if (this.mod === 'QPSK') return this.qpsk(power);
                 const mi = modInfo(this.mod), sc = Math.sqrt(power);
                 return new Cplx(mi.levels[Math.floor(rng() * mi.ax)] * sc, mi.levels[Math.floor(rng() * mi.ax)] * sc);
+            },
+            // DOA spectra of the current training window (R_raw: follows trainMode; MMSE variants keep the target in their data): Capon and MUSIC (2 assumed sources), -90 ... 90 deg, 0.5 deg
+            computeDoa() {
+                const grid = Array.from({ length: 361 }, (_, i) => (-90 + 0.5 * i) * Math.PI / 180), sp = doaSpectra(this.R_raw, this.d_lambda, grid, 2, this.epsRank);
+                const near = (db, deg) => { const pk = spectrumPeaks(db, grid); let best = null; for (const p of pk) if (best === null || Math.abs(p.deg - deg) < Math.abs(best.deg - deg)) best = p; return best; };
+                const th1 = this.aoaT, th2 = this.aoaJ;
+                this.doa = { grid, capon: sp.capon, music: sp.music, rank: sp.rank, peaksCapon: spectrumPeaks(sp.capon, grid, -30), peaksMusic: spectrumPeaks(sp.music, grid, -30),
+                    err: { caponT: near(sp.capon, th1), caponJ: near(sp.capon, th2), musicT: near(sp.music, th1), musicJ: near(sp.music, th2) } };
+                return this.doa;
             },
             // symbol-level measurement of the unified model (see symbolLevel); uses the last computeMath result
             symbolEvm(Ns = 4000, keep = 500) { return symbolLevel({ S: this.S, I: this.I, Nn: this.Nn, nu: this.nuICI, mod: this.mod, jam: this.jamWave, Ns, keep }); },
@@ -619,6 +681,7 @@
                 return lam;
             },
             computeMath() {
+                this.nCompute = (this.nCompute || 0) + 1;
                 const N = this.N, L = this.L, D2R = Math.PI / 180;
                 const sigPow = 1;
                 const noisePow = Math.pow(10, -this.snr / 10);
@@ -880,5 +943,5 @@
         return Sys;
         }
 
-    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, invertMatrixAbs, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, symbolLevel, createSys };
+    return { CONFIG, mulberry32, setSeed, getSeed, randomSeed, deriveSeed, withSeed, rng, Cplx, invertMatrix, invertMatrixAbs, pinvHermitian, matMulVec, vecDot, quadForm, eigvalsSym, hermitianEigvals, sinc, erfc, qfunc, hammingWindow, chebWindow, MODS, modInfo, diffuseIciExpectation, iciFloorRatio, trackAngle, trackRate, trackPhase, symbolLevel, eigSymDecomp, doaSpectra, spectrumPeaks, createSys };
 }));

@@ -252,3 +252,13 @@ The pre-refactor equivalence test (T0a) runs the legacy model explicitly (`model
 ## 16. Pointing error (Commit 20)
 
 `pointErrDeg` (δθ, default 0, UI −10 … +10°, CSV `delta_theta_deg`): the weights are designed for the steering vector `a(θ̂₁ + δθ)` instead of `a(θ̂₁)`. It enters FOURIER (quiescent weight and taper), SMI, DL (also the tapered/GSC variants, whose blocking matrix is built from it), BEAMSPACE (the constraint vector **and** the choice of the beam nearest to the target) and MMSE-M (`r_xd = P_s a(θ̂₁+δθ)`). **MMSE-P is not affected**: its cross-correlation `r̂_xd = (1/L)Σ x_n conj(s_n)` is measured from the data and uses no nominal steering vector (it therefore also follows the true channel, not the assumed direction). The SINR, EVM, ICI and the genie SINR_opt are always evaluated with the true channel; in the legacy model the snapshots are generated from the true angle too. With δθ = 0 all numbers are unchanged (golden test T14, T17a). Diagnosis (panel D): `|δθ|/θ_3dB`, θ_3dB = the 3 dB width of the current beam pattern.
+
+## 17. DOA spatial spectra (Commit 21)
+
+Panel F ("空間譜 / DOA spectrum"; core: `Core.doaSpectra`, `Core.spectrumPeaks`, `Sys.computeDoa`; −90° … 90°, step 0.5°) is computed from the sample covariance R̂ of the **current training window** (`R_raw`), i.e. it follows `trainMode`:
+
+- **Capon (MVDR spectrum):** `P(θ) = 1/(aᴴ(θ) R̂⁻¹ a(θ))`; when R̂ is rank deficient (numerical rank < N at `epsRank·λ_max`) the pseudo-inverse replaces R̂⁻¹.
+- **MUSIC:** eigen-decomposition of R̂, **2 sources assumed** (the target and the jammer): `P(θ) = 1/(aᴴ E_n E_nᴴ a)`, E_n = the N−2 eigenvectors of the smallest eigenvalues (computed on the real symmetric embedding of R̂).
+- Both are shown in dB relative to their maximum, with the true θ₁, θ₂ as dashed lines, the peaks marked and the error of the peak nearest to each true angle listed.
+- **signalFree:** the training data contain no target, so the spectrum sees only the jammer; the panel says so ("MVDR 訓練資料不含訊號，譜只看到干擾") and the target error is not shown; MUSIC still assumes 2 sources, so its second peak is spurious. **withSignal:** the spectrum contains target and jammer. MMSE-M/P always keep the target in their data, so their spectrum shows both.
+- Capon with the pseudo-inverse of a noise-free rank-2 covariance is ill-posed (peaks are not at the sources); T18 therefore tests MUSIC for the noise-free case.

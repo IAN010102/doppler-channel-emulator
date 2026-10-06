@@ -103,7 +103,8 @@
         .stage-wrap { grid-area: stage; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
         .stage-grid { display: grid; gap: 10px; min-height: 100%;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(260px, 0.8fr); }
+            grid-template-rows: minmax(250px, 1fr) minmax(250px, 1fr) minmax(250px, 0.9fr) minmax(260px, 0.8fr); }
+        .panel.wide { grid-column: 1 / -1; }
         .bench { grid-column: 1 / -1; }
         .panel { display: flex; flex-direction: column; min-height: 250px; min-width: 0; overflow: hidden; }
         .p-head { flex: 0 0 auto; padding: 7px 10px; border-bottom: 1px solid var(--line); font: 0.64rem var(--mono); color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -280,6 +281,20 @@
                 </div>
                 <div class="cv"><canvas id="cvs-matrix"></canvas></div>
             </section>
+            <!-- F: DOA spatial spectrum -->
+            <section class="card panel wide">
+                <div class="p-head">F // 空間譜：到達角估計 <em>DOA spectrum (Capon &amp; MUSIC)</em></div>
+                <div class="kv-grid">
+                    <div class="kv" title="Capon (MVDR) spectrum peak nearest to the true target angle / error. Capon: P(θ) = 1/(a^H R^-1 a)."><span class="k">Capon 目標角誤差</span><span class="v" id="m-doa-ct">—</span></div>
+                    <div class="kv" title="Capon peak nearest to the true jammer angle / error"><span class="k">Capon 干擾角誤差</span><span class="v" id="m-doa-cj">—</span></div>
+                    <div class="kv" title="MUSIC peak nearest to the true target angle / error. MUSIC assumes 2 sources (target and jammer)."><span class="k">MUSIC 目標角誤差</span><span class="v" id="m-doa-mt">—</span></div>
+                    <div class="kv" title="MUSIC peak nearest to the true jammer angle / error"><span class="k">MUSIC 干擾角誤差</span><span class="v" id="m-doa-mj">—</span></div>
+                    <div class="kv" title="Numerical rank of the sample covariance (threshold 1e-10 of the largest eigenvalue)"><span class="k">R̂ 秩 rank</span><span class="v" id="m-doa-rank">—</span></div>
+                </div>
+                <div class="cv"><canvas id="cvs-doa"></canvas></div>
+                <div class="note" id="doa-note" style="padding:4px 10px;font:0.6rem var(--mono);color:var(--muted)"></div>
+            </section>
+
             <!-- E: benchmark scanner -->
             <section class="card panel bench">
                 <div class="p-head">E // 效能對比：EVM vs. 車速 <em>Benchmarking Scanner (5 algorithms)</em></div>
@@ -936,7 +951,7 @@
             },
 
             drawAll(live = true) {                       // one complete frame (also used while PAUSED and on resize)
-                this.drawBeam(); this.drawOFDM(); this.drawConst(live); this.drawMatrix(); Bench.draw();
+                this.drawBeam(); this.drawOFDM(); this.drawConst(live); this.drawMatrix(); this.drawDoa(); Bench.draw();
             },
 
             drawBeam() {
@@ -1089,6 +1104,32 @@
                 const a = stops[i], b = stops[i + 1];
                 return `rgb(${Math.round(a[0] + (b[0] - a[0]) * f)},${Math.round(a[1] + (b[1] - a[1]) * f)},${Math.round(a[2] + (b[2] - a[2]) * f)})`;
             },
+            drawDoa() {
+                if (Sys.doaFor !== Sys.nCompute || !Sys.doa) { Sys.computeDoa(); Sys.doaFor = Sys.nCompute; }
+                const D = Sys.doa, { ctx, w, h } = this.setup('cvs-doa');
+                ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);
+                const L = 40, R = 12, T = 10, B = 24, pw = w - L - R, ph = h - T - B, X = deg => L + (deg + 90) / 180 * pw, Y = db => T + Math.min(1, Math.max(0, -db / 50)) * ph;
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.fillStyle = '#6b7280'; ctx.font = '9px monospace'; ctx.lineWidth = 1;
+                for (let a = -90; a <= 90; a += 30) { ctx.beginPath(); ctx.moveTo(X(a), T); ctx.lineTo(X(a), T + ph); ctx.stroke(); ctx.fillText(a + '°', X(a) - 8, h - 8); }
+                for (let db = 0; db >= -50; db -= 10) { ctx.beginPath(); ctx.moveTo(L, Y(db)); ctx.lineTo(L + pw, Y(db)); ctx.stroke(); ctx.fillText(db + ' dB', 2, Y(db) + 3); }
+                const curve = (arr, color) => { ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath(); arr.forEach((db, i) => { const x = X(-90 + 0.5 * i), y = Y(db); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); };
+                curve(D.capon, '#22d3ee'); curve(D.music, '#e879f9');
+                const vline = (deg, color, label) => { ctx.strokeStyle = color; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(X(deg), T); ctx.lineTo(X(deg), T + ph); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = color; ctx.fillText(label, X(deg) + 3, T + 10); };
+                vline(Sys.aoaT, '#34d399', 'θ₁ 目標 target'); vline(Sys.aoaJ, '#f87171', 'θ₂ 干擾 jammer');
+                const marks = (pk, color) => pk.slice(0, 4).forEach(p => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(p.deg), Y(p.db), 3, 0, 2 * Math.PI); ctx.fill(); });
+                marks(D.peaksCapon, '#22d3ee'); marks(D.peaksMusic, '#e879f9');
+                ctx.fillStyle = '#22d3ee'; ctx.fillText('— Capon', L + pw - 120, T + 22); ctx.fillStyle = '#e879f9'; ctx.fillText('— MUSIC (2 sources)', L + pw - 120, T + 34);
+                const e = D.err, fm = p => p ? `${p.deg.toFixed(1)}° (${(p.deg - 0).toFixed(1)})` : '—';
+                const show = (id, p, tru) => { const el = document.getElementById(id); if (el) el.innerText = p ? `${p.deg.toFixed(1)}°  (誤差 ${(p.deg - tru >= 0 ? '+' : '') + (p.deg - tru).toFixed(1)}°)` : '—'; };
+                show('m-doa-ct', Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP' ? null : e.caponT, Sys.aoaT); show('m-doa-cj', e.caponJ, Sys.aoaJ);
+                show('m-doa-mt', Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP' ? null : e.musicT, Sys.aoaT); show('m-doa-mj', e.musicJ, Sys.aoaJ);
+                const rk = document.getElementById('m-doa-rank'); if (rk) rk.innerText = `${D.rank} / ${Sys.N}`;
+                const nt = document.getElementById('doa-note');
+                if (nt) nt.innerText = (Sys.trainMode === 'signalFree' && Sys.algo !== 'MMSE' && Sys.algo !== 'MMSEP')
+                    ? 'MVDR 訓練資料不含訊號，譜只看到干擾（目標不出現）。MVDR training data contain no signal: the spectrum sees only the interferer. MUSIC 假設 2 個源 / assumes 2 sources.'
+                    : '譜含目標與干擾（訓練資料含訊號）。The spectrum contains target and interferer (training data include the signal). MUSIC 假設 2 個源（目標與干擾）/ assumes 2 sources.';
+            },
+
             drawMatrix() {
                 const { ctx, w, h } = this.setup('cvs-matrix');
                 ctx.fillStyle = '#10131b'; ctx.fillRect(0, 0, w, h);

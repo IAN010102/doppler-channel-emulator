@@ -30,7 +30,7 @@ function script(name, label) {
     script('legacy_equivalence.js', 'T0a core.js reproduces the pre-refactor page bit for bit (seeded)');
     script('ui_smoke.js', 'T0b UI smoke test (stubbed DOM)');
     const opts = quick ? { trials: 200 } : {};
-    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js', 't6_gamma_rel.js', 't7_geometry.js', 't8_doppler_phase.js', 't9_numerology.js', 't10_seed_csv.js', 't11_mmse.js', 't12_small_snapshots.js', 't13_symbol_evm.js', 't14_golden.js', 't16_singular_jam.js', 't17_pointing.js']) {
+    for (const f of ['t1_regression.js', 't2_single_path.js', 't3_aging.js', 't4_diffuse_ici.js', 't5_ofdm_time_domain.js', 't6_gamma_rel.js', 't7_geometry.js', 't8_doppler_phase.js', 't9_numerology.js', 't10_seed_csv.js', 't11_mmse.js', 't12_small_snapshots.js', 't13_symbol_evm.js', 't14_golden.js', 't16_singular_jam.js', 't17_pointing.js', 't18_doa.js']) {
         const mod = require('./' + f);
         banner(`${mod.id}  ${mod.title}`);
         const t0 = Date.now();
