@@ -13,10 +13,10 @@ const U = require('./_util.js');
 const { Cplx, invertMatrix, matMulVec } = Core;
 const trials = +(process.argv[2] || 500), N = 8;
 
-function weights(snaps, derot, afc, aNom) {
+function weights(snaps, derot, afc, aNom, addTarget) {
     const L = snaps.length, y = [], R = Array.from({ length: N }, () => Array.from({ length: N }, () => new Cplx(0, 0)));
     snaps.forEach((sn, n) => {
-        const x = Array.from({ length: N }, (_, i) => new Cplx(sn.rr[i] + sn.tr[i], sn.ri[i] + sn.ti[i]));      // full snapshot (the target is always in the Wiener data)
+        const x = Array.from({ length: N }, (_, i) => addTarget ? new Cplx(sn.rr[i] + sn.tr[i], sn.ri[i] + sn.ti[i]) : new Cplx(sn.rr[i], sn.ri[i]));      // full snapshot (the target is always in the Wiener data; withSignal: rr already contains it)
         for (let m = 0; m < N; m++) for (let k = 0; k < N; k++) R[m][k] = Cplx.add(R[m][k], Cplx.mul(x[m], Cplx.conj(x[k])));
         y.push(x.map(c => Cplx.mul(c, new Cplx(sn.s1r, -sn.s1i))));
     });
@@ -56,7 +56,7 @@ for (const aoaT of [0, 45]) for (const tm of ['signalFree', 'withSignal']) {
             const vms = v / 3.6, lam = s.c / s.fc, thJ = 40 * Math.PI / 180, jam = Math.pow(10, 1), nz = Math.pow(10, -2);
             const phi = n => Core.trackPhase(paths.th0[0], vms, s.d_min, lam, -tApp, n * Ts - tApp);                  // LoS phase of snapshot n
             const metric = w => { s.unifiedMetrics(w, gam, thJ, tApp, paths, jam, nz); return 10 * Math.log10(s.S / (s.I + s.Nn)); };
-            g.push(metric(weights(s.snaps, phi, false))); p.push(metric(weights(s.snaps, null, 'raw'))); q.push(metric(weights(s.snaps, null, 'filtered', s.steer(thT))));
+            g.push(metric(weights(s.snaps, phi, false, null, tm === 'signalFree'))); p.push(metric(weights(s.snaps, null, 'raw', null, tm === 'signalFree'))); q.push(metric(weights(s.snaps, null, 'filtered', s.steer(thT), tm === 'signalFree')));
             if (t === 0) { cyc = (phi(s.L - 1) - phi(0)) / (2 * Math.PI); om = 2 * Math.PI * paths.fd[0] * Ts; }
         }
         const mo = U.mean(opt);

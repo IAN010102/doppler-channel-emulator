@@ -1,0 +1,27 @@
+B2 ablation, 400 realisations per combination; mean of EVM_meas/EVM_analytic - 1 [%] ± SE [%] (|z|)
+jammer    Tx mod  v    ICI   rel diff %     SE %    |z|
+gaussian  QPSK    0    on       -0.0150   0.0386   0.39
+gaussian  QPSK    0    off      -0.0150   0.0386   0.39
+gaussian  QPSK    300  on        0.1515   0.0411   3.68
+gaussian  QPSK    300  off      -0.0188   0.0388   0.48
+gaussian  QAM16   0    on       -0.0029   0.0449   0.06
+gaussian  QAM16   0    off      -0.0029   0.0449   0.06
+gaussian  QAM16   300  on        0.1633   0.0458   3.57
+gaussian  QAM16   300  off      -0.0067   0.0450   0.15
+qpsk      QPSK    0    on        0.0220   0.0413   0.53
+qpsk      QPSK    0    off       0.0220   0.0413   0.53
+qpsk      QPSK    300  on       -0.0094   0.0388   0.24
+qpsk      QPSK    300  off       0.0216   0.0413   0.52
+qpsk      QAM16   0    on        0.0432   0.0459   0.94
+qpsk      QAM16   0    off       0.0432   0.0459   0.94
+qpsk      QAM16   300  on        0.0120   0.0448   0.27
+qpsk      QAM16   300  off       0.0428   0.0457   0.94
+
+large sample: 16-QAM, gaussian, v = 300, ICI on, seeds 1313+t
+  300 realisations: 0.1957 % ± 0.0526 % (|z| 3.72)
+  2000 realisations: 0.0329 % ± 0.0203 % (|z| 1.62)
+
+symbols per realisation (16-QAM, gaussian, v = 300, ICI on, 400 realisations)
+  Ns = 1000: 0.0873 % ± 0.0900 %
+  Ns = 4000: 0.1633 % ± 0.0458 %
+  Ns = 16000: 0.0354 % ± 0.0236 %

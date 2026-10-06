@@ -1,6 +1,6 @@
 # Golden snapshot change log
 
-## Commit 19 — jamWave default 'gaussian' (the jammer symbols draw different random numbers; FOURIER does not depend on the jammer waveform in its weights, so only its target term... unchanged)
+## Commit 19: jamWave default 'gaussian' (the jammer symbols draw different random numbers; the FOURIER weights do not depend on the jammer waveform, so its SINR is unchanged)
 
 Mean-free per-seed SINR [dB], seeds 11/22/33/44, old -> new (the EVM, SINR_opt and SER values in the JSON change accordingly):
 

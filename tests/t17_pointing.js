@@ -39,6 +39,7 @@ module.exports = {
         checks.push(U.check('T17a delta_theta = 0: identical to the golden snapshot', U.e(worst), '0 (bit-identical)', worst === 0));
 
         // ---- T17b
+        const b2 = [], digamma = x => { let r = 0; while (x < 10) { r -= 1 / x; x += 1; } return r + Math.log(x) - 1 / (2 * x) - 1 / (12 * x * x) + 1 / (120 * x ** 4); };
         console.log('\nT17b  population solution from the path model vs sample SMI (L = 20000), K = 20 dB, v = 0, 100 realisations per cell; paired SINR difference (sample - population) [dB]');
         console.log(U.pad('trainMode', 11), U.pad('delta deg', 10), U.rpad('population', 14), U.rpad('sample L=20000', 16), U.rpad('mean diff', 11), U.rpad('SE', 8), 'result');
         for (const tm of ['signalFree', 'withSignal']) for (const dth of [0, 1, 3, 5]) {
@@ -60,7 +61,23 @@ module.exports = {
             }
             const d = smp.map((x, i) => x - pop[i]), m = U.mean(d), se = U.se(d), pass = Math.abs(m) <= 3 * se;
             console.log(U.pad(tm, 11), U.pad(dth, 10), U.rpad(cell(pop), 14), U.rpad(cell(smp), 16), U.rpad(U.f(m, 4), 11), U.rpad(U.f(se, 4), 8), pass ? 'PASS' : 'FAIL');
+            b2.push({ tm, dth, m, se });
             checks.push(U.check(`T17b ${tm}, delta = ${dth} deg: sample SMI (L = 20000) vs population solution`, `${U.f(m, 4)} dB (SE ${U.f(se, 4)})`, '|mean diff| <= 3 SE', pass));
+        }
+
+        // ---- T17b2 (informational): the finite-L loss of SMI against the Reed-Mallett-Brennan expectation. For signal-free (interference-plus-noise) training, Gaussian data and the correct
+        // steering vector the SINR loss factor rho = SINR_SMI / SINR_opt has E[rho] = (L + 2 - N)/(L + 1) (rho ~ Beta(L + 2 - N, N - 1)): the mean loss of the mean-of-ratios is
+        // 10 log10((L+2-N)/(L+1)); the paired difference averages dB values, E[10 log10 rho] = (10/ln 10)(psi(L + 2 - N) - psi(L + 1)). Not strictly applicable here: delta != 0 (the steering vector is
+        // wrong), the target has diffuse paths (h is not proportional to the steering vector), the reference is the population solution of the same constraint, not the genie optimum.
+        {
+            const Lr = 20000, Nn = 8, thA = 10 * Math.log10((Lr + 2 - Nn) / (Lr + 1)), thB = (10 / Math.LN10) * (digamma(Lr + 2 - Nn) - digamma(Lr + 1));
+            console.log(`\nT17b2  (info) expected finite-L loss at L = ${Lr}, N = ${Nn}: 10 log10((L+2-N)/(L+1)) = ${U.f(thA, 5)} dB;  mean of dB values: ${U.f(thB, 5)} dB`);
+            console.log(U.pad('trainMode', 11), U.pad('delta deg', 10), U.rpad('measured', 11), U.rpad('SE', 8), U.rpad('theory (mean dB)', 17), U.rpad('measured - theory', 18), U.rpad('z', 7), 'applicable');
+            for (const r of b2) {
+                const z = (r.m - thB) / r.se, app = r.tm === 'signalFree' && r.dth === 0 ? 'yes' : (r.tm === 'signalFree' ? 'approximately (delta != 0)' : 'no (target in the training data)');
+                console.log(U.pad(r.tm, 11), U.pad(r.dth, 10), U.rpad(U.f(r.m, 4), 11), U.rpad(U.f(r.se, 4), 8), U.rpad(U.f(thB, 4), 17), U.rpad(U.f(r.m - thB, 4), 18), U.rpad(U.f(z, 2), 7), app);
+                if (r.tm === 'signalFree') info.push({ name: `T17b2 signalFree, delta = ${r.dth} deg: sample SMI (L = 20000) - population vs Reed-Mallett-Brennan`, value: `${U.f(r.m, 4)} dB (SE ${U.f(r.se, 4)}) vs ${U.f(thB, 4)} dB, difference ${U.f(r.m - thB, 4)} dB, z = ${U.f(z, 2)}`, note: app });
+            }
         }
 
         // ---- T17c
