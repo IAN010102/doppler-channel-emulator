@@ -1,0 +1,17 @@
+index.html / i18n.js: text changes of this round (no physics or computation touched)
+
+[index.html:349] panel E legend of the dashed line
+  before: <span class="lg"><i class="dash" style="border-color:#a78bfa"></i>ICI 極限 floor</span>
+  after : <span class="lg"><i class="dash" style="border-color:#a78bfa"></i>ICI 底限（簡化模型）</span>
+[index.html:740] ICI diagnosis message (research direction)
+  before: actions: [], note: '[研究方向] 此為物理極限，陣列最佳化無法消除；需改用 OTFS 等次世代調變（延遲-都卜勒域 Delay-Doppler）。'
+  after : actions: [], note: '[研究方向] 在本模型的簡化假設下（ICI 當功率項、接收端不做對頻），空間處理無法降低此項；文獻顯示接收端波束成形與對頻可處理 ICI。'
+[index.html:910] summary line of the velocity sweep: same dashed line, same wording as the legend
+  before: el.innerText = `${modInfo(r.mod).name} 超過 EVM>${(r.thr * 100).toFixed(1)}% 的車速 (km/h)：${parts.join('，')}，ICI 極限 ${fe(r.ici)}`;
+  after : el.innerText = `${modInfo(r.mod).name} 超過 EVM>${(r.thr * 100).toFixed(1)}% 的車速 (km/h)：${parts.join('，')}，ICI 底限（簡化模型） ${fe(r.ici)}`;
+[i18n.js:11] phrase table: English for the new diagnosis message and for the legend (replaces the "physical limit" phrase)
+  before: const PHRASES = [["訓練資料不含訊號，譜只看到干擾（目標不出現）。", "The training data contain no signal, so the spectrum sees only the interferer (the target does not appear)."], ["快取已清除：樣本窗、星座圖殘影、時間歸零。", "Cache cleared: sample window, constellation trails and time reset."], ["執行速度掃描」以目前參數比較五種演算法的", "Run Velocity Sweep\" to compare the algorithms with the current parameters:"], ["快照數不足，協方差矩陣瀕臨奇異；已由加窗", "Too few snapshots, the covariance m
+  after : const PHRASES = [["訓練資料不含訊號，譜只看到干擾（目標不出現）。", "The training data contain no signal, so the spectrum sees only the interferer (the target does not appear)."], ["快取已清除：樣本窗、星座圖殘影、時間歸零。", "Cache cleared: sample window, constellation trails and time reset."], ["執行速度掃描」以目前參數比較五種演算法的", "Run Velocity Sweep\" to compare the algorithms with the current parameters:"], ["快照數不足，協方差矩陣瀕臨奇異；已由加窗", "Too few snapshots, the covariance m
+[i18n.js:11] phrase table: the OTFS phrase is no longer used
+  before: const PHRASES = [["訓練資料不含訊號，譜只看到干擾（目標不出現）。", "The training data contain no signal, so the spectrum sees only the interferer (the target does not appear)."], ["快取已清除：樣本窗、星座圖殘影、時間歸零。", "Cache cleared: sample window, constellation trails and time reset."], ["執行速度掃描」以目前參數比較五種演算法的", "Run Velocity Sweep\" to compare the algorithms with the current parameters:"], ["快照數不足，協方差矩陣瀕臨奇異；已由加窗", "Too few snapshots, the covariance m
+  after : const PHRASES = [["訓練資料不含訊號，譜只看到干擾（目標不出現）。", "The training data contain no signal, so the spectrum sees only the interferer (the target does not appear)."], ["快取已清除：樣本窗、星座圖殘影、時間歸零。", "Cache cleared: sample window, constellation trails and time reset."], ["執行速度掃描」以目前參數比較五種演算法的", "Run Velocity Sweep\" to compare the algorithms with the current parameters:"], ["快照數不足，協方差矩陣瀕臨奇異；已由加窗", "Too few snapshots, the covariance m

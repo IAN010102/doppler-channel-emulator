@@ -110,3 +110,5 @@ Statements found by the scan and NOT changed:
   docs/FINAL_REPORT.md item 9, bullet "T13a 的 ICI 高斯近似": it describes how the symbol-level chain generates the ICI term (a model description, not a conclusion about what spatial processing can do).
   experiments.js line 25 and 52: code comments / the aux fields of the E6 curve (no text shown to the user).
   index.html (outside the scope of this commit; no UI change this round): the diagnosis messages of the page contain the same kind of statement ("This is a physical limit that array optimisation cannot remove; switch to OFDM-based next-generation modulation", and the ICI-limit legend of panel E). Listed here for a decision.
+
+Update (next round): the three index.html statements listed above (diagnosis message with OTFS, legend 'ICI 極限 floor', and the velocity-sweep summary line) were rewritten; see docs/diagnostics/index_html_text_changes.txt.
