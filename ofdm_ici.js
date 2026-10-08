@@ -302,6 +302,42 @@
         return { G, Hhat: Hh, Ryy, idx };
     }
 
+    /* ------------------------------------------------------------------ 導頻殘差協方差估計器（pilot-residual covariance estimator） */
+    // 只用導頻子載波的殘差估計「ICI 加雜訊」協方差，所以協方差裡沒有所需訊號（避免含訊號訓練的自我抵消）：
+    //   d_k = Y_k − Ĥ X_k，k 為導頻子載波（可跨 m 個符元）；  R_res = (1/n) Σ d_k d_kᴴ   （n = 導頻總數）；  G = (R_res + γ I)⁻¹ Ĥ，γ = gammaRel · σn²。
+    // 注意：Ĥ 由同一批導頻估計時，殘差偏小（自由度損失）；選項 correct 把 R_res 乘上 n/(n−1)；選項 Hforce 用真實 H（genie）取代 Ĥ。
+    // shrink = 'lw'：Ledoit–Wolf 線性收縮（單位矩陣目標），公式見 ledoitWolfShrink。
+    /** Ledoit–Wolf (2004), "A well-conditioned estimator for large-dimensional covariance matrices", J. Multivariate Analysis 88(2): 365–411（樣本協方差對 μI 的線性收縮，
+     *  已知零平均所以不去平均）：μ = tr(S)/p；d² = ‖S − μI‖²/p；b̄² = (1/n²) Σ_k ‖d_k d_kᴴ − S‖²/p；b² = min(b̄², d²)；a² = d² − b²；S* = (b²/d²) μ I + (a²/d²) S，
+     *  其中 ‖A‖² = tr(AAᴴ)（本函式的 /p 對應原文的縮放 Frobenius 範數）。本實作把原文的實數資料直接換成複數資料（外積用共軛轉置），公式不變。 */
+    function ledoitWolfShrink(vecs, S, Nr) {
+        const n = vecs.length, tr = (() => { let t = 0; for (let i = 0; i < Nr; i++) t += S[2 * (i * Nr + i)]; return t; })(), mu = tr / Nr;
+        const fro2 = M => { let t = 0; for (let i = 0; i < M.length; i++) t += M[i] * M[i]; return t; };
+        const D = Float64Array.from(S); for (let i = 0; i < Nr; i++) D[2 * (i * Nr + i)] -= mu;
+        const d2 = fro2(D) / Nr; let b2bar = 0;
+        for (const v of vecs) { const M = new Float64Array(2 * Nr * Nr); addOuter(M, v, 1, Nr); for (let i = 0; i < M.length; i++) M[i] -= S[i]; b2bar += fro2(M) / Nr; }
+        b2bar /= n * n; const b2 = Math.min(b2bar, d2), a2 = d2 - b2, out = new Float64Array(S.length);
+        for (let i = 0; i < S.length; i++) out[i] = (a2 / d2) * S[i]; for (let i = 0; i < Nr; i++) out[2 * (i * Nr + i)] += (b2 / d2) * mu;
+        return { S: out, shrinkage: b2 / d2 };
+    }
+    /** items = [{ sym, Y }, …]（m 個符元，同一個通道，同一個對頻 ε̂ 下的 Y）；o = { gammaRel (線性倍數；null/undefined = 無加載), shrink: 'lw' | null, correct: bool, Hforce: {re, im} | null } */
+    function pilotResidualWeights(items, o = {}) {
+        const Nr = items[0].sym.Nr, sn2 = items[0].sym.sigmaN2, H = { re: new Float64Array(Nr), im: new Float64Array(Nr) }; let n = 0;
+        for (const { sym, Y } of items) for (const l of sym.pilots) { const d = sym.Xre[l] * sym.Xre[l] + sym.Xim[l] * sym.Xim[l]; for (let p = 0; p < Nr; p++) { H.re[p] += (Y[p].re[l] * sym.Xre[l] + Y[p].im[l] * sym.Xim[l]) / d; H.im[p] += (Y[p].im[l] * sym.Xre[l] - Y[p].re[l] * sym.Xim[l]) / d; } n++; }
+        for (let p = 0; p < Nr; p++) { H.re[p] /= n; H.im[p] /= n; }
+        const Hu = o.Hforce || H, vecs = [], S = new Float64Array(2 * Nr * Nr);
+        for (const { sym, Y } of items) for (const l of sym.pilots) {
+            const v = { re: new Float64Array(Nr), im: new Float64Array(Nr) };
+            for (let p = 0; p < Nr; p++) { v.re[p] = Y[p].re[l] - (sym.Xre[l] * Hu.re[p] - sym.Xim[l] * Hu.im[p]); v.im[p] = Y[p].im[l] - (sym.Xre[l] * Hu.im[p] + sym.Xim[l] * Hu.re[p]); }
+            vecs.push(v); addOuter(S, v, 1 / n, Nr);
+        }
+        let R = S; if (o.correct) { R = S.map(x => x * n / (n - 1)); }
+        let shrinkage = null; if (o.shrink === 'lw') { const r = ledoitWolfShrink(vecs, R, Nr); R = r.S; shrinkage = r.shrinkage; }
+        if (o.gammaRel !== undefined && o.gammaRel !== null) { R = Float64Array.from(R); for (let p = 0; p < Nr; p++) R[2 * (p * Nr + p)] += o.gammaRel * sn2; }
+        let G = csolve(R, Hu, Nr); if (!G) G = pinvSolveHermitian(R, Hu, Nr);
+        return { G, Hhat: H, R, n, shrinkage };
+    }
+
     /* ------------------------------------------------------------------ 其他工具 */
     /** 保護頻帶：回傳占用遮罩（Uint8Array）；nLow、nHigh = 兩端不使用的子載波數 */
     function maskGuard(N, nLow, nHigh) { const m = new Uint8Array(N).fill(1); for (let i = 0; i < nLow; i++) m[i] = 0; for (let i = 0; i < nHigh; i++) m[N - 1 - i] = 0; return m; }
@@ -343,5 +379,5 @@
     }
 
     return { PAPER, makeRng, Qc, QbruteForce, steer, fft, csolve, pinvSolveHermitian, makeChannel, snrToNoise, iciVectors, vecAt, Hvec, iciCov, rMatrix, optimal, sinrOfWeights, system,
-        sinrOptimalAt, sinrMrc, sinrSingleAntenna, epsNone, epsLos, epsCpAnalytic, epsCpEstimate, scanEps, epsGenie, linearModel, linearWeights, makeSymbol, demodulate, practicalWeights, maskGuard, paperChannel, angleDomainMf };
+        sinrOptimalAt, sinrMrc, sinrSingleAntenna, epsNone, epsLos, epsCpAnalytic, epsCpEstimate, scanEps, epsGenie, linearModel, linearWeights, makeSymbol, demodulate, practicalWeights, maskGuard, paperChannel, angleDomainMf, pilotResidualWeights, ledoitWolfShrink, addOuter };
 }));
