@@ -1,0 +1,120 @@
+Text heat map (SNR 20 dB), AS SPECIFIED: L_ICI = 10 log10(Nr SNR / SINR_opt) (contains the path-combining baseline at v = 0): dominant factor I = ICI loss, E = estimation loss (L_est) and the larger loss in dB; "-" = both below 0.5 dB
+
+Nr = 2
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0             I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1
+50            I1      I1      I1      I1      I1      I1      I1      I1      I2      I1      I1      I1      I2      I2      I1      I1
+100           I1      I1      I1      I1      I2      I1      I1      I1      I3      I2      I1      I1      I4      I2      I2      I1
+150           I1      I1      I1      I1      I2      I1      I1      I1      I3      I2      I2      I1      I6      I3      I2      I1
+200           I2      I1      I1      I1      I2      I2      I1      I1      I4      I3      I2      I1      I8      I4      I2      I2
+250           I2      I1      I1      I1      I3      I2      I1      I1      I6      I3      I2      I1      I9      I5      I3      I2
+300           I2      I1      I1      I1      I3      I2      I1      I1      I7      I3      I2      I2     I11      I6      I3      I2
+350           I2      I2      I1      I1      I4      I2      I2      I1      I8      I4      I2      I2     I13      I7      I4      I2
+400           I2      I2      I1      I1      I4      I2      I2      I1      I8      I4      I3      I2     I15      I8      I4      I2
+450           I3      I2      I1      I1      I5      I3      I2      I1      I9      I5      I3      I2     I18      I9      I5      I3
+500           I3      I2      I1      I1      I5      I3      I2      I1     I10      I6      I3      I2     I19      I9      I5      I3
+
+Nr = 4
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0             I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1
+50            I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1
+100           I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I1      I3      I1      I1      I1
+150           I1      I1      I1      I1      I1      I1      I1      I1      I2      I1      I1      I1      I5      I2      I1      I1
+200           I1      I1      I1      I1      I1      I1      I1      I1      I3      I1      I1      I1      I7      I3      I1      I1
+250           I1      I1      I1      I1      I2      I1      I1      I1      I4      I2      I1      I1      I7      I4      I2      I1
+300           I1      I1      I1      I1      I2      I1      I1      I1      I6      I2      I1      I1      I7      I5      I2      I1
+350           I1      I1      I1      I1      I2      I1      I1      I1      I7      I3      I1      I1      I8      I6      I2      I1
+400           I1      I1      I1      I1      I3      I1      I1      I1      I7      I3      I1      I1     I10      I7      I3      I1
+450           I2      I1      I1      I1      I3      I2      I1      I1      I7      I4      I2      I1     I11      I7      I3      I2
+500           I2      I1      I1      I1      I4      I2      I1      I1      I7      I4      I2      I1     I13      I7      I4      I2
+
+Nr = 8
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -      I1       -       -       -      I1       -       -       -
+100            -       -       -       -       -       -       -       -      I1      I1       -       -      I3      I1       -       -
+150            -       -       -       -      I1       -       -       -      I2      I1       -       -      I5      I1      I1       -
+200            -       -       -       -      I1       -       -       -      I3      I1      I1       -      I6      I3      I1       -
+250           I1       -       -       -      I1      I1       -       -      I4      I1      I1       -      I6      I4      I1      I1
+300           I1       -       -       -      I1      I1       -       -      I5      I2      I1       -      I6      I5      I1      I1
+350           I1       -       -       -      I2      I1       -       -      I6      I2      I1       -      I7      I5      I2      I1
+400           I1       -       -       -      I3      I1       -       -      I6      I3      I1      I1      I9      I6      I3      I1
+450           I1      I1       -       -      I3      I1      I1       -      I6      I4      I1      I1      I9      I6      I3      I1
+500           I1      I1       -       -      I4      I1      I1       -      I6      I4      I1      I1     I12      I6      I4      I1
+
+Nr = 16
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -       -       -       -       -      I1       -       -       -
+100            -       -       -       -       -       -       -       -      I1       -       -       -      I3      I1       -       -
+150            -       -       -       -       -       -       -       -      I2      I1       -       -      I5      I2       -       -
+200            -       -       -       -      I1       -       -       -      I4      I1       -       -      I6      I3      I1       -
+250            -       -       -       -      I1       -       -       -      I5      I1       -       -      I6      I5      I1       -
+300            -       -       -       -      I2       -       -       -      I5      I2      I1       -      I5      I5      I2       -
+350           I1       -       -       -      I3      I1       -       -      I5      I3      I1       -      I8      I5      I3      I1
+400           I1       -       -       -      I3      I1       -       -      I6      I4      I1       -      I9      I6      I3      I1
+450           I1       -       -       -      I4      I1       -       -      I6      I4      I1       -      I8      I6      I4      I1
+500           I1       -       -       -      I5      I1       -       -      I5      I5      I1       -     I12      I6      I5      I1
+
+Text heat map (SNR 20 dB), NET: L_ICI minus its value at v = 0 (the Doppler-caused part): dominant factor I = ICI loss, E = estimation loss (L_est) and the larger loss in dB; "-" = both below 0.5 dB
+
+Nr = 2
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -      I1       -       -       -      I1      I1       -       -
+100            -       -       -       -      I1       -       -       -      I2      I1       -       -      I3      I1      I1       -
+150            -       -       -       -      I1       -       -       -      I2      I1       -       -      I5      I2      I1       -
+200           I1       -       -       -      I1      I1       -       -      I3      I2      I1       -      I7      I3      I1      I1
+250           I1       -       -       -      I2      I1       -       -      I5      I2      I1       -      I8      I4      I2      I1
+300           I1       -       -       -      I2      I1       -       -      I6      I2      I1       -     I10      I5      I2      I1
+350           I1      I1       -       -      I3      I1      I1       -      I7      I3      I1      I1     I12      I6      I3      I1
+400           I1      I1       -       -      I3      I1      I1       -      I7      I3      I2      I1     I14      I7      I3      I1
+450           I2      I1       -       -      I4      I2      I1       -      I8      I4      I2      I1     I17      I8      I4      I2
+500           I2      I1       -       -      I4      I2      I1       -      I9      I5      I2      I1     I18      I8      I4      I2
+
+Nr = 4
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -      I1       -       -       -      I1      I1       -       -
+100            -       -       -       -      I1       -       -       -      I1      I1       -       -      I2      I1      I1       -
+150            -       -       -       -      I1       -       -       -      I2      I1       -       -      I5      I1      I1       -
+200           I1       -       -       -      I1      I1       -       -      I3      I1      I1       -      I6      I2      I1      I1
+250           I1       -       -       -      I1      I1       -       -      I4      I1      I1       -      I6      I4      I1      I1
+300           I1       -       -       -      I1      I1       -       -      I5      I2      I1       -      I6      I5      I1      I1
+350           I1       -       -       -      I2      I1       -       -      I6      I2      I1       -      I8      I6      I2      I1
+400           I1      I1       -       -      I2      I1      I1       -      I7      I3      I1      I1      I9      I6      I2      I1
+450           I1      I1       -       -      I3      I1      I1       -      I7      I3      I1      I1     I11      I7      I3      I1
+500           I1      I1       -       -      I4      I1      I1       -      I6      I4      I1      I1     I12      I6      I4      I1
+
+Nr = 8
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -       -       -       -       -      I1       -       -       -
+100            -       -       -       -       -       -       -       -      I1       -       -       -      I2      I1       -       -
+150            -       -       -       -       -       -       -       -      I1       -       -       -      I5      I1       -       -
+200            -       -       -       -      I1       -       -       -      I3      I1       -       -      I6      I2      I1       -
+250            -       -       -       -      I1       -       -       -      I4      I1       -       -      I6      I4      I1       -
+300            -       -       -       -      I1       -       -       -      I5      I1       -       -      I5      I5      I1       -
+350            -       -       -       -      I2       -       -       -      I5      I2       -       -      I7      I5      I2       -
+400           I1       -       -       -      I2      I1       -       -      I6      I3      I1       -      I9      I6      I2      I1
+450           I1       -       -       -      I3      I1       -       -      I6      I4      I1       -      I9      I6      I3      I1
+500           I1       -       -       -      I4      I1       -       -      I6      I4      I1       -     I11      I6      I4      I1
+
+Nr = 16
+v km/h  3.5G/15k3.5G/30k3.5G/60k3.5G/120k  7G/15k  7G/30k  7G/60k 7G/120k 15G/15k 15G/30k 15G/60k15G/120k 28G/15k 28G/30k 28G/60k28G/120k
+0              -       -       -       -       -       -       -       -       -       -       -       -       -       -       -       -
+50             -       -       -       -       -       -       -       -       -       -       -       -      I1       -       -       -
+100            -       -       -       -       -       -       -       -      I1       -       -       -      I3      I1       -       -
+150            -       -       -       -       -       -       -       -      I2       -       -       -      I5      I2       -       -
+200            -       -       -       -      I1       -       -       -      I4      I1       -       -      I6      I3      I1       -
+250            -       -       -       -      I1       -       -       -      I5      I1       -       -      I6      I4      I1       -
+300            -       -       -       -      I2       -       -       -      I5      I2       -       -      I5      I5      I2       -
+350            -       -       -       -      I2       -       -       -      I5      I3      I1       -      I8      I5      I2       -
+400           I1       -       -       -      I3      I1       -       -      I6      I4      I1       -      I9      I6      I3      I1
+450           I1       -       -       -      I4      I1       -       -      I6      I4      I1       -      I8      I6      I4      I1
+500           I1       -       -       -      I4      I1       -       -      I5      I5      I1       -     I12      I6      I4      I1
+
+dominant factor over the 704 cells (as specified): ICI 505, estimation 0, both below 0.5 dB 199
+dominant factor over the 704 cells (net of the v = 0 baseline): ICI 314, estimation 0, both below 0.5 dB 390
+AD-MF better than the pilot-residual receiver in 2 of 704 cells
+Nr = 2: dominant ICI (net) 97, estimation 0, neither 79; AD-MF better 2 of 176; Nr = 4: dominant ICI (net) 94, estimation 0, neither 82; AD-MF better 0 of 176; Nr = 8: dominant ICI (net) 61, estimation 0, neither 115; AD-MF better 0 of 176; Nr = 16: dominant ICI (net) 62, estimation 0, neither 114; AD-MF better 0 of 176

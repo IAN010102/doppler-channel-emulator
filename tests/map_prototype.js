@@ -1,0 +1,89 @@
+'use strict';
+/**
+ * 迷你限制因素地圖的資料（只輸出 CSV，不做 UI；資訊性，不判定）。
+ *   node tests/map_prototype.js [--draws 200] [--part k/n]    （--part：把格點分成 n 份只算第 k 份，輸出 data/map_prototype.part<k>.csv；之後 --merge 合併）
+ *   node tests/map_prototype.js --merge                       合併 data/map_prototype.part*.csv → data/map_prototype.csv、data/README_map.md 與文字版熱圖
+ * 軸：車速 v ∈ {0, 50, …, 500} km/h；載波 fc ∈ {3.5, 7, 15, 28} GHz；子載波間隔 Δf ∈ {15, 30, 60, 120} kHz（完整組合）；Nr ∈ {2, 4, 8, 16}。
+ * 每格：SNR = 20 dB，各 ≥ 200 次實現（隨機到達角與相位，N = 1024，CP 7 %，4 條路徑；路徑都卜勒 = f_m × [1, −1, 0.70, 0.20]，f_m = v fc / c；
+ *   相對強度 [0, 0, −11, −0.7] dB；導頻間距 12）。所有權重在同一個 CP 法（含雜訊樣本）估計的 ε̂ 下與真實 H、R 比較。
+ *   L_ICI       = 10 log10(Nr · SNR / SINR_opt)                    最佳合併下仍存在的 ICI 損失（SNR 為線性值 100）
+ *   L_est       = SINR_opt − SINR_pilot-residual                    導頻殘差法（m = 1，γ_rel = +10 dB）相對 Optimal 的損失
+ *   L_est_naive = SINR_opt − SINR_estimated                         含訊號的樣本 R_yy（Ns = N）
+ *   ADMF_better = AD-MF（genie）的平均 SINR 高於導頻殘差法的平均 SINR（布林）
+ *   L_aging     = 留空（待由窄頻模擬器結果匯入）
+ * 主導因素 = L_ICI 與 L_est 中較大者。
+ */
+const fs = require('fs'), path = require('path');
+const O = require('../ofdm_ici.js');
+const U = require('./_util.js');
+const R = require('./reproduce_gopala_slock.js');
+
+const VS = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500], FCS = [3.5, 7, 15, 28], DFS = [15, 30, 60, 120], NRS = [2, 4, 8, 16], SNR = 20, C = 3e8, N = R.CFG.N, Ncp = R.CFG.Ncp, dB = x => 10 * Math.log10(x);
+const DOPP = [1, -1, 0.70, 0.20], REL = [0, 0, -11, -0.7];
+
+function cell(v, fc, df, Nr, draws, seed) {
+    const fm = v / 3.6 * fc * 1e9 / C, a = { opt: [], est: [], pr: [], admf: [], eps: [] };
+    for (let t = 0; t < draws; t++) {
+        const rp = O.makeRng(seed + 7919 * t), ra = O.makeRng(seed + 500000 + 7919 * t), rs = O.makeRng(seed + 1000000 + 7919 * t);
+        const ang = R.pickAngles('random', ra), ch = O.makeChannel({ N, Nr, df: df * 1e3, rng: rp, paths: DOPP.map((k, i) => ({ fHz: fm * k, thetaDeg: ang[i], powerDb: REL[i] })) });
+        const sn2 = O.snrToNoise(ch, SNR, 1), sym = O.makeSymbol(ch, { rng: rs, sigmaX2: 1, sigmaN2: sn2, Ncp, pilotSpacing: 12 }), eh = O.epsCpEstimate(sym), Y = O.demodulate(sym, eh), s = O.system(ch, eh, 1, sn2);
+        const opt = dB(O.optimal(s.H, s.R, Nr, 1).sinr), pw = O.practicalWeights(sym, Y, { Ns: N }), pr = O.pilotResidualWeights([{ sym, Y }], { gammaRel: 10 });
+        a.opt.push(opt); a.est.push(dB(O.sinrOfWeights(pw.G, s.H, s.R, Nr, 1))); a.pr.push(dB(O.sinrOfWeights(pr.G, s.H, s.R, Nr, 1))); a.admf.push(dB(O.angleDomainMf(ch, 1, sn2).sinr)); a.eps.push(Math.abs(fm * 1000 / (df * 1e3)));
+    }
+    const m = x => U.mean(x), so = m(a.opt), snr = Math.pow(10, SNR / 10);
+    return { Lici: 10 * Math.log10(Nr * snr) - so, LiciSe: U.se(a.opt), Lest: so - m(a.pr), LestSe: U.se(a.opt.map((x, i) => x - a.pr[i])), LestNaive: so - m(a.est), LestNaiveSe: U.se(a.opt.map((x, i) => x - a.est[i])), admfBetter: m(a.admf) > m(a.pr), epsMax: fm / (df * 1e3) };
+}
+const HDR = 'v_kmh,fc_GHz,df_kHz,Nr,eps_max,L_ICI_db,L_ICI_se,L_est_db,L_est_se,L_est_naive_db,L_est_naive_se,ADMF_better_than_PR,dominant,L_aging_db,n';
+const HDR_MERGED = 'v_kmh,fc_GHz,df_kHz,Nr,eps_max,L_ICI_db,L_ICI_se,L_est_db,L_est_se,L_est_naive_db,L_est_naive_se,ADMF_better_than_PR,dominant,L_ICI_net_db,dominant_net,L_aging_db,n';
+
+if (require.main === module) {
+    const argv = process.argv.slice(2), root = path.join(__dirname, '..', 'data');
+    if (argv.includes('--merge')) {
+        const files = fs.readdirSync(root).filter(f => /^map_prototype\.part\d+\.csv$/.test(f)).sort(), rows = [];
+        for (const f of files) rows.push(...fs.readFileSync(path.join(root, f), 'utf8').trim().split('\n').filter(l => !l.startsWith('#') && !l.startsWith('v_kmh')));
+        const nrow = rows.length, parsed = rows.map(l => l.split(',')), draws = parsed[0][14];
+        parsed.sort((x, y) => (+x[3] - +y[3]) || (+x[1] - +y[1]) || (+x[2] - +y[2]) || (+x[0] - +y[0]));
+        // L_ICI at v = 0 is not zero: Nr * SNR / SINR_opt also contains the combining of the paths (the channel gain ||H||^2 of the random angles and phases is not Nr). The baseline of each Nr
+        // (identical in all fc / delta_f cells at v = 0: epsilon = 0) is subtracted in the extra column L_ICI_net (the Doppler-caused part); the column L_ICI keeps the definition of the specification.
+        const base0 = {}; for (const Nr of NRS) { const r = parsed.find(x => +x[0] === 0 && +x[3] === Nr); base0[Nr] = +r[5]; }
+        for (let k = 0; k < parsed.length; k++) { const r = parsed[k], net = Math.max(0, +r[5] - base0[+r[3]]); parsed[k] = r.slice(0, 13).concat([net.toFixed(3), Math.max(net, +r[7]) < 0.5 ? '-' : (net >= +r[7] ? 'I' : 'E'), '', r[14]]); }
+        const hdr = ['Mini limiting-factor map (prototype data, no UI): which loss dominates for the best (optimal) combining and for the practical receivers; SNR = 20 dB',
+            `schema_version 1; generated by tests/map_prototype.js; seed ${R.CFG.seed}; ${draws} realisations per cell; ${nrow} cells (v x fc x delta_f x Nr)`,
+            'N 1024, Ncp 72, pilot spacing 12, 4 paths (Doppler = f_m x [1, -1, 0.70, 0.20], f_m = v fc / c; relative power 0 / 0 / -11 / -0.7 dB), random phases and random angles U(-90, 90) deg; epsilon from the CP method (noisy samples)',
+            'L_ICI = 10 log10(Nr SNR / SINR_opt); L_est = SINR_opt - SINR_pilot_residual (m = 1, gamma_rel +10 dB); L_est_naive = SINR_opt - SINR_estimated (signal in R_yy); dominant = I (L_ICI >= L_est) or E; L_aging empty: to be imported from the narrow-band simulator'];
+        fs.writeFileSync(path.join(root, 'map_prototype.csv'), hdr.map(l => '# ' + l).join('\n') + '\n' + HDR + '\n' + parsed.map(r => r.join(',')).join('\n') + '\n');
+        // 文字版熱圖：每個 Nr 一張，列 = 速度，欄 = (fc, df) 的 16 個組合；格內 = 主導因素（I = ICI，E = 估計）與該損失的整數 dB
+        const lines = [];
+        for (const [label, iIdx, dIdx] of [['AS SPECIFIED: L_ICI = 10 log10(Nr SNR / SINR_opt) (contains the path-combining baseline at v = 0)', 5, 12], ['NET: L_ICI minus its value at v = 0 (the Doppler-caused part)', 13, 14]]) {
+            lines.push(`Text heat map (SNR 20 dB), ${label}: dominant factor I = ICI loss, E = estimation loss (L_est) and the larger loss in dB; "-" = both below 0.5 dB`);
+            for (const Nr of NRS) {
+                lines.push(`
+Nr = ${Nr}`); const cols = []; for (const fc of FCS) for (const df of DFS) cols.push([fc, df]);
+                lines.push(U.pad('v km/h', 8) + cols.map(([fc, df]) => U.rpad(`${fc}G/${df}k`, 8)).join(''));
+                for (const v of VS) lines.push(U.pad(v, 8) + cols.map(([fc, df]) => { const r = parsed.find(x => +x[0] === v && +x[1] === fc && +x[2] === df && +x[3] === Nr); if (!r) return U.rpad('?', 8); const li = +r[iIdx], le = +r[7], big = Math.max(li, le); return U.rpad(big < 0.5 ? '-' : (li >= le ? 'I' : 'E') + Math.round(big), 8); }).join(''));
+            }
+            lines.push('');
+        }
+        // 主導因素分布
+        const dom = (r, iIdx) => { const li = +r[iIdx], le = +r[7], big = Math.max(li, le); return big < 0.5 ? '-' : (li >= le ? 'I' : 'E'); };
+        const admf = parsed.filter(r => r[11] === 'true').length;
+        for (const [label, iIdx] of [['as specified', 5], ['net of the v = 0 baseline', 13]]) {
+            const cnt = { I: 0, E: 0, '-': 0 }; for (const r of parsed) cnt[dom(r, iIdx)]++;
+            lines.push(`dominant factor over the ${nrow} cells (${label}): ICI ${cnt.I}, estimation ${cnt.E}, both below 0.5 dB ${cnt['-']}`);
+        }
+        lines.push(`AD-MF better than the pilot-residual receiver in ${admf} of ${nrow} cells`);
+        const byNr = NRS.map(Nr => { const rs = parsed.filter(r => +r[3] === Nr); return `Nr = ${Nr}: dominant ICI (net) ${rs.filter(r => dom(r, 13) === 'I').length}, estimation ${rs.filter(r => dom(r, 13) === 'E').length}, neither ${rs.filter(r => dom(r, 13) === '-').length}; AD-MF better ${rs.filter(r => r[11] === 'true').length} of ${rs.length}`; });
+        lines.push(byNr.join('; ')); fs.writeFileSync(path.join(root, '..', 'docs', 'diagnostics', 'map_prototype_heatmap.txt'), lines.join('\n') + '\n'); console.log(lines.join('\n'));
+    } else {
+        const draws = argv.includes('--draws') ? +argv[argv.indexOf('--draws') + 1] : 200, part = argv.includes('--part') ? argv[argv.indexOf('--part') + 1].split('/').map(Number) : [0, 1], t0 = Date.now(), rows = [];
+        const grid = []; for (const Nr of NRS) for (const fc of FCS) for (const df of DFS) for (const v of VS) grid.push([v, fc, df, Nr]);
+        grid.forEach((g, gi) => {
+            if (gi % part[1] !== part[0]) return;
+            const [v, fc, df, Nr] = g, r = cell(v, fc, df, Nr, draws, R.CFG.seed), dom = Math.max(r.Lici, r.Lest) < 0.5 ? '-' : (r.Lici >= r.Lest ? 'I' : 'E');
+            rows.push([v, fc, df, Nr, r.epsMax.toFixed(4), r.Lici.toFixed(3), r.LiciSe.toFixed(3), r.Lest.toFixed(3), r.LestSe.toFixed(3), r.LestNaive.toFixed(3), r.LestNaiveSe.toFixed(3), r.admfBetter, dom, '', draws].join(','));
+            if (rows.length % 20 === 0) console.error(`part ${part[0]}: ${rows.length} cells (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+        });
+        fs.writeFileSync(path.join(root, `map_prototype.part${part[0]}.csv`), HDR + '\n' + rows.join('\n') + '\n'); console.log(`part ${part[0]}/${part[1]}: ${rows.length} cells, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+    }
+}
+module.exports = { cell, VS, FCS, DFS, NRS };
