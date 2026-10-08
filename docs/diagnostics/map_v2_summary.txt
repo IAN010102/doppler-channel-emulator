@@ -1,0 +1,18 @@
+cells: 2112; excluded (eps_max > 0.5): 60; counted: 2052
+slice (i)  clean estimator (pilot residual, no loading): ICI 833 (40.6 %), estimation 373 (18.2 %), neither 846 (41.2 %)
+slice (ii) signal-in-R estimator (L_est_naive):          ICI 110 (5.4 %), estimation 1942 (94.6 %), neither 0 (0.0 %)
+  SNR 10 dB, clean: ICI 135 (19.7 %), estimation 143 (20.9 %), neither 406 (59.4 %)
+  SNR 10 dB, naive: ICI 46 (6.7 %), estimation 638 (93.3 %), neither 0 (0.0 %)
+  SNR 20 dB, clean: ICI 280 (40.9 %), estimation 128 (18.7 %), neither 276 (40.4 %)
+  SNR 20 dB, naive: ICI 37 (5.4 %), estimation 647 (94.6 %), neither 0 (0.0 %)
+  SNR 30 dB, clean: ICI 418 (61.1 %), estimation 102 (14.9 %), neither 164 (24.0 %)
+  SNR 30 dB, naive: ICI 27 (3.9 %), estimation 657 (96.1 %), neither 0 (0.0 %)
+  Nr 2, clean: ICI 265 (51.7 %), estimation 0 (0.0 %), neither 248 (48.3 %)
+  Nr 2, naive: ICI 90 (17.5 %), estimation 423 (82.5 %), neither 0 (0.0 %)
+  Nr 4, clean: ICI 252 (49.1 %), estimation 0 (0.0 %), neither 261 (50.9 %)
+  Nr 4, naive: ICI 20 (3.9 %), estimation 493 (96.1 %), neither 0 (0.0 %)
+  Nr 8, clean: ICI 176 (34.3 %), estimation 0 (0.0 %), neither 337 (65.7 %)
+  Nr 8, naive: ICI 0 (0.0 %), estimation 513 (100.0 %), neither 0 (0.0 %)
+  Nr 16, clean: ICI 140 (27.3 %), estimation 373 (72.7 %), neither 0 (0.0 %)
+  Nr 16, naive: ICI 0 (0.0 %), estimation 513 (100.0 %), neither 0 (0.0 %)
+critical points (counted cells, v > 0): a sign change of L_est_naive - L_ICI_net inside the Nr grid for 90 of 465 (fc, df, v, SNR) combinations; inside the SNR grid for 19 of 620 (fc, df, v, Nr) combinations
