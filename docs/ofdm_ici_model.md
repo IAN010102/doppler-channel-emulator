@@ -37,6 +37,9 @@
 | O15 | `R_yy = (1/Ns) Σ_{l∈S} Y_l Y_lᴴ`（S：用來估協方差的子載波集合；文獻預設 Ns = N；訊號含於 R_yy） | 待確認 | `practicalWeights` |
 | O16 | `G_est = R_yy⁻¹ Ĥ`；Ns 可小於 N（連續或均勻間隔選法）；正則化 `none`（Ns ≥ Nr 直接求逆，否則偽逆）或 `dl`（γ = γ_rel σn²） | 待確認 | `practicalWeights` |
 | O17 | 比較用接收機：MRC `G = H`（ε = 0，不考慮 ICI）；單天線（ε = 0，只用天線 0）；genie 對頻：`ε* = argmax_ε SINR_opt(ε)`（粗格點加黃金分割），或 `argmax_ε ‖H(ε)‖²`（訊號功率窮舉） | 待確認 | `sinrMrc`（`reproduce_gopala_slock.js` 內同式）、`epsGenie` |
+| O18 | 角度域匹配濾波（AD-MF，genie 基準）：`u_p(t) = a(θ_p)ᴴ r(t)/Nr`，再乘 `exp(−j2π ε_p t/N)` 後 FFT 得分支輸出 `Z_p[l]`；分支觀測 `z[l] = Σ_m X_m h(m−l) + W`，`h(d)_p = Σ_i A_i c_{p,i} Q(d + ε_i − ε_p)`，`c_{p,i} = a(θ_p)ᴴ a(θ_i)/Nr` | 提示詞（本輪規格），文獻式號待確認 | `angleDomainMf` |
+| O19 | 分支雜訊協方差 `Rn[p][q] = σn² c_{p,q} Q(ε_q − ε_p)/Nr`（由 O18 的定義與 FFT 推得，T25 之外的自我檢查：單一路徑時 AD-MF 的 SINR = Nr × SNR，差 1e-16） | 本專案推導 | `angleDomainMf` |
+| O20 | MRC 合併 `G = h0`（`h0 = h(0)`），`SINR = σx² |h0ᴴ h0|² / (h0ᴴ (σx² B_L + Rn) h0)`，`B_L = Σ_{d≠0} h(d) h(d)ᴴ`；IPI（路徑間干擾）= 其他路徑在分支 p 所需子載波上的洩漏功率 `|Σ_{i≠p} A_i c_{p,i} Q(ε_i − ε_p)|²` 相對於 `|A_p|²`（對 p 平均） | 本專案定義 | `angleDomainMf` |
 | （式 24） | 簡化的訊號功率最大化近似（選做） | **式 24**；提示詞沒有給出式子，**未實作** | — |
 
 ## 驗證（T23）

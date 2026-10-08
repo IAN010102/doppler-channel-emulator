@@ -311,6 +311,37 @@
         const Nr = o.Nr || PAPER.Nr, N = o.N || PAPER.N, scale = o.dopplerScale === undefined ? 1 : o.dopplerScale;
         return makeChannel({ N, Nr, df: o.df || PAPER.df, rng, paths: PAPER.dopplerHz.map((f, i) => ({ fHz: f * scale, thetaDeg: angles[i], powerDb: PAPER.relPowerDb[i] })) });
     }
+    /* ------------------------------------------------------------------ 角度域匹配濾波接收機（AD-MF，genie 基準；不做 DoA 估計、不做參數估計） */
+    // 對每條路徑 p：用真實到達角做空間匹配濾波 u_p(t) = a(θ_p)ᴴ r(t) / Nr，再用該路徑真實的都卜勒 ε_p 對頻（乘 exp(−j2π ε_p t/N)），做 FFT，得到分支輸出 Z_p[l]；
+    // 最後把 L 個分支用 MRC 合併（G = h0，h0 是 L 個分支對所需訊號的等效增益，不考慮 ICI 與路徑間干擾）。
+    // 分支觀測向量 z[l] = Σ_m X_m h(m−l) + W，h(d)_p = Σ_i A_i c_{p,i} Q(d + ε_i − ε_p)，c_{p,i} = a(θ_p)ᴴ a(θ_i) / Nr；
+    // 分支雜訊協方差 Rn[p][q] = σn² c_{p,q} Q(ε_q − ε_p) / Nr（由 u_p 的定義與 FFT 推得）。
+    // IPI（inter-path interference，路徑間干擾）：分支 p 在所需子載波上收到其他路徑的洩漏 Σ_{i≠p} A_i c_{p,i} Q(ε_i − ε_p)，相對於自己路徑的訊號 |A_p|²。
+    function angleDomainMf(ch, sigmaX2, sigmaN2) {
+        const { N, Nr, paths } = ch, L = paths.length, q = [0, 0];
+        const cre = [], cim = [];                                              // c[p][i] = a_pᴴ a_i / Nr
+        for (let p = 0; p < L; p++) { cre.push(new Float64Array(L)); cim.push(new Float64Array(L)); for (let i = 0; i < L; i++) { let re = 0, im = 0; for (let k = 0; k < Nr; k++) { re += paths[p].a.re[k] * paths[i].a.re[k] + paths[p].a.im[k] * paths[i].a.im[k]; im += paths[p].a.re[k] * paths[i].a.im[k] - paths[p].a.im[k] * paths[i].a.re[k]; } cre[p][i] = re / Nr; cim[p][i] = im / Nr; } }
+        const hr = new Float64Array(N * L), hi = new Float64Array(N * L);
+        for (let d = 0; d < N; d++) for (let p = 0; p < L; p++) for (let i = 0; i < L; i++) {
+            Qc(d + paths[i].eps - paths[p].eps, N, q);
+            const ar = paths[i].Are * cre[p][i] - paths[i].Aim * cim[p][i], ai = paths[i].Are * cim[p][i] + paths[i].Aim * cre[p][i];
+            hr[d * L + p] += ar * q[0] - ai * q[1]; hi[d * L + p] += ar * q[1] + ai * q[0];
+        }
+        const B = new Float64Array(2 * L * L), v = { re: new Float64Array(L), im: new Float64Array(L) };
+        for (let d = 1; d < N; d++) { for (let p = 0; p < L; p++) { v.re[p] = hr[d * L + p]; v.im[p] = hi[d * L + p]; } addOuter(B, v, 1, L); }
+        const Rn = new Float64Array(2 * L * L);
+        for (let p = 0; p < L; p++) for (let r = 0; r < L; r++) { Qc(paths[r].eps - paths[p].eps, N, q); Rn[2 * (p * L + r)] = sigmaN2 * (cre[p][r] * q[0] - cim[p][r] * q[1]) / Nr; Rn[2 * (p * L + r) + 1] = sigmaN2 * (cre[p][r] * q[1] + cim[p][r] * q[0]) / Nr; }
+        const h0 = { re: hr.slice(0, L), im: hi.slice(0, L) }, Ri = new Float64Array(2 * L * L);
+        for (let i = 0; i < Ri.length; i++) Ri[i] = sigmaX2 * B[i] + Rn[i];
+        const sinr = sinrOfWeights(h0, h0, Ri, L, sigmaX2);                    // MRC：G = h0
+        // IPI：其他路徑在分支 p 的所需子載波上的洩漏功率，相對於自己路徑的訊號 |A_p|²（對 p 平均）
+        let ipi = 0;
+        for (let p = 0; p < L; p++) { let lr = 0, li = 0; for (let i = 0; i < L; i++) { if (i === p) continue; Qc(paths[i].eps - paths[p].eps, N, q); const ar = paths[i].Are * cre[p][i] - paths[i].Aim * cim[p][i], ai = paths[i].Are * cim[p][i] + paths[i].Aim * cre[p][i]; lr += ar * q[0] - ai * q[1]; li += ar * q[1] + ai * q[0]; } ipi += (lr * lr + li * li) / (paths[p].Are * paths[p].Are + paths[p].Aim * paths[p].Aim); }
+        // 分解（資訊性）：只有雜訊時的 SINR（無 ICI、無 IPI 干擾項）
+        let sNoise = 0; { const Rn2 = Rn; sNoise = sinrOfWeights(h0, h0, Rn2, L, sigmaX2); }
+        return { sinr, ipiRatio: ipi / L, sinrNoiseOnly: sNoise, h0, B, Rn };
+    }
+
     return { PAPER, makeRng, Qc, QbruteForce, steer, fft, csolve, pinvSolveHermitian, makeChannel, snrToNoise, iciVectors, vecAt, Hvec, iciCov, rMatrix, optimal, sinrOfWeights, system,
-        sinrOptimalAt, sinrMrc, sinrSingleAntenna, epsNone, epsLos, epsCpAnalytic, epsCpEstimate, scanEps, epsGenie, linearModel, linearWeights, makeSymbol, demodulate, practicalWeights, maskGuard, paperChannel };
+        sinrOptimalAt, sinrMrc, sinrSingleAntenna, epsNone, epsLos, epsCpAnalytic, epsCpEstimate, scanEps, epsGenie, linearModel, linearWeights, makeSymbol, demodulate, practicalWeights, maskGuard, paperChannel, angleDomainMf };
 }));
