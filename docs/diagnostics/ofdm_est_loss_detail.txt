@@ -1,0 +1,29 @@
+Estimated BF diagnosis: loss against Optimal BF [dB] (positive = worse), N = 1024, Nr = 2, random angles, 200 realisations, eps_hat from the CP method, mean ± SE (paired)
+weights                                      SNR 10 dB       SNR 20 dB       SNR 30 dB       SNR 35 dB
+mean SINR_opt [dB]                               11.74           20.76           29.35           33.59
+(1) Optimal                                0.00 ± 0.00     0.00 ± 0.00    -0.00 ± 0.00    -0.00 ± 0.00
+(2) sample R_yy + H_hat (current)          0.72 ± 0.05     3.33 ± 0.18     8.74 ± 0.34    12.27 ± 0.40
+(3) sample R_yy + true H                   0.09 ± 0.01     0.59 ± 0.05     2.27 ± 0.17     4.06 ± 0.27
+(4) population R_yy + H_hat                0.80 ± 0.06     3.47 ± 0.19     8.79 ± 0.34    12.63 ± 0.41
+(5) population R_yy + true H               0.00 ± 0.00     0.00 ± 0.00    -0.00 ± 0.00    -0.00 ± 0.00
+(6) signal-free sample R_u + H_hat         0.01 ± 0.00     0.01 ± 0.00     0.00 ± 0.00     0.00 ± 0.00
+
+check (5) against (1): largest |difference| over all 800 cases = 3.55e-14 dB  ->  PASS (< 1e-9 dB)
+
+Sample-size sweep: m independent OFDM symbols (1024 m samples for R_yy), loss against Optimal [dB], mean ± SE
+weights                     SNR                m = 1           m = 4          m = 16          m = 64
+(2) sample R_yy + H_hat     10 dB        0.72 ± 0.05     0.21 ± 0.02     0.06 ± 0.01     0.01 ± 0.00
+(2) sample R_yy + H_hat     20 dB        3.33 ± 0.18     1.40 ± 0.09     0.42 ± 0.03     0.12 ± 0.01
+(2) sample R_yy + H_hat     30 dB        8.74 ± 0.34     4.68 ± 0.22     1.89 ± 0.13     0.66 ± 0.06
+(2) sample R_yy + H_hat     35 dB       12.27 ± 0.40     7.22 ± 0.32     3.75 ± 0.22     1.54 ± 0.11
+(3) sample R_yy + true H    10 dB        0.09 ± 0.01     0.02 ± 0.00     0.00 ± 0.00     0.00 ± 0.00
+(3) sample R_yy + true H    20 dB        0.59 ± 0.05     0.17 ± 0.02     0.04 ± 0.00     0.01 ± 0.00
+(3) sample R_yy + true H    30 dB        2.27 ± 0.17     0.96 ± 0.09     0.31 ± 0.03     0.07 ± 0.01
+(3) sample R_yy + true H    35 dB        4.06 ± 0.27     1.85 ± 0.16     0.71 ± 0.07     0.23 ± 0.03
+
+loss of (3) against the ratio SINR_opt / (N m)  (the self-nulling loss of a sample matrix with the signal grows with this ratio):
+SNR       mean SINR_opt [dB]    m = 1: ratio -> loss    m = 4: ratio -> loss   m = 16: ratio -> loss   m = 64: ratio -> loss
+10 dB                  11.74           0.018 -> 0.09           0.005 -> 0.02           0.001 -> 0.00           0.000 -> 0.00
+20 dB                  20.76           0.150 -> 0.59           0.037 -> 0.17           0.009 -> 0.04           0.002 -> 0.01
+30 dB                  29.35           1.171 -> 2.27           0.293 -> 0.96           0.073 -> 0.31           0.018 -> 0.07
+35 dB                  33.59           3.198 -> 4.06           0.799 -> 1.85           0.200 -> 0.71           0.050 -> 0.23

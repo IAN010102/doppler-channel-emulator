@@ -1,0 +1,6 @@
+Guard-band study (information only): N = 1024, 104 guard subcarriers at each end (816 occupied), Nr = 4, 200 realisations
+(a) ICI power tr(B_l)/Nr at a guard subcarrier relative to the band interior (l = 512): nearest to the band (l = 103): 0.514 ± 0.003; middle of the guard (l = 52): 0.007 ± 0.000; outermost (l = 2): 0.006 ± 0.000
+(b) loss against the optimal weights at the interior subcarrier [dB] (mean ± SE, paired):
+method                                             SNR 20 dB       SNR 30 dB       SNR 35 dB
+weights from the guard-band covariance R_g       1.04 ± 0.07     3.29 ± 0.19     3.38 ± 0.22
+pilot residual (spacing 12; +10 dB loading)      0.61 ± 0.04     0.97 ± 0.08     0.74 ± 0.07

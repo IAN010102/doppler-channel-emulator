@@ -346,7 +346,7 @@
                     <span class="lg"><i style="border-color:#fb923c"></i><span id="lg-SMI">SMI-MVDR</span></span>
                     <span class="lg"><i style="border-color:#34d399"></i><span id="lg-DL">DL-MVDR</span></span>
                     <span class="lg"><i style="border-color:#f472b6"></i><span id="lg-BEAMSPACE">BS-MVDR</span></span>
-                    <span class="lg"><i class="dash" style="border-color:#a78bfa"></i>ICI 極限 floor</span>
+                    <span class="lg"><i class="dash" style="border-color:#a78bfa"></i>ICI 底限（簡化模型）</span>
                     <span class="lg"><i class="dash" style="border-color:#fbbf24"></i><span id="lg-thr">SER=10⁻³ 門檻</span></span>
                     <span class="grow" id="bench-sum">尚未掃描：以目前參數掃描車速 0–300 km/h</span>
                 </div>
@@ -737,7 +737,7 @@
                         id: 'ici', stage: 'ch', cls: severe ? 'err' : 'warn', map: severe ? 'bad' : 'warn', flag: 'ICI', tag: severe ? '[CRITICAL]' : '[診斷]',
                         msg: severe ? '嚴重 OFDM 載波間干擾 (ICI)：僅 ICI 即使 EVM 超過約 10 %，正交性喪失。' : '高移動性導致 OFDM 載波間干擾 (ICI)，正交性開始劣化。',
                         dim: `|f<sub>d</sub>|=${I.f(Math.abs(S.fd))} Hz，ε=${S.eps0.toFixed(3)}，N<sub>ICI</sub>/S=${I.f(S.nIciDb)} dB，SER=${S.ser < 1e-6 ? '&lt;1e-6' : S.ser.toExponential(1)} (${modInfo(A.mod).name})`,
-                        actions: [], note: '[研究方向] 此為物理極限，陣列最佳化無法消除；需改用 OTFS 等次世代調變（延遲-都卜勒域 Delay-Doppler）。'
+                        actions: [], note: '[研究方向] 在本模型的簡化假設下（ICI 當功率項、接收端不做對頻），空間處理無法降低此項；文獻顯示接收端波束成形與對頻可處理 ICI。'
                     });
                 }
                 // success reports for the two small-snapshot remedies
@@ -907,7 +907,7 @@
                 const r = this.result, el = document.getElementById('bench-sum'); if (!r) return;
                 const fe = a => { const v = this.firstExceed(a); return v === null ? `>${this.VMAX}` : (v === 0 ? '0' : '≈' + v); };
                 const parts = this.ALGOS.map(([k]) => `${ALGO[k].short} ${fe(r.curves[k].evm)}`);
-                el.innerText = `${modInfo(r.mod).name} 超過 EVM>${(r.thr * 100).toFixed(1)}% 的車速 (km/h)：${parts.join('，')}，ICI 極限 ${fe(r.ici)}`;
+                el.innerText = `${modInfo(r.mod).name} 超過 EVM>${(r.thr * 100).toFixed(1)}% 的車速 (km/h)：${parts.join('，')}，ICI 底限（簡化模型） ${fe(r.ici)}`;
             },
             draw() {
                 const { ctx, w, h } = Render.setup('cvs-bench');
