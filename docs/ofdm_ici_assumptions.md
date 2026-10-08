@@ -94,3 +94,5 @@ Estimated BF（R_yy 含訊號、Ĥ 由導頻估計，Ns = N）在高 SNR 比 Opt
 
 結果（m = 1，對 Optimal 的損失 dB；完整表在 CSV）：Estimated（含訊號）在 30 dB 為 8.4（Nr = 2）、18.2（Nr = 4）、26.0（Nr = 8）；導頻殘差法（無加載）為 0.05、0.15、0.36；γ_rel = +10 dB 為 1.6、1.0、0.5；Ledoit–Wolf 為 0.06、0.12、0.28。兩個對照（Ĥ 改真實 H、殘差修正 n/(n−1)）與原版的差都小於 0.05 dB（在 +10 dB 加載下）。
 
+
+| A19 | C1 導頻樣本有限：P_eff 取 86 個導頻中的均勻子集；P_eff < Nr 且無加載／收縮時用偽逆（相對門檻 1e-10） | 「Estimated」的 R_yy 與 Ĥ 用同一個子集，因此 P_eff > Nr 時與「PR none」數學上相同（R_res = R_yy − ĤĤᴴ，Sherman–Morrison）；P_eff = Nr 時 R_res 奇異，兩者不同 | T27a 檢查此恆等式。使用者要求的 Estimated 是「訊號在 R 中」，若改用全部 1024 子載波的 R_yy 則不同（見 limited_sample_curves） |
