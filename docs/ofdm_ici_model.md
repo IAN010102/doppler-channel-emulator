@@ -40,7 +40,7 @@
 | O18 | 角度域匹配濾波（AD-MF，genie 基準）：`u_p(t) = a(θ_p)ᴴ r(t)/Nr`，再乘 `exp(−j2π ε_p t/N)` 後 FFT 得分支輸出 `Z_p[l]`；分支觀測 `z[l] = Σ_m X_m h(m−l) + W`，`h(d)_p = Σ_i A_i c_{p,i} Q(d + ε_i − ε_p)`，`c_{p,i} = a(θ_p)ᴴ a(θ_i)/Nr` | 提示詞（本輪規格），文獻式號待確認 | `angleDomainMf` |
 | O19 | 分支雜訊協方差 `Rn[p][q] = σn² c_{p,q} Q(ε_q − ε_p)/Nr`（由 O18 的定義與 FFT 推得，T25 之外的自我檢查：單一路徑時 AD-MF 的 SINR = Nr × SNR，差 1e-16） | 本專案推導 | `angleDomainMf` |
 | O20 | MRC 合併 `G = h0`（`h0 = h(0)`），`SINR = σx² |h0ᴴ h0|² / (h0ᴴ (σx² B_L + Rn) h0)`，`B_L = Σ_{d≠0} h(d) h(d)ᴴ`；IPI（路徑間干擾）= 其他路徑在分支 p 所需子載波上的洩漏功率 `|Σ_{i≠p} A_i c_{p,i} Q(ε_i − ε_p)|²` 相對於 `|A_p|²`（對 p 平均） | 本專案定義 | `angleDomainMf` |
-| O21 | 導頻殘差協方差估計器：`d_k = Y_k − Ĥ X_k`（k 為導頻子載波，可跨 m 個符元），`R_res = (1/n) Σ d_k d_kᴴ`（n = 導頻總數）；`G = (R_res + γ I)⁻¹ Ĥ`，`γ = γ_rel σn²`（γ_rel ∈ {無加載, 0 dB, +10 dB}）。協方差裡沒有所需訊號，避免含訊號訓練的自我抵消 | 本輪規格 | `pilotResidualWeights` |
+| O21 | 導頻子載波訓練的協方差估計（P_eff > Nr 時等價於以導頻為樣本的樣本協方差）：`d_k = Y_k − Ĥ X_k`（k 為導頻子載波，可跨 m 個符元），`R_res = (1/n) Σ d_k d_kᴴ`（n = 導頻總數）；`G = (R_res + γ I)⁻¹ Ĥ`，`γ = γ_rel σn²`（γ_rel ∈ {無加載, 0 dB, +10 dB}）。協方差裡沒有所需訊號，避免含訊號訓練的自我抵消 | 本輪規格 | `pilotResidualWeights` |
 | O22 | 對照：Ĥ 改用真實 H（genie）；殘差乘以 n/(n−1)（Ĥ 與殘差用同一批導頻時的自由度修正） | 本輪規格 | `pilotResidualWeights` 的 `Hforce`、`correct` |
 | O23 | Ledoit–Wolf 線性收縮：`μ = tr(S)/p`，`d² = ‖S − μI‖²/p`，`b̄² = (1/n²) Σ_k ‖d_k d_kᴴ − S‖²/p`，`b² = min(b̄², d²)`，`a² = d² − b²`，`S* = (b²/d²) μ I + (a²/d²) S`（已知零平均，不去平均；複數資料直接沿用公式）。出處：Ledoit & Wolf (2004), *A well-conditioned estimator for large-dimensional covariance matrices*, J. Multivariate Analysis 88(2): 365–411 | 同左 | `ledoitWolfShrink` |
 | （式 24） | 簡化的訊號功率最大化近似（選做） | **式 24**；提示詞沒有給出式子，**未實作** | — |

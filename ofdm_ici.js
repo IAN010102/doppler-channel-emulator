@@ -334,8 +334,10 @@
         let R = S; if (o.correct) { R = S.map(x => x * n / (n - 1)); }
         let shrinkage = null; if (o.shrink === 'lw') { const r = ledoitWolfShrink(vecs, R, Nr); R = r.S; shrinkage = r.shrinkage; }
         if (o.gammaRel !== undefined && o.gammaRel !== null) { R = Float64Array.from(R); for (let p = 0; p < Nr; p++) R[2 * (p * Nr + p)] += o.gammaRel * sn2; }
-        let G = csolve(R, Hu, Nr); if (!G) G = pinvSolveHermitian(R, Hu, Nr);
-        return { G, Hhat: H, R, n, shrinkage };
+        // 樣本數少於 Nr（n < Nr）且沒有加載或收縮時 R_res 的秩 ≤ n < Nr，奇異：用偽逆（Moore–Penrose，只用高於 epsRank·λmax 的特徵值，epsRank = 1e-10，與 core.js 相同）
+        const loaded = (o.gammaRel !== undefined && o.gammaRel !== null) || o.shrink === 'lw';
+        let G = (n < Nr && !loaded) ? null : csolve(R, Hu, Nr); if (!G) G = pinvSolveHermitian(R, Hu, Nr, 1e-10);
+        return { G, Hhat: H, R, n, shrinkage, pinv: (n < Nr && !loaded) };
     }
 
     /* ------------------------------------------------------------------ 其他工具 */
