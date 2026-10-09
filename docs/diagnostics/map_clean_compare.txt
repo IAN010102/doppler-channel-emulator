@@ -1,8 +1,9 @@
 SNR 20 dB, 704 cells, excluded (eps_max > 0.5): 20, counted: 684
 old  (pilot residual, gamma_rel +10 dB, data/map_prototype.csv): ICI 294 (43.0 %), estimation 0 (0.0 %), neither 390 (57.0 %)
-new  (pilot residual, no loading, data/map_v2.csv):               ICI 280 (40.9 %), estimation 128 (18.7 %), neither 276 (40.4 %)
-cells whose dominant factor changed: 128; largest |L_ICI_net(map_v2) - L_ICI_net(map_prototype)| = 0.00e+0 dB (CSV rounding)
-  Nr 2: old ICI 92 (53.8 %), estimation 0 (0.0 %), neither 79 (46.2 %); new ICI 92 (53.8 %), estimation 0 (0.0 %), neither 79 (46.2 %); L_est mean old 0.43 / new 0.05 dB, max old 1.57 / new 0.05 dB
-  Nr 4: old ICI 89 (52.0 %), estimation 0 (0.0 %), neither 82 (48.0 %); new ICI 89 (52.0 %), estimation 0 (0.0 %), neither 82 (48.0 %); L_est mean old 0.45 / new 0.15 dB, max old 1.84 / new 0.17 dB
-  Nr 8: old ICI 56 (32.7 %), estimation 0 (0.0 %), neither 115 (67.3 %); new ICI 56 (32.7 %), estimation 0 (0.0 %), neither 115 (67.3 %); L_est mean old 0.37 / new 0.36 dB, max old 2.36 / new 0.37 dB
-  Nr 16: old ICI 57 (33.3 %), estimation 0 (0.0 %), neither 114 (66.7 %); new ICI 43 (25.1 %), estimation 128 (74.9 %), neither 0 (0.0 %); L_est mean old 0.42 / new 0.85 dB, max old 2.72 / new 0.88 dB
+new  (no loading, data/map_v2.csv):                               ICI 280 (40.9 %), estimation 128 (18.7 %), neither 276 (40.4 %)
+LW   (Ledoit-Wolf shrinkage, data/map_clean_lw.csv):              ICI 286 (41.8 %), estimation 41 (6.0 %), neither 357 (52.2 %)
+cells whose dominant factor differs between old and new: 128; between no loading and LW: 87; largest |L_ICI_net(map_v2) - L_ICI_net(map_prototype)| = 0.00e+0 dB (CSV rounding)
+  Nr 2: old ICI 92 (53.8 %), estimation 0 (0.0 %), neither 79 (46.2 %); new ICI 92 (53.8 %), estimation 0 (0.0 %), neither 79 (46.2 %); LW ICI 92 (53.8 %), estimation 0 (0.0 %), neither 79 (46.2 %); L_est mean old 0.43 / new 0.05 / LW 0.03 dB, max old 1.57 / new 0.05 / LW 0.06 dB
+  Nr 4: old ICI 89 (52.0 %), estimation 0 (0.0 %), neither 82 (48.0 %); new ICI 89 (52.0 %), estimation 0 (0.0 %), neither 82 (48.0 %); LW ICI 89 (52.0 %), estimation 0 (0.0 %), neither 82 (48.0 %); L_est mean old 0.45 / new 0.15 / LW 0.08 dB, max old 1.84 / new 0.17 / LW 0.15 dB
+  Nr 8: old ICI 56 (32.7 %), estimation 0 (0.0 %), neither 115 (67.3 %); new ICI 56 (32.7 %), estimation 0 (0.0 %), neither 115 (67.3 %); LW ICI 56 (32.7 %), estimation 0 (0.0 %), neither 115 (67.3 %); L_est mean old 0.37 / new 0.36 / LW 0.18 dB, max old 2.36 / new 0.37 / LW 0.30 dB
+  Nr 16: old ICI 57 (33.3 %), estimation 0 (0.0 %), neither 114 (66.7 %); new ICI 43 (25.1 %), estimation 128 (74.9 %), neither 0 (0.0 %); LW ICI 49 (28.7 %), estimation 41 (24.0 %), neither 81 (47.4 %); L_est mean old 0.42 / new 0.85 / LW 0.40 dB, max old 2.72 / new 0.88 / LW 0.71 dB

@@ -36,7 +36,7 @@
 ## 摘要（`docs/diagnostics/map_prototype_heatmap.txt` 有文字版熱圖，每個 Nr 兩張：照規格與 NET）
 
 - 照規格定義：704 格中 ICI 主導 505、估計主導 0、兩者都 < 0.5 dB 有 199；扣掉 v = 0 基準後：ICI 主導 314、估計主導 0、兩者都 < 0.5 dB 有 390。
-- 在這組設定下，導頻殘差法（γ_rel = +10 dB）的估計損失從不主導：`L_est` 的平均約 0.4–0.5 dB、最大 2.7 dB（Nr = 16，15 GHz，15 kHz，400 km/h）；含訊號的 `L_est_naive` 平均 3.1（Nr = 2）到 22.7 dB（Nr = 16）。
+- 在這組設定下，導頻殘差法（γ_rel = +10 dB）的估計損失從不主導（此句只在 +10 dB 加載版成立；不加載版有 128 個格點由估計主導，占 SNR 20 dB 有效 684 格的 18.7%，全部在 Nr = 16（占 Nr = 16 有效格的 74.9%），原因是殘差樣本數（約 84）相對天線數偏少；見 map_clean_compare.csv）：`L_est` 的平均約 0.4–0.5 dB、最大 2.7 dB（Nr = 16，15 GHz，15 kHz，400 km/h）；含訊號的 `L_est_naive` 平均 3.1（Nr = 2）到 22.7 dB（Nr = 16）。
 - `L_ICI` 最大 19.0 dB（Nr = 2，28 GHz，15 kHz，500 km/h）；ICI 損失隨 fc/Δf 增大而增大，隨 Nr 增大而減小。
 - AD-MF（genie）只在 2 格優於導頻殘差法（Nr = 2，28 GHz，15 kHz，450 與 500 km/h，都在 `eps_max > 0.5` 的區域）。
 
@@ -50,3 +50,5 @@ Summary of the proportions: `docs/diagnostics/map_v2_summary.txt`.
 ## Clean-estimator slice, two versions side by side (SNR 20 dB)
 
 `map_prototype.csv` (older, unchanged) uses the pilot residual with gamma_rel = +10 dB; `map_v2.csv` uses the pilot residual without loading. `map_clean_compare.csv` puts `L_est_old_db` (+10 dB) and `L_est_new_db` (no loading) and the two dominant factors next to each other (script `tests/map_clean_compare.js`, reads the two CSVs only). Summary: `docs/diagnostics/map_clean_compare.txt`.
+
+Third version: `map_clean_lw.csv` (script `tests/map_clean_lw.js`; Ledoit-Wolf shrinkage of the pilot-subcarrier covariance, same 704 cells, seed and 200 realisations at SNR 20 dB). It is appended to `map_clean_compare.csv` as the new columns `L_est_lw_db` and `dominant_lw`; the earlier columns are unchanged.
