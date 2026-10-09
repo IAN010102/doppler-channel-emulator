@@ -46,3 +46,7 @@
 Columns: `L_ICI_net_db` (Doppler-caused ICI loss, baseline at v = 0 subtracted, floored at 0), `L_ICI_raw_db`, `L_est_db` (clean estimator: pilot residual without loading), `L_est_naive_db` (signal in R_yy, all 1024 subcarriers), `dominant_clean` and `dominant_naive` (I = ICI, E = estimation, - = both below 0.5 dB), `excluded` (1 when eps_max = f_m / delta_f > 0.5, outside the CP-estimator range; left out of all proportions).
 `map_v2_critical.csv` — critical Nr (for each SNR) and critical SNR (for each Nr) where L_est_naive = L_ICI_net (linear interpolation; empty = no sign change inside the grid). Informational.
 Summary of the proportions: `docs/diagnostics/map_v2_summary.txt`.
+
+## Clean-estimator slice, two versions side by side (SNR 20 dB)
+
+`map_prototype.csv` (older, unchanged) uses the pilot residual with gamma_rel = +10 dB; `map_v2.csv` uses the pilot residual without loading. `map_clean_compare.csv` puts `L_est_old_db` (+10 dB) and `L_est_new_db` (no loading) and the two dominant factors next to each other (script `tests/map_clean_compare.js`, reads the two CSVs only). Summary: `docs/diagnostics/map_clean_compare.txt`.
