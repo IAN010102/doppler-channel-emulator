@@ -5,6 +5,7 @@
     <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>陣列訊號處理 × 高移動性都卜勒 實驗平台 V4.0</title>
+    <meta name="description" content="互動式實驗平台：觀察高速移動造成的都卜勒擴展如何影響陣列波束成形，適合通訊工程的學生與研究者。">
     <style>
         :root {
             --bg: #080a0f; --panel: #10131b; --panel-2: #0b0d13; --line: #252b3b;
@@ -118,6 +119,8 @@
         .exp-result canvas { width: 100%; height: 190px; display: block; background: #10131b; border: 1px solid var(--line); border-radius: 4px; }
         .exp-table { font: 0.66rem var(--mono); color: var(--text); line-height: 1.5; }
         #btn-lang { width: auto; min-width: 44px; }
+        .lab-intro { margin: 0; padding: 0 2px 2px; font: 0.7rem/1.5 var(--sans); color: var(--muted); grid-column: 1 / -1; }
+        html:not([lang="en"]) .lab-intro { display: none; }
         html[lang="en"] .lab .zh { display: none; }
         html[lang="en"] .lab .en { font-size: 0.66rem; color: var(--text); }
         .bench { grid-column: 1 / -1; }
@@ -235,6 +238,7 @@
 
     <!-- LEFT SIDEBAR: Tx / Channel / Rx parameter cards -->
     <aside class="left">
+        <p class="lab-intro" id="lab-intro" lang="en">An interactive lab for seeing how Doppler spread from fast-moving receivers degrades array beamforming, made for communications students and researchers.</p>
         <div class="notice" id="st-note"></div>
         <div class="card group g-tx"><div class="g-title">TX 發射端<em>Transmitter</em> <span id="model-tag" class="chip pause" style="margin-left:6px" title="channel model (selector below)">Unified（新）</span></div><div class="g-body" id="body-tx"></div></div>
         <div class="card group g-ch"><div class="g-title">CHANNEL 通道<em>Channel</em></div><div class="g-body" id="body-ch"></div></div>
@@ -437,9 +441,16 @@
                 nodes.forEach(x => { if (this.done.has(x)) { x.nodeValue = this.done.get(x); this.done.delete(x); } });
                 if (root.querySelectorAll) root.querySelectorAll('[data-title-zh]').forEach(el => { el.setAttribute('title', el.dataset.titleZh); delete el.dataset.titleZh; });
             },
-            set(l) {
+            doc: {
+                zh: { title: '陣列訊號處理 × 高移動性都卜勒 實驗平台 V4.0', desc: '互動式實驗平台：觀察高速移動造成的都卜勒擴展如何影響陣列波束成形，適合通訊工程的學生與研究者。' },
+                en: { title: 'Array Processing × High-Mobility Doppler Lab V4.0', desc: 'An interactive lab for seeing how Doppler spread from fast-moving receivers degrades array beamforming. Made for communications students and researchers.' }
+            },
+            // persist = false for the automatic first-visit choice: only a language the person picks themselves is saved
+            set(l, persist) {
                 this.cur = l; document.documentElement.lang = l === 'en' ? 'en' : 'zh-Hant';
-                try { localStorage.setItem('lang', l); } catch (e) { /* storage not available: the choice is simply not remembered */ }
+                document.title = this.doc[l].title;
+                const md = document.querySelector('meta[name="description"]'); if (md) md.setAttribute('content', this.doc[l].desc);
+                if (persist !== false) { try { localStorage.setItem('lang', l); } catch (e) { /* storage not available: the choice is simply not remembered */ } }
                 const b = document.getElementById('btn-lang'); if (b) b.textContent = l === 'en' ? '中文' : 'EN';
                 if (l === 'zh') this.restore(document.body); else this.walk(document.body);
                 this.tips();
@@ -460,7 +471,11 @@
                 try { stored = localStorage.getItem('lang'); } catch (e) { ok = false; }
                 if (!ok) return 'zh';                                                 // storage unavailable: Traditional Chinese
                 if (stored === 'zh' || stored === 'en') return stored;
-                return (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language || '')) ? 'zh' : 'en';
+                try {                                                                 // first visit: follow the browser's first language; anything not zh* gets English
+                    const l = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+                    if (!l) return 'zh';
+                    return /^zh/i.test(String(l)) ? 'zh' : 'en';
+                } catch (e) { return 'zh'; }                                          // detection failed: Traditional Chinese
             }
         };
 
@@ -1578,7 +1593,7 @@
                 else m.addedNodes.forEach(n => { if (n.nodeType === 3) Lang.node(n); else if (n.nodeType === 1) Lang.walk(n); });
             }
         }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['title'] });
-        Lang.set(Lang.initial());
+        Lang.set(Lang.initial(), false);
 
         // render safety: paint one complete frame synchronously (even if the page ever starts PAUSED), then redraw on every layout change
         Sys.computeMath(); Sys.lastCompute = performance.now(); Sys.dirty = false; Inspector.onCompute();
